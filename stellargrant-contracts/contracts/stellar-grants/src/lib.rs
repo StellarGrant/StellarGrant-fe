@@ -96,6 +96,84 @@ impl StellarGrantsContract {
         Ok(())
     }
 
+    /// Mark a grant as completed when all milestones are approved and refund the remaining balance
+    pub fn grant_complete(env: Env, grant_id: u64) -> Result<(), ContractError> {
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        // Verify all milestones are approved and calculate total paid
+        let mut total_paid: i128 = 0;
+        let mut approved_count = 0;
+
+        for milestone_idx in 0..grant.total_milestones {
+            if let Some(milestone) = Storage::get_milestone(&env, grant_id, milestone_idx) {
+                if milestone.state != MilestoneState::Approved {
+                    return Err(ContractError::NotAllMilestonesApproved);
+                }
+                total_paid += milestone.amount;
+                approved_count += 1;
+            } else {
+                return Err(ContractError::NotAllMilestonesApproved);
+            }
+        }
+
+        if approved_count != grant.total_milestones {
+            return Err(ContractError::NotAllMilestonesApproved);
+        }
+
+        // Calculate remaining balance refunds
+        let remaining_balance = grant.escrow_balance - total_paid;
+
+        if remaining_balance > 0 {
+            let mut total_contributions: i128 = 0;
+            for fund_entry in grant.funders.iter() {
+                total_contributions += fund_entry.amount;
+            }
+
+            if total_contributions > 0 {
+                let token_client = token::Client::new(&env, &grant.token);
+
+                for fund_entry in grant.funders.iter() {
+                    let refund_amount = fund_entry
+                        .amount
+                        .checked_mul(remaining_balance)
+                        .ok_or(ContractError::InvalidInput)?
+                        .checked_div(total_contributions)
+                        .ok_or(ContractError::InvalidInput)?;
+
+                    if refund_amount > 0 {
+                        token_client.transfer(
+                            &env.current_contract_address(),
+                            &fund_entry.funder,
+                            &refund_amount,
+                        );
+                        Events::emit_final_refund(
+                            &env,
+                            grant_id,
+                            fund_entry.funder.clone(),
+                            refund_amount,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Update state
+        grant.status = GrantStatus::Completed;
+        grant.escrow_balance = 0;
+        grant.timestamp = env.ledger().timestamp();
+
+        Storage::set_grant(&env, grant_id, &grant);
+
+        // Emit completion event
+        Events::emit_grant_completed(&env, grant_id, total_paid, remaining_balance);
+
+        Ok(())
+    }
+
     /// Allows authorized reviewers to vote on submitted milestones.
     pub fn milestone_vote(
         env: Env,

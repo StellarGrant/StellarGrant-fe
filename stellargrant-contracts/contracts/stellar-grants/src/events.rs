@@ -52,6 +52,23 @@ pub struct RefundExecuted {
     pub amount: i128,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantCompleted {
+    pub grant_id: u64,
+    pub total_paid: i128,
+    pub remaining_balance: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FinalRefund {
+    pub grant_id: u64,
+    pub funder: Address,
+    pub amount: i128,
+}
+
 pub struct Events;
 
 impl Events {
@@ -74,6 +91,30 @@ impl Events {
 
     pub fn emit_refund_executed(env: &Env, grant_id: u64, funder: Address, amount: i128) {
         let event = RefundExecuted {
+            grant_id,
+            funder,
+            amount,
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_completed(
+        env: &Env,
+        grant_id: u64,
+        total_paid: i128,
+        remaining_balance: i128,
+    ) {
+        let event = GrantCompleted {
+            grant_id,
+            total_paid,
+            remaining_balance,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_final_refund(env: &Env, grant_id: u64, funder: Address, amount: i128) {
+        let event = FinalRefund {
             grant_id,
             funder,
             amount,
