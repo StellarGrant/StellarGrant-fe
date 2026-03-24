@@ -10,10 +10,6 @@ pub enum DataKey {
 pub struct Storage;
 
 impl Storage {
-    pub fn milestone_key(grant_id: u64, milestone_idx: u32) -> DataKey {
-        DataKey::Milestone(grant_id, milestone_idx)
-    }
-
     pub fn get_grant(env: &Env, grant_id: u64) -> Option<Grant> {
         env.storage().persistent().get(&DataKey::Grant(grant_id))
     }
@@ -30,10 +26,14 @@ impl Storage {
             .set(&DataKey::Grant(grant_id), grant);
     }
 
+    pub fn has_grant(env: &Env, grant_id: u64) -> bool {
+        env.storage().persistent().has(&DataKey::Grant(grant_id))
+    }
+
     pub fn get_milestone(env: &Env, grant_id: u64, milestone_idx: u32) -> Option<Milestone> {
         env.storage()
             .persistent()
-            .get(&Self::milestone_key(grant_id, milestone_idx))
+            .get(&DataKey::Milestone(grant_id, milestone_idx))
     }
 
     pub fn get_milestone_v(env: &Env, grant_id: u64, milestone_idx: u32) -> Milestone {
@@ -45,6 +45,22 @@ impl Storage {
     pub fn set_milestone(env: &Env, grant_id: u64, milestone_idx: u32, milestone: &Milestone) {
         env.storage()
             .persistent()
-            .set(&Self::milestone_key(grant_id, milestone_idx), milestone);
+            .set(&DataKey::Milestone(grant_id, milestone_idx), milestone);
     }
+<<<<<<< HEAD
+=======
+
+    pub fn increment_grant_counter(env: &Env) -> u64 {
+        let mut counter: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::GrantCounter)
+            .unwrap_or(0);
+        counter += 1;
+        env.storage()
+            .persistent()
+            .set(&DataKey::GrantCounter, &counter);
+        counter
+    }
+>>>>>>> 8a269c2 (chore: resolve upstream merge conflicts and update test schemas)
 }
