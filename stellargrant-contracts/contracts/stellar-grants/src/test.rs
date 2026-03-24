@@ -276,7 +276,7 @@ mod tests {
         let milestone_amount = 300i128;
         let fund1 = 600i128;
         let fund2 = 400i128;
-        
+
         token_admin.mint(&contract_id, &total_funded);
 
         let mut funders = Vec::new(&env);
