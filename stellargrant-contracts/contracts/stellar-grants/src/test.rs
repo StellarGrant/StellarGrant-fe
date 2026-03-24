@@ -466,4 +466,52 @@ mod tests {
             assert_eq!(updated_grant.escrow_balance, 0);
         });
     }
+
+    #[test]
+    fn test_get_grant_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token_id = Address::generate(&env);
+        let grant_id = 999u64;
+        let total_funded = 500i128;
+
+        let grant = Grant {
+            id: grant_id,
+            owner: owner.clone(),
+            token: token_id.clone(),
+            status: GrantStatus::Active,
+            total_amount: total_funded,
+            reviewers: Vec::new(&env),
+            total_milestones: 1,
+            milestones_paid_out: 0,
+            escrow_balance: total_funded,
+            funders: Vec::new(&env),
+            reason: None,
+            timestamp: 0,
+        };
+
+        env.as_contract(&contract_id, || {
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        let fetched_grant = client.get_grant(&grant_id);
+
+        assert_eq!(fetched_grant.id, grant_id);
+        assert_eq!(fetched_grant.owner, owner);
+        assert_eq!(fetched_grant.total_amount, total_funded);
+        assert_eq!(fetched_grant.status, GrantStatus::Active);
+    }
+
+    #[test]
+    fn test_get_grant_not_found() {
+        let env = Env::default();
+        let (client, _, _) = setup_test(&env);
+        let invalid_grant_id = 12345u64;
+
+        let result = client.try_get_grant(&invalid_grant_id);
+        assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
+    }
 }

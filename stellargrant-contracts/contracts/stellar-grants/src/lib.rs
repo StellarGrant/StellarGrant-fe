@@ -291,6 +291,11 @@ impl StellarGrantsContract {
         Ok(majority_rejected)
     }
 
+    /// Retrieve a grant by its ID
+    pub fn get_grant(env: Env, grant_id: u64) -> Result<Grant, ContractError> {
+        Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)
+    }
+
     pub fn get_milestone(
         env: Env,
         grant_id: u64,
