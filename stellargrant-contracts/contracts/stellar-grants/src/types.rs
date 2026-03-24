@@ -16,7 +16,6 @@ pub enum ContractError {
     MilestoneNotFound = 9,
     InvalidState = 10,
     NoRefundableAmount = 11,
-    NotAllMilestonesApproved = 12,
 }
 
 #[contracttype]
