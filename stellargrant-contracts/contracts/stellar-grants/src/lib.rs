@@ -394,6 +394,75 @@ impl StellarGrantsContract {
         Ok(())
     }
 
+    /// Allows a funder to deposit tokens into escrow for a specific grant.
+    ///
+    /// # Arguments
+    /// * `grant_id` - The unique identifier of the grant.
+    /// * `funder` - The address of the entity sending funds.
+    /// * `amount` - The amount of tokens to deposit.
+    ///
+    /// # Errors
+    /// * [`ContractError::InvalidInput`] – if `amount <= 0` or if addition overflows.
+    /// * [`ContractError::GrantNotFound`] – if no grant exists with the given `grant_id`.
+    /// * [`ContractError::InvalidState`] – if the grant is not in `Active` status.
+    pub fn grant_fund(
+        env: Env,
+        grant_id: u64,
+        funder: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        funder.require_auth();
+
+        if amount <= 0 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        // Perform the token transfer from the funder to the contract
+        let token_client = token::Client::new(&env, &grant.token);
+        let contract_address = env.current_contract_address();
+        token_client.transfer(&funder, &contract_address, &amount);
+
+        // Update escrow balance with overflow protection
+        grant.escrow_balance = grant
+            .escrow_balance
+            .checked_add(amount)
+            .ok_or(ContractError::InvalidInput)?;
+
+        // Update funds tracking
+        let mut funder_found = false;
+        for i in 0..grant.funders.len() {
+            let mut fund_entry = grant.funders.get(i).unwrap();
+            if fund_entry.funder == funder {
+                fund_entry.amount = fund_entry
+                    .amount
+                    .checked_add(amount)
+                    .ok_or(ContractError::InvalidInput)?;
+                grant.funders.set(i, fund_entry);
+                funder_found = true;
+                break;
+            }
+        }
+
+        if !funder_found {
+            grant.funders.push_back(GrantFund {
+                funder: funder.clone(),
+                amount,
+            });
+        }
+
+        Storage::set_grant(&env, grant_id, &grant);
+
+        Events::emit_grant_funded(&env, grant_id, funder, amount, grant.escrow_balance);
+
+        Ok(())
+    }
+
     /// Retrieve a grant by its ID
     pub fn get_grant(env: Env, grant_id: u64) -> Result<Grant, ContractError> {
         Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)
