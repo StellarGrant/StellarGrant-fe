@@ -7,6 +7,7 @@ pub enum DataKey {
     Milestone(u64, u32),
     GrantCounter,
     Contributor(soroban_sdk::Address),
+    ExtensionRequest(u64, u32),
 }
 
 pub struct Storage;
@@ -68,5 +69,26 @@ impl Storage {
         env.storage()
             .persistent()
             .set(&DataKey::Contributor(contributor), profile);
+    }
+
+    pub fn get_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<crate::types::ExtensionRequest> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ExtensionRequest(grant_id, milestone_idx))
+    }
+
+    pub fn set_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        request: &crate::types::ExtensionRequest,
+    ) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::ExtensionRequest(grant_id, milestone_idx), request);
     }
 }

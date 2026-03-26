@@ -435,12 +435,19 @@ impl StellarGrantsContract {
         }
 
         // 5. Milestone must not already be submitted or approved
+        let mut deadline = 0u64;
         if let Some(existing) = Storage::get_milestone(&env, grant_id, milestone_idx) {
             if existing.state == MilestoneState::Submitted
                 || existing.state == MilestoneState::Approved
             {
                 return Err(ContractError::MilestoneAlreadySubmitted);
             }
+            deadline = existing.deadline_timestamp;
+        }
+
+        // 6. Check deadline if set
+        if deadline > 0 && env.ledger().timestamp() > deadline {
+            return Err(ContractError::DeadlinePassed);
         }
 
         // Build and store the milestone in Submitted state
@@ -456,6 +463,7 @@ impl StellarGrantsContract {
             status_updated_at: 0,
             proof_url: Some(proof_url),
             submission_timestamp: env.ledger().timestamp(),
+            deadline_timestamp: deadline,
         };
 
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
@@ -553,6 +561,120 @@ impl StellarGrantsContract {
 
         Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotFound)
+    }
+
+    /// Allows a contributor to request an extension for a milestone's deadline.
+    pub fn request_milestone_extension(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        new_deadline: u64,
+    ) -> Result<(), ContractError> {
+        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        grant.owner.require_auth();
+
+        if milestone_idx >= grant.total_milestones {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // Check if milestone exists and is not already approved
+        if let Some(milestone) = Storage::get_milestone(&env, grant_id, milestone_idx) {
+            if milestone.state == MilestoneState::Approved {
+                return Err(ContractError::MilestoneAlreadyApproved);
+            }
+        }
+
+        let request = crate::types::ExtensionRequest {
+            milestone_idx,
+            new_deadline,
+            votes: soroban_sdk::Map::new(&env),
+            approvals: 0,
+            rejections: 0,
+            status: crate::types::ExtensionStatus::Pending,
+        };
+
+        Storage::set_extension_request(&env, grant_id, milestone_idx, &request);
+        Events::emit_extension_requested(&env, grant_id, milestone_idx, new_deadline);
+
+        Ok(())
+    }
+
+    /// Allows authorized reviewers to vote on extension requests.
+    pub fn extension_vote(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        reviewer: Address,
+        approve: bool,
+    ) -> Result<bool, ContractError> {
+        reviewer.require_auth();
+
+        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let mut request = Storage::get_extension_request(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::ExtensionRequestNotFound)?;
+
+        if request.status != crate::types::ExtensionStatus::Pending {
+            return Err(ContractError::InvalidState);
+        }
+
+        if !grant.reviewers.contains(reviewer.clone()) {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if request.votes.contains_key(reviewer.clone()) {
+            return Err(ContractError::AlreadyVoted);
+        }
+
+        request.votes.set(reviewer.clone(), approve);
+        if approve {
+            request.approvals += 1;
+        } else {
+            request.rejections += 1;
+        }
+
+        let total_reviewers = grant.reviewers.len();
+        let quorum_threshold = (total_reviewers / 2) + 1;
+
+        let mut status_changed = false;
+        if request.approvals >= quorum_threshold {
+            request.status = crate::types::ExtensionStatus::Approved;
+            status_changed = true;
+
+            // Update milestone deadline
+            let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+                .unwrap_or(Milestone {
+                    idx: milestone_idx,
+                    description: String::from_str(&env, "Pending"),
+                    amount: 0,
+                    state: MilestoneState::Pending,
+                    votes: soroban_sdk::Map::new(&env),
+                    approvals: 0,
+                    rejections: 0,
+                    reasons: soroban_sdk::Map::new(&env),
+                    status_updated_at: 0,
+                    proof_url: None,
+                    submission_timestamp: 0,
+                    deadline_timestamp: 0,
+                });
+            
+            milestone.deadline_timestamp = request.new_deadline;
+            Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+            Events::emit_extension_approved(&env, grant_id, milestone_idx, request.new_deadline);
+        } else if request.rejections >= quorum_threshold {
+            request.status = crate::types::ExtensionStatus::Denied;
+            status_changed = true;
+            Events::emit_extension_denied(&env, grant_id, milestone_idx);
+        }
+
+        Storage::set_extension_request(&env, grant_id, milestone_idx, &request);
+        Events::emit_extension_voted(&env, grant_id, milestone_idx, reviewer, approve);
+
+        Ok(status_changed)
     }
 }
 

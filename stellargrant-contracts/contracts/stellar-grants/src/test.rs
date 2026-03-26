@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::storage::Storage;
-    use crate::types::{ContractError, Grant, GrantFund, GrantStatus, Milestone, MilestoneState};
+    use crate::types::{
+        ContractError, ExtensionRequest, ExtensionStatus, Grant, GrantFund, GrantStatus, Milestone,
+        MilestoneState,
+    };
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
     use soroban_sdk::{testutils::Address as _, token, Address, Env, Map, String, Vec};
@@ -1238,5 +1241,130 @@ mod tests {
             &reviewers,
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_milestone_extension_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let new_deadline = 10000u64;
+        client.request_milestone_extension(&grant_id, &milestone_idx, &new_deadline);
+
+        // Vote and approve
+        client.extension_vote(&grant_id, &milestone_idx, &reviewer, &true);
+
+        // Verify milestone deadline was updated
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.deadline_timestamp, new_deadline);
+        });
+
+        // Verify we can still submit within the new deadline
+        env.ledger().set_timestamp(9000);
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        client.milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.state, MilestoneState::Submitted);
+        });
+    }
+
+    #[test]
+    fn test_milestone_extension_denied() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let new_deadline = 10000u64;
+        client.request_milestone_extension(&grant_id, &milestone_idx, &new_deadline);
+
+        // Reject
+        client.extension_vote(&grant_id, &milestone_idx, &reviewer, &false);
+
+        // Verify milestone deadline was NOT updated (should be 0)
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx);
+            if let Some(m) = milestone {
+                assert_eq!(m.deadline_timestamp, 0);
+            }
+        });
+    }
+
+    #[test]
+    fn test_milestone_submit_deadline_passed() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let new_deadline = 5000u64;
+        client.request_milestone_extension(&grant_id, &milestone_idx, &new_deadline);
+        client.extension_vote(&grant_id, &milestone_idx, &reviewer, &true);
+
+        // Jump past deadline
+        env.ledger().set_timestamp(6000);
+
+        let description = String::from_str(&env, "Late work");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        let result = client.try_milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+        
+        assert_eq!(result, Err(Ok(ContractError::DeadlinePassed.into())));
     }
 }

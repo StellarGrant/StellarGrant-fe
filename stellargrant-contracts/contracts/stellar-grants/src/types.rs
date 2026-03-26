@@ -19,6 +19,9 @@ pub enum ContractError {
     NotAllMilestonesApproved = 12,
     AlreadyRegistered = 13,
     MilestoneAlreadySubmitted = 14,
+    ExtensionDenied = 15,
+    VotingPeriodEnded = 16,
+    ExtensionRequestNotFound = 17,
 }
 
 #[contracttype]
@@ -45,6 +48,27 @@ pub struct Milestone {
     pub status_updated_at: u64,
     pub proof_url: Option<String>,
     pub submission_timestamp: u64,
+    pub deadline_timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ExtensionStatus {
+    Pending = 0,
+    Approved = 1,
+    Denied = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionRequest {
+    pub milestone_idx: u32,
+    pub new_deadline: u64,
+    pub votes: Map<Address, bool>,
+    pub approvals: u32,
+    pub rejections: u32,
+    pub status: ExtensionStatus,
 }
 
 #[contracttype]
