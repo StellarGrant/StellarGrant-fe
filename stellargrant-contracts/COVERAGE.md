@@ -92,8 +92,11 @@ Add the following secret to your GitHub repository:
 |---|---|
 | `CODECOV_TOKEN` | *(Token from your Codecov dashboard — Settings → Repository Upload Token)* |
 
+<<<<<<< HEAD
 > **Fork PR note**: GitHub does not expose repository secrets to workflows triggered from forks (security policy). This means coverage upload will silently skip on fork PRs but **will succeed** on pushes to `main` from the base repository. CI will still pass — `fail_ci_if_error` is set to `false` to handle this gracefully.
 
+=======
+>>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)
 ### Badge
 
 Add this to the root `README.md`, replacing `<owner>` and `<repo>` with your GitHub username and repository name:
