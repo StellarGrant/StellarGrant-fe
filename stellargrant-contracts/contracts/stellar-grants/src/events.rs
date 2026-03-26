@@ -102,6 +102,42 @@ pub struct GrantCreated {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionRequested {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub new_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionVoted {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub reviewer: Address,
+    pub approve: bool,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionApproved {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub new_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionDenied {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub timestamp: u64,
+}
+
 pub struct Events;
 
 impl Events {
@@ -257,6 +293,57 @@ impl Events {
             grant_id,
             milestone_idx,
             new_state,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_requested(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        new_deadline: u64,
+    ) {
+        let event = ExtensionRequested {
+            grant_id,
+            milestone_idx,
+            new_deadline,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_voted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        reviewer: Address,
+        approve: bool,
+    ) {
+        let event = ExtensionVoted {
+            grant_id,
+            milestone_idx,
+            reviewer,
+            approve,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_approved(env: &Env, grant_id: u64, milestone_idx: u32, new_deadline: u64) {
+        let event = ExtensionApproved {
+            grant_id,
+            milestone_idx,
+            new_deadline,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_denied(env: &Env, grant_id: u64, milestone_idx: u32) {
+        let event = ExtensionDenied {
+            grant_id,
+            milestone_idx,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
