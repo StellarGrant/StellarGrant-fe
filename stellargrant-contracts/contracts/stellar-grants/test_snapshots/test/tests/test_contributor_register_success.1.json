@@ -1,12 +1,49 @@
 {
   "generators": {
-    "address": 5,
+    "address": 3,
     "nonce": 0,
     "mux_id": 0
   },
   "auth": [
     [],
-    [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "contributor_register",
+              "args": [
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "string": "Alice"
+                },
+                {
+                  "string": "Rust Developer"
+                },
+                {
+                  "vec": [
+                    {
+                      "string": "Rust"
+                    },
+                    {
+                      "string": "Soroban"
+                    }
+                  ]
+                },
+                {
+                  "string": "https://github.com/alice"
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
     []
   ],
   "ledger": {
@@ -29,10 +66,10 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "Grant"
+                    "symbol": "Contributor"
                   },
                   {
-                    "u64": "1"
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                   }
                 ]
               },
@@ -41,55 +78,15 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "description"
+                      "symbol": "bio"
                     },
                     "val": {
-                      "string": "Desc"
+                      "string": "Rust Developer"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
-                    },
-                    "val": {
-                      "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "funders"
-                    },
-                    "val": {
-                      "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "id"
-                    },
-                    "val": {
-                      "u64": "1"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "milestone_amount"
-                    },
-                    "val": {
-                      "i128": "500"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "owner"
+                      "symbol": "contributor"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -97,29 +94,31 @@
                   },
                   {
                     "key": {
-                      "symbol": "reason"
-                    },
-                    "val": "void"
-                  },
-                  {
-                    "key": {
-                      "symbol": "reviewers"
+                      "symbol": "github_url"
                     },
                     "val": {
-                      "vec": []
+                      "string": "https://github.com/alice"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "status"
+                      "symbol": "grants_count"
                     },
                     "val": {
-                      "u32": 1
+                      "u32": 0
                     }
                   },
                   {
                     "key": {
-                      "symbol": "timestamp"
+                      "symbol": "name"
+                    },
+                    "val": {
+                      "string": "Alice"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "registration_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -127,34 +126,25 @@
                   },
                   {
                     "key": {
-                      "symbol": "title"
+                      "symbol": "skills"
                     },
                     "val": {
-                      "string": "Test"
+                      "vec": [
+                        {
+                          "string": "Rust"
+                        },
+                        {
+                          "string": "Soroban"
+                        }
+                      ]
                     }
                   },
                   {
                     "key": {
-                      "symbol": "token"
+                      "symbol": "total_earned"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_amount"
-                    },
-                    "val": {
-                      "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
+                      "i128": "0"
                     }
                   }
                 ]
@@ -187,6 +177,26 @@
           "ext": "v0"
         },
         "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "key": {
+                "ledger_key_nonce": {
+                  "nonce": "801925984706572462"
+                }
+              },
+              "durability": "temporary",
+              "val": "void"
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 6311999
       },
       {
         "entry": {

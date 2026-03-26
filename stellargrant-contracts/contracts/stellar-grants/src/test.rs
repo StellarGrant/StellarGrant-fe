@@ -4,7 +4,7 @@ mod tests {
     use crate::types::{ContractError, Grant, GrantFund, GrantStatus, Milestone, MilestoneState};
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
-    use soroban_sdk::{testutils::Address as _, token, Address, Env, Map, String, Vec};
+    use soroban_sdk::{testutils::{Address as _, Ledger as _}, token, Address, Env, Map, String, Vec};
 
     fn setup_test(
         env: &Env,
@@ -930,9 +930,9 @@ mod tests {
         // we'll explicitly simulate the overflow condition on the grant storage if possible.
         // However, we just need to test that adding to i128::MAX fails properly.
 
-        let (client, _, contract_id) = setup_test(&env);
+        let (_client, _, contract_id) = setup_test(&env);
         let owner = Address::generate(&env);
-        let funder = Address::generate(&env);
+        let _funder = Address::generate(&env);
         let token = Address::generate(&env);
         let grant_id = 1u64;
 
@@ -1238,5 +1238,285 @@ mod tests {
             &reviewers,
         );
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_submit_before_deadline_succeeds() {
+        let env = Env::default();
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline = 150u64;
+
+        env.mock_all_auths();
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+        client.set_milestone_deadline(&grant_id, &milestone_idx, &deadline);
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+
+        let result = client.try_milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+        assert_eq!(result, Ok(Ok(())));
+    }
+
+    #[test]
+    fn test_submit_after_deadline_fails() {
+        let env = Env::default();
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline = 150u64;
+
+        env.mock_all_auths();
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+        client.set_milestone_deadline(&grant_id, &milestone_idx, &deadline);
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 200;
+        });
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+
+        let result = client.try_milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+        assert_eq!(result, Err(Ok(ContractError::DeadlinePassed.into())));
+    }
+
+    #[test]
+    fn test_claim_expired_funds_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, admin, contract_id) = setup_test(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = token_contract.address();
+        let token_admin = token::StellarAssetClient::new(&env, &token_id);
+
+        let owner = Address::generate(&env);
+        let funder1 = Address::generate(&env);
+        let funder2 = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline = 150u64;
+
+        token_admin.mint(&contract_id, &1000);
+
+        let mut funders = Vec::new(&env);
+        funders.push_back(GrantFund { funder: funder1.clone(), amount: 600 });
+        funders.push_back(GrantFund { funder: funder2.clone(), amount: 400 });
+
+        let grant = Grant {
+            id: grant_id,
+            title: String::from_str(&env, "Test"),
+            description: String::from_str(&env, "Desc"),
+            milestone_amount: 500,
+            owner: owner.clone(),
+            token: token_id.clone(),
+            status: GrantStatus::Active,
+            total_amount: 1000,
+            reviewers: Vec::new(&env),
+            total_milestones: 1,
+            milestones_paid_out: 0,
+            escrow_balance: 1000,
+            funders,
+            reason: None,
+            timestamp: 0,
+        };
+
+        env.as_contract(&contract_id, || {
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        client.set_milestone_deadline(&grant_id, &milestone_idx, &deadline);
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 200;
+        });
+
+        let result = client.try_claim_expired_funds(&grant_id, &milestone_idx, &funder1);
+        assert_eq!(result, Ok(Ok(())));
+
+        let token_client = token::Client::new(&env, &token_id);
+        assert_eq!(token_client.balance(&funder1), 300);
+        assert_eq!(token_client.balance(&funder2), 200);
+
+        env.as_contract(&contract_id, || {
+            let updated_grant = Storage::get_grant(&env, grant_id).unwrap();
+            assert_eq!(updated_grant.escrow_balance, 500);
+
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.state, MilestoneState::Expired);
+        });
+    }
+
+    #[test]
+    fn test_claim_expired_funds_double_claim_prevention() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, admin, contract_id) = setup_test(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = token_contract.address();
+        let token_admin = token::StellarAssetClient::new(&env, &token_id);
+
+        let owner = Address::generate(&env);
+        let funder1 = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline = 150u64;
+
+        token_admin.mint(&contract_id, &1000);
+
+        let mut funders = Vec::new(&env);
+        funders.push_back(GrantFund { funder: funder1.clone(), amount: 1000 });
+
+        let grant = Grant {
+            id: grant_id,
+            title: String::from_str(&env, "Test"),
+            description: String::from_str(&env, "Desc"),
+            milestone_amount: 500,
+            owner: owner.clone(),
+            token: token_id.clone(),
+            status: GrantStatus::Active,
+            total_amount: 1000,
+            reviewers: Vec::new(&env),
+            total_milestones: 1,
+            milestones_paid_out: 0,
+            escrow_balance: 1000,
+            funders,
+            reason: None,
+            timestamp: 0,
+        };
+
+        env.as_contract(&contract_id, || {
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        client.set_milestone_deadline(&grant_id, &milestone_idx, &deadline);
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 200;
+        });
+
+        // First claim succeeds
+        let _ = client.claim_expired_funds(&grant_id, &milestone_idx, &funder1);
+
+        // Second claim fails
+        let result = client.try_claim_expired_funds(&grant_id, &milestone_idx, &funder1);
+        assert_eq!(result, Err(Ok(ContractError::MilestoneAlreadySubmitted.into())));
+    }
+
+    #[test]
+    fn test_set_deadline_overwrite_fails() {
+        let env = Env::default();
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline1 = 150u64;
+        let deadline2 = 100u64;
+
+        env.mock_all_auths();
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 50;
+        });
+
+        // Set first time succeeds
+        let result1 = client.try_set_milestone_deadline(&grant_id, &milestone_idx, &deadline1);
+        assert_eq!(result1, Ok(Ok(())));
+
+        // Set second time fails (Immutability check)
+        let result2 = client.try_set_milestone_deadline(&grant_id, &milestone_idx, &deadline2);
+        assert_eq!(result2, Err(Ok(ContractError::InvalidState.into())));
+    }
+
+    #[test]
+    fn test_set_deadline_in_past_fails() {
+        let env = Env::default();
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let past_deadline = 50u64;
+
+        env.mock_all_auths();
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        // Fails because deadline <= current timestamp
+        let result = client.try_set_milestone_deadline(&grant_id, &milestone_idx, &past_deadline);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_vote_after_deadline_succeeds() {
+        let env = Env::default();
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+        let deadline = 150u64;
+
+        env.mock_all_auths();
+        
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        // Create with reviewer
+        let res = client.try_grant_create(
+            &owner,
+            &String::from_str(&env, "Test"),
+            &String::from_str(&env, "Desc"),
+            &token,
+            &1000i128,
+            &500i128,
+            &2u32,
+            &reviewers,
+        );
+        assert!(res.is_ok());
+
+        env.ledger().with_mut(|li| {
+            li.timestamp = 100;
+        });
+
+        client.set_milestone_deadline(&grant_id, &milestone_idx, &deadline);
+
+        // Submit BEFORE deadline
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        client.milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+
+        // Fast forward AFTER deadline
+        env.ledger().with_mut(|li| {
+            li.timestamp = 200;
+        });
+
+        // Vote succeeds because milestone was delivered on time
+        let vote_res = client.try_milestone_vote(&grant_id, &milestone_idx, &reviewer, &true);
+        assert_eq!(vote_res, Ok(Ok(true)));
+
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.state, MilestoneState::Approved);
+        });
     }
 }

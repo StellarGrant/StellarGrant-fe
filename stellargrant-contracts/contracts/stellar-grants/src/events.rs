@@ -13,6 +13,23 @@ pub struct MilestoneVoted {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneExpired {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FundsReclaimed {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub total_amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneRejected {
     pub grant_id: u64,
     pub milestone_idx: u32,
@@ -105,6 +122,24 @@ pub struct GrantCreated {
 pub struct Events;
 
 impl Events {
+    pub fn emit_milestone_expired(env: &Env, grant_id: u64, milestone_idx: u32) {
+        let event = MilestoneExpired {
+            grant_id,
+            milestone_idx,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_funds_reclaimed(env: &Env, grant_id: u64, milestone_idx: u32, total_amount: i128) {
+        let event = FundsReclaimed {
+            grant_id,
+            milestone_idx,
+            total_amount,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
     pub fn emit_grant_cancelled(
         env: &Env,
         grant_id: u64,

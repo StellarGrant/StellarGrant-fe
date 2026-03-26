@@ -7,6 +7,7 @@ pub enum DataKey {
     Milestone(u64, u32),
     GrantCounter,
     Contributor(soroban_sdk::Address),
+    MilestoneDeadline(u64, u32),
 }
 
 pub struct Storage;
@@ -36,6 +37,23 @@ impl Storage {
         env.storage()
             .persistent()
             .set(&DataKey::Milestone(grant_id, milestone_idx), milestone);
+    }
+
+    pub fn get_milestone_deadline(env: &Env, grant_id: u64, milestone_idx: u32) -> Option<u64> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::MilestoneDeadline(grant_id, milestone_idx))
+    }
+
+    pub fn set_milestone_deadline(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        deadline: u64,
+    ) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::MilestoneDeadline(grant_id, milestone_idx), &deadline);
     }
 
     pub fn increment_grant_counter(env: &Env) -> u64 {
