@@ -1,4 +1,15 @@
+<<<<<<< HEAD
 
 /api/node_modules
 /api/dist
 /api/.env*
+=======
+# Coverage artifacts
+tarpaulin-report/
+tarpaulin-report.xml
+tarpaulin-report.json
+cobertura.xml
+coverage/
+*.profraw
+*.profdata
+>>>>>>> 256e004 (feat: add automated code coverage using cargo-tarpaulin)
