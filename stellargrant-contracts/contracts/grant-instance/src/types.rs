@@ -5,20 +5,20 @@ use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum ContractError {
-    GrantNotFound = 1,
-    Unauthorized = 2,
-    MilestoneAlreadyApproved = 3,
-    QuorumNotReached = 4,
-    DeadlinePassed = 5,
-    InvalidInput = 6,
-    MilestoneNotSubmitted = 7,
-    AlreadyVoted = 8,
-    MilestoneNotFound = 9,
-    InvalidState = 10,
-    NoRefundableAmount = 11,
-    NotAllMilestonesApproved = 12,
-    AlreadyRegistered = 13,
-    MilestoneAlreadySubmitted = 14,
+    Unauthorized = 1,
+    MilestoneAlreadyApproved = 2,
+    QuorumNotReached = 3,
+    DeadlinePassed = 4,
+    InvalidInput = 5,
+    MilestoneNotSubmitted = 6,
+    AlreadyVoted = 7,
+    MilestoneNotFound = 8,
+    InvalidState = 9,
+    NoRefundableAmount = 10,
+    NotAllMilestonesApproved = 11,
+    MilestoneAlreadySubmitted = 12,
+    NotInitialized = 13,
+    AlreadyInitialized = 14,
 }
 
 #[contracttype]
@@ -66,7 +66,6 @@ pub struct GrantFund {
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Grant {
-    pub id: u64,
     pub owner: Address,
     pub title: String,
     pub description: String,
@@ -81,17 +80,4 @@ pub struct Grant {
     pub funders: Vec<GrantFund>,
     pub reason: Option<String>,
     pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ContributorProfile {
-    pub contributor: Address,
-    pub name: String,
-    pub bio: String,
-    pub skills: Vec<String>,
-    pub github_url: String,
-    pub registration_timestamp: u64,
-    pub grants_count: u32,
-    pub total_earned: i128,
 }

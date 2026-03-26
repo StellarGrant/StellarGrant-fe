@@ -1,5 +1,5 @@
 [package]
-name = "stellar-grants"
+name = "stellar-grant-instance"
 version = "0.1.0"
 edition = "2021"
 publish = false
