@@ -1,11 +1,10 @@
 {
   "generators": {
-    "address": 6,
+    "address": 5,
     "nonce": 0,
     "mux_id": 0
   },
   "auth": [
-    [],
     [],
     [],
     [],
@@ -30,7 +29,9 @@
                 {
                   "bool": true
                 },
-                "void"
+                {
+                  "string": "Great job!"
+                }
               ]
             }
           },
@@ -140,9 +141,6 @@
                       "vec": [
                         {
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
-                        },
-                        {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                         }
                       ]
                     }
@@ -239,7 +237,7 @@
                       "symbol": "approvals"
                     },
                     "val": {
-                      "u32": 3
+                      "u32": 1
                     }
                   },
                   {
@@ -271,7 +269,16 @@
                       "symbol": "reasons"
                     },
                     "val": {
-                      "map": []
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                          },
+                          "val": {
+                            "string": "Great job!"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -350,34 +357,7 @@
               },
               "durability": "persistent",
               "val": {
-                "u32": 4
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 4095
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "ReviewerReputation"
-                  },
-                  {
-                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "u32": 1
+                "u32": 2
               }
             }
           },
