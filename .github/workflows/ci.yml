@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 jobs:
@@ -32,4 +34,44 @@ jobs:
       - name: Check (WASM)
         run: cargo check --workspace --target wasm32-unknown-unknown
 
-  
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: stellargrant-contracts
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+          components: llvm-tools-preview
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: stellargrant-contracts
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate code coverage
+        run: cargo tarpaulin --workspace --lib --target x86_64-unknown-linux-gnu --engine llvm --out Xml
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: stellargrant-contracts/cobertura.xml
+          retention-days: 7
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: stellargrant-contracts/cobertura.xml
+          fail_ci_if_error: true
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}

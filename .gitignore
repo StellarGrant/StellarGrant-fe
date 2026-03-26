@@ -1,0 +1,8 @@
+# Coverage artifacts
+tarpaulin-report/
+tarpaulin-report.xml
+tarpaulin-report.json
+cobertura.xml
+coverage/
+*.profraw
+*.profdata

@@ -1,6 +1,8 @@
 StellarGrants Protocol
 ======================
 
+[![codecov](https://codecov.io/gh/<owner>/<repo>/branch/main/graph/badge.svg)](https://codecov.io/gh/<owner>/<repo>)
+
 This repository contains two tightly-coupled parts of the StellarGrants Protocol:
 
 1. **Smart contracts** (Soroban, Rust) in `stellargrant-contracts/`
@@ -98,7 +100,23 @@ make build
 make test
 ```
 
+### Smart Contracts: Code Coverage
+
+You can run test coverage locally using `cargo-tarpaulin`.
+
+1. Install `cargo-tarpaulin`:
+   ```bash
+   cargo install cargo-tarpaulin
+   ```
+2. Run coverage targeting the library logic:
+   ```bash
+   cd stellargrant-contracts
+   cargo tarpaulin --workspace --lib --target x86_64-unknown-linux-gnu --engine llvm --out Xml
+   ```
+   *Note: Our `.tarpaulin.toml` is configured to exclude test files automatically.*
+
 ### Frontend: Install and Run
+
 
 ```bash
 cd stellargrant-fe
