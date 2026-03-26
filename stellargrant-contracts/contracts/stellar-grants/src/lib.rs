@@ -222,6 +222,10 @@ impl StellarGrantsContract {
 
         for milestone_idx in 0..grant.total_milestones {
             if let Some(milestone) = Storage::get_milestone(&env, grant_id, milestone_idx) {
+                if milestone.state == MilestoneState::Expired {
+                    approved_count += 1;
+                    continue;
+                }
                 if milestone.state != MilestoneState::Approved {
                     return Err(ContractError::NotAllMilestonesApproved);
                 }
@@ -282,6 +286,143 @@ impl StellarGrantsContract {
 
         // Emit completion event
         Events::emit_grant_completed(&env, grant_id, total_paid, remaining_balance);
+
+        Ok(())
+    }
+
+    pub fn set_milestone_deadline(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        deadline: u64,
+    ) -> Result<(), ContractError> {
+        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        grant.owner.require_auth();
+
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        if milestone_idx >= grant.total_milestones {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // 1. Deadline must be in the future
+        if deadline <= env.ledger().timestamp() {
+            return Err(ContractError::InvalidInput);
+        }
+
+        // 2. Deadline must be immutable once set
+        if Storage::get_milestone_deadline(&env, grant_id, milestone_idx).is_some() {
+            return Err(ContractError::InvalidState);
+        }
+
+        if Storage::get_milestone(&env, grant_id, milestone_idx).is_some() {
+            return Err(ContractError::InvalidState);
+        }
+
+        Storage::set_milestone_deadline(&env, grant_id, milestone_idx, deadline);
+        Ok(())
+    }
+
+    pub fn claim_expired_funds(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        caller: Address,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        if milestone_idx >= grant.total_milestones {
+            return Err(ContractError::InvalidInput);
+        }
+
+        if caller != grant.owner {
+            let mut is_funder = false;
+            for fund in grant.funders.iter() {
+                if fund.funder == caller {
+                    is_funder = true;
+                    break;
+                }
+            }
+            if !is_funder {
+                return Err(ContractError::Unauthorized);
+            }
+        }
+
+        let deadline = Storage::get_milestone_deadline(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::InvalidState)?;
+
+        if env.ledger().timestamp() <= deadline {
+            return Err(ContractError::InvalidState);
+        }
+
+        if Storage::get_milestone(&env, grant_id, milestone_idx).is_some() {
+            return Err(ContractError::MilestoneAlreadySubmitted);
+        }
+
+        let reclaim_amount = grant.milestone_amount;
+        if grant.escrow_balance < reclaim_amount {
+            return Err(ContractError::InvalidState);
+        }
+
+        let mut total_contributions: i128 = 0;
+        for fund_entry in grant.funders.iter() {
+            total_contributions += fund_entry.amount;
+        }
+
+        if total_contributions > 0 {
+            let token_client = token::Client::new(&env, &grant.token);
+            let mut new_funders = soroban_sdk::Vec::new(&env);
+            for fund_entry in grant.funders.iter() {
+                let refund_amount = fund_entry
+                    .amount
+                    .checked_mul(reclaim_amount)
+                    .ok_or(ContractError::InvalidInput)?
+                    .checked_div(total_contributions)
+                    .ok_or(ContractError::InvalidInput)?;
+
+                if refund_amount > 0 {
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &fund_entry.funder,
+                        &refund_amount,
+                    );
+                }
+                new_funders.push_back(GrantFund {
+                    funder: fund_entry.funder,
+                    amount: fund_entry.amount - refund_amount,
+                });
+            }
+            grant.funders = new_funders;
+        }
+
+        grant.escrow_balance -= reclaim_amount;
+        Storage::set_grant(&env, grant_id, &grant);
+
+        let tombstone = Milestone {
+            idx: milestone_idx,
+            description: String::from_str(&env, "Expired"),
+            amount: 0,
+            state: MilestoneState::Expired,
+            votes: soroban_sdk::Map::new(&env),
+            approvals: 0,
+            rejections: 0,
+            reasons: soroban_sdk::Map::new(&env),
+            status_updated_at: env.ledger().timestamp(),
+            proof_url: None,
+            submission_timestamp: 0,
+        };
+        Storage::set_milestone(&env, grant_id, milestone_idx, &tombstone);
+
+        Events::emit_milestone_expired(&env, grant_id, milestone_idx);
+        Events::emit_funds_reclaimed(&env, grant_id, milestone_idx, reclaim_amount);
 
         Ok(())
     }
@@ -434,12 +575,15 @@ impl StellarGrantsContract {
             return Err(ContractError::Unauthorized);
         }
 
-        // 5. Milestone must not already be submitted or approved
-        if let Some(existing) = Storage::get_milestone(&env, grant_id, milestone_idx) {
-            if existing.state == MilestoneState::Submitted
-                || existing.state == MilestoneState::Approved
-            {
-                return Err(ContractError::MilestoneAlreadySubmitted);
+        // 5. Milestone must not already be submitted, approved, or expired
+        if Storage::get_milestone(&env, grant_id, milestone_idx).is_some() {
+            return Err(ContractError::MilestoneAlreadySubmitted);
+        }
+
+        // 6. Enforce optional milestone deadline
+        if let Some(deadline_timestamp) = Storage::get_milestone_deadline(&env, grant_id, milestone_idx) {
+            if env.ledger().timestamp() > deadline_timestamp {
+                return Err(ContractError::DeadlinePassed);
             }
         }
 

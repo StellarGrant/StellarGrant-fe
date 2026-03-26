@@ -1,0 +1,277 @@
+﻿cargo :    Compiling 
+stellar-grants v0.1.0 
+(C:\Users\DELL\Desktop
+\drips-5\StellarGrant-
+fe\stellargrant-contra
+cts\contracts\stellar-
+grants)
+At line:1 char:1
++ cargo test --color 
+never 2>&1 | Out-File 
+-Encoding utf8 
+test_output_u ...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo    
+          : 
+NotSpecified: (   
+Comp    iling 
+st...stellar-grant    
+s):String) [], 
+RemoteExc    eption
+    + 
+FullyQualifiedErrorId 
+    : 
+NativeCommandError
+ 
+error[E0599]: no 
+method named 
+`with_mut` found for 
+struct `soroban_sdk::l
+edger::Ledger` in the 
+current scope
+    --> contracts\stel
+lar-grants\src\test.rs
+:1258:22
+     |
+1258 |         env.led
+ger().with_mut(|li| {
+     |         
+-------------^^^^^^^^ 
+method not found in `s
+oroban_sdk::ledger::Le
+dger`
+     |
+    ::: C:\Users\DELL\
+.cargo\registry\src\in
+dex.crates.io-1949cf8c
+6b5b557f\soroban-sdk-2
+5.3.0\src\testutils.rs
+:324:8
+     |
+ 324 |     fn 
+with_mut<F>(&self, f: 
+F)
+     |        
+-------- the method 
+is available for `soro
+ban_sdk::ledger::Ledge
+r` here
+     |
+     = help: items 
+from traits can only 
+be used if the trait 
+is in scope
+help: trait `Ledger` 
+which provides 
+`with_mut` is 
+implemented but not 
+in scope; perhaps you 
+want to import it
+     |
+   3 +     use soroban
+_sdk::testutils::Ledge
+r;
+     |
+
+error[E0599]: no 
+method named 
+`with_mut` found for 
+struct `soroban_sdk::l
+edger::Ledger` in the 
+current scope
+    --> contracts\stel
+lar-grants\src\test.rs
+:1284:22
+     |
+1284 |         env.led
+ger().with_mut(|li| {
+     |         
+-------------^^^^^^^^ 
+method not found in `s
+oroban_sdk::ledger::Le
+dger`
+     |
+    ::: C:\Users\DELL\
+.cargo\registry\src\in
+dex.crates.io-1949cf8c
+6b5b557f\soroban-sdk-2
+5.3.0\src\testutils.rs
+:324:8
+     |
+ 324 |     fn 
+with_mut<F>(&self, f: 
+F)
+     |        
+-------- the method 
+is available for `soro
+ban_sdk::ledger::Ledge
+r` here
+     |
+     = help: items 
+from traits can only 
+be used if the trait 
+is in scope
+help: trait `Ledger` 
+which provides 
+`with_mut` is 
+implemented but not 
+in scope; perhaps you 
+want to import it
+     |
+   3 +     use soroban
+_sdk::testutils::Ledge
+r;
+     |
+
+error[E0599]: no 
+method named 
+`with_mut` found for 
+struct `soroban_sdk::l
+edger::Ledger` in the 
+current scope
+    --> contracts\stel
+lar-grants\src\test.rs
+:1342:22
+     |
+1342 |         env.led
+ger().with_mut(|li| {
+     |         
+-------------^^^^^^^^ 
+method not found in `s
+oroban_sdk::ledger::Le
+dger`
+     |
+    ::: C:\Users\DELL\
+.cargo\registry\src\in
+dex.crates.io-1949cf8c
+6b5b557f\soroban-sdk-2
+5.3.0\src\testutils.rs
+:324:8
+     |
+ 324 |     fn 
+with_mut<F>(&self, f: 
+F)
+     |        
+-------- the method 
+is available for `soro
+ban_sdk::ledger::Ledge
+r` here
+     |
+     = help: items 
+from traits can only 
+be used if the trait 
+is in scope
+help: trait `Ledger` 
+which provides 
+`with_mut` is 
+implemented but not 
+in scope; perhaps you 
+want to import it
+     |
+   3 +     use soroban
+_sdk::testutils::Ledge
+r;
+     |
+
+error[E0599]: no 
+method named 
+`with_mut` found for 
+struct `soroban_sdk::l
+edger::Ledger` in the 
+current scope
+    --> contracts\stel
+lar-grants\src\test.rs
+:1407:22
+     |
+1407 |         env.led
+ger().with_mut(|li| {
+     |         
+-------------^^^^^^^^ 
+method not found in `s
+oroban_sdk::ledger::Le
+dger`
+     |
+    ::: C:\Users\DELL\
+.cargo\registry\src\in
+dex.crates.io-1949cf8c
+6b5b557f\soroban-sdk-2
+5.3.0\src\testutils.rs
+:324:8
+     |
+ 324 |     fn 
+with_mut<F>(&self, f: 
+F)
+     |        
+-------- the method 
+is available for `soro
+ban_sdk::ledger::Ledge
+r` here
+     |
+     = help: items 
+from traits can only 
+be used if the trait 
+is in scope
+help: trait `Ledger` 
+which provides 
+`with_mut` is 
+implemented but not 
+in scope; perhaps you 
+want to import it
+     |
+   3 +     use soroban
+_sdk::testutils::Ledge
+r;
+     |
+
+warning: unused 
+variable: `client`
+   --> contracts\stell
+ar-grants\src\test.rs:
+933:14
+    |
+933 |         let 
+(client, _, 
+contract_id) = 
+setup_test(&env);
+    |              
+^^^^^^ help: if this 
+is intentional, 
+prefix it with an 
+underscore: `_client`
+    |
+    = note: `#[warn(un
+used_variables)]` 
+(part of 
+`#[warn(unused)]`) on 
+by default
+
+warning: unused 
+variable: `funder`
+   --> contracts\stell
+ar-grants\src\test.rs:
+935:13
+    |
+935 |         let 
+funder = Address::gene
+rate(&env);
+    |             
+^^^^^^ help: if this 
+is intentional, 
+prefix it with an 
+underscore: `_funder`
+
+For more information 
+about this error, try 
+`rustc --explain 
+E0599`.
+warning: 
+`stellar-grants` (lib 
+test) generated 2 
+warnings
+error: could not 
+compile 
+`stellar-grants` (lib 
+test) due to 4 
+previous errors; 2 
+warnings emitted
