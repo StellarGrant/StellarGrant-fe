@@ -1,30 +1,5 @@
 use crate::types::MilestoneState;
-use soroban_sdk::{contracttype, symbol_short, Address, Env, String};
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct MilestoneVoted {
-    pub reviewer: Address,
-    pub approve: bool,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct MilestoneRejected {
-    pub reviewer: Address,
-    pub reason: String,
-    pub timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq)]
-pub struct MilestoneStatusChanged {
-    pub grant_id: u64,
-    pub milestone_idx: u32,
-    pub new_state: MilestoneState,
-    pub timestamp: u64,
-}
+use soroban_sdk::{symbol_short, Address, Env, String};
 
 pub fn milestone_voted(
     env: &Env,

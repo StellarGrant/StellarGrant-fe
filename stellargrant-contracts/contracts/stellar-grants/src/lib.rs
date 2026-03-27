@@ -30,22 +30,21 @@ impl StellarGrantsContract {
         reviewer.require_auth();
 
         // 1. Validation
-        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
-        let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
-            .ok_or(ContractError::MilestoneNotSubmitted)?;
+        let grant = Storage::get_grant_v(&env, grant_id);
+        let mut milestone = Storage::get_milestone_v(&env, grant_id, milestone_idx);
 
         if milestone.state != MilestoneState::Submitted {
-            return Err(ContractError::MilestoneNotSubmitted);
+            env.panic_with_error(ContractError::MilestoneNotSubmitted);
         }
 
         // Check if reviewer is in grant's reviewer list
         if !grant.reviewers.contains(reviewer.clone()) {
-            return Err(ContractError::Unauthorized);
+            env.panic_with_error(ContractError::Unauthorized);
         }
 
         // Check if reviewer has already voted
         if milestone.votes.contains_key(reviewer.clone()) {
-            return Err(ContractError::AlreadyVoted);
+            env.panic_with_error(ContractError::AlreadyVoted);
         }
 
         // 2. Vote Tracking
@@ -93,22 +92,21 @@ impl StellarGrantsContract {
         reviewer.require_auth();
 
         // 1. Validation
-        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
-        let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
-            .ok_or(ContractError::MilestoneNotSubmitted)?;
+        let grant = Storage::get_grant_v(&env, grant_id);
+        let mut milestone = Storage::get_milestone_v(&env, grant_id, milestone_idx);
 
         if milestone.state != MilestoneState::Submitted {
-            return Err(ContractError::MilestoneNotSubmitted);
+            env.panic_with_error(ContractError::MilestoneNotSubmitted);
         }
 
         // Check if reviewer is in grant's reviewer list
         if !grant.reviewers.contains(reviewer.clone()) {
-            return Err(ContractError::Unauthorized);
+            env.panic_with_error(ContractError::Unauthorized);
         }
 
         // Check if reviewer has already voted
         if milestone.votes.contains_key(reviewer.clone()) {
-            return Err(ContractError::AlreadyVoted);
+            env.panic_with_error(ContractError::AlreadyVoted);
         }
 
         // 2. Rejection Logic
@@ -147,14 +145,14 @@ impl StellarGrantsContract {
         grant_id: u64,
         milestone_idx: u32,
     ) -> Result<Milestone, ContractError> {
-        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let grant = Storage::get_grant_v(&env, grant_id);
 
         if milestone_idx >= grant.total_milestones {
-            return Err(ContractError::InvalidInput);
+            env.panic_with_error(ContractError::InvalidInput);
         }
 
-        Storage::get_milestone(&env, grant_id, milestone_idx)
-            .ok_or(ContractError::MilestoneNotFound)
+        let milestone = Storage::get_milestone_v(&env, grant_id, milestone_idx);
+        Ok(milestone)
     }
 }
 
