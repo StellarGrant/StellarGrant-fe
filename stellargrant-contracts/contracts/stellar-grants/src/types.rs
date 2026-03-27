@@ -16,46 +16,16 @@ pub enum ContractError {
     MilestoneNotFound = 9,
     InvalidState = 10,
     NoRefundableAmount = 11,
-    NotAllMilestonesApproved = 12,
-    AlreadyRegistered = 13,
-    MilestoneAlreadySubmitted = 14,
-    InsufficientStake = 15,
-    StakeNotFound = 16,
-    NotVerified = 17,
-    BatchEmpty = 18,
-    BatchTooLarge = 19,
-    ReentrancyDetected = 20,
-    NotMultisigSigner = 21,
-    AlreadySignedRelease = 22,
-    ReleaseNotReady = 23,
-    GrantAlreadyReleased = 24,
-    InsufficientReputation = 25,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[repr(u32)]
-pub enum EscrowMode {
-    Standard = 1,
-    HighSecurity = 2,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[repr(u32)]
-pub enum EscrowLifecycleState {
-    Funding = 1,
-    AwaitingMultisig = 2,
-    Released = 3,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EscrowState {
-    pub mode: EscrowMode,
-    pub lifecycle: EscrowLifecycleState,
-    pub quorum_ready: bool,
-    pub approvals_count: u32,
+    GrantAlreadyReleased = 12,
+    NotMultisigSigner = 13,
+    AlreadySignedRelease = 14,
+    NotAllMilestonesApproved = 15,
+    InsufficientStake = 16,
+    StakeNotFound = 17,
+    AlreadyRegistered = 18,
+    BatchEmpty = 19,
+    BatchTooLarge = 20,
+    MilestoneAlreadySubmitted = 21,
 }
 
 #[contracttype]
@@ -65,9 +35,8 @@ pub enum MilestoneState {
     Pending = 0,
     Submitted = 1,
     Approved = 2,
-    Paid = 3,
-    Rejected = 4,
-    Disputed = 5,
+    Rejected = 3,
+    Paid = 4,
 }
 
 #[contracttype]
@@ -84,14 +53,6 @@ pub struct Milestone {
     pub status_updated_at: u64,
     pub proof_url: Option<String>,
     pub submission_timestamp: u64,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MilestoneSubmission {
-    pub idx: u32,
-    pub description: String,
-    pub proof: String,
 }
 
 #[contracttype]
@@ -139,7 +100,40 @@ pub struct ContributorProfile {
     pub skills: Vec<String>,
     pub github_url: String,
     pub registration_timestamp: u64,
-    pub reputation_score: u64,
     pub grants_count: u32,
     pub total_earned: i128,
+}
+
+#[contracttype]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum EscrowMode {
+    Standard = 1,
+    HighSecurity = 2,
+}
+
+#[contracttype]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum EscrowLifecycleState {
+    Funding = 1,
+    AwaitingMultisig = 2,
+    Released = 3,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EscrowState {
+    pub mode: EscrowMode,
+    pub lifecycle: EscrowLifecycleState,
+    pub quorum_ready: bool,
+    pub approvals_count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneSubmission {
+    pub idx: u32,
+    pub description: String,
+    pub proof: String,
 }

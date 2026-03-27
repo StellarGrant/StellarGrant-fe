@@ -126,14 +126,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "reputation_score"
-                    },
-                    "val": {
-                      "u64": "0"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "skills"
                     },
                     "val": {

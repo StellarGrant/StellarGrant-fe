@@ -150,14 +150,6 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "description"
-                    },
-                    "val": {
-                      "string": "Desc"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "escrow_balance"
                     },
                     "val": {
@@ -223,14 +215,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestone_amount"
-                    },
-                    "val": {
-                      "i128": "500"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "milestones_paid_out"
                     },
                     "val": {
@@ -275,14 +259,6 @@
                     },
                     "val": {
                       "u64": "0"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "title"
-                    },
-                    "val": {
-                      "string": "Test"
                     }
                   },
                   {

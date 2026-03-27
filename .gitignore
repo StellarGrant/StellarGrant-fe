@@ -3,3 +3,18 @@ PR_DONE.md
 /api/node_modules
 /api/dist
 /api/.env*
+=======
+=======
+# >>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)
+# Coverage artifacts
+tarpaulin-report/
+tarpaulin-report.xml
+tarpaulin-report.json
+cobertura.xml
+coverage/
+*.profraw
+*.profdata
+# <<<<<<< HEAD
+# >>>>>>> 256e004 (feat: add automated code coverage using cargo-tarpaulin)
+# =======
+# >>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)

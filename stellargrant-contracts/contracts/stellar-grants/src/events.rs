@@ -3,45 +3,6 @@ use soroban_sdk::{contractevent, Address, Env, String};
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MilestoneVoted {
-    pub grant_id: u64,
-    pub milestone_idx: u32,
-    pub reviewer: Address,
-    pub approve: bool,
-    pub feedback: Option<String>,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MilestoneRejected {
-    pub grant_id: u64,
-    pub milestone_idx: u32,
-    pub reviewer: Address,
-    pub reason: String,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MilestoneStatusChanged {
-    pub grant_id: u64,
-    pub milestone_idx: u32,
-    pub new_state: MilestoneState,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MilestonePaid {
-    pub grant_id: u64,
-    pub milestone_idx: u32,
-    pub amount: i128,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantCancelled {
     pub grant_id: u64,
     pub owner: Address,
@@ -93,15 +54,6 @@ pub struct ContributorRegistered {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReputationIncreased {
-    pub contributor: Address,
-    pub new_reputation_score: u64,
-    pub total_earned: i128,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneSubmitted {
     pub grant_id: u64,
     pub milestone_idx: u32,
@@ -131,11 +83,40 @@ pub struct GrantCreated {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantMetadataUpdated {
+pub struct MilestoneVoted {
     pub grant_id: u64,
-    pub owner: Address,
-    pub title: String,
-    pub description: String,
+    pub milestone_idx: u32,
+    pub reviewer: Address,
+    pub approve: bool,
+    pub feedback: Option<String>,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneRejected {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub reviewer: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneStatusChanged {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub new_state: MilestoneState,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestonePaid {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub amount: i128,
     pub timestamp: u64,
 }
 
@@ -250,42 +231,10 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_grant_metadata_updated(
-        env: &Env,
-        grant_id: u64,
-        owner: Address,
-        title: String,
-        description: String,
-    ) {
-        let event = GrantMetadataUpdated {
-            grant_id,
-            owner,
-            title,
-            description,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
     pub fn emit_contributor_registered(env: &Env, contributor: Address, name: String) {
         let event = ContributorRegistered {
             contributor,
             name,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_reputation_increased(
-        env: &Env,
-        contributor: Address,
-        new_reputation_score: u64,
-        total_earned: i128,
-    ) {
-        let event = ReputationIncreased {
-            contributor,
-            new_reputation_score,
-            total_earned,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
