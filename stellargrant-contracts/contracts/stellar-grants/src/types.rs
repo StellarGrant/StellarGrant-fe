@@ -100,8 +100,9 @@ pub struct MilestoneSubmission {
 #[repr(u32)]
 pub enum GrantStatus {
     Active = 1,
-    Cancelled = 2,
-    Completed = 3,
+    Paused = 2,
+    Cancelled = 3,
+    Completed = 4,
 }
 
 #[contracttype]

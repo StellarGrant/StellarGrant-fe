@@ -139,6 +139,22 @@ pub struct GrantMetadataUpdated {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantPaused {
+    pub grant_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantResumed {
+    pub grant_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
 pub struct Events;
 
 impl Events {
@@ -262,6 +278,24 @@ impl Events {
             owner,
             title,
             description,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_paused(env: &Env, grant_id: u64, owner: Address) {
+        let event = GrantPaused {
+            grant_id,
+            owner,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_resumed(env: &Env, grant_id: u64, owner: Address) {
+        let event = GrantResumed {
+            grant_id,
+            owner,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
