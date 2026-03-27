@@ -1,9 +1,13 @@
 use crate::types::MilestoneState;
 use soroban_sdk::{contractevent, Address, Env, String};
 
+const EVENT_VERSION: u32 = 1;
+const GLOBAL_EVENT_GRANT_ID: u64 = 0;
+
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneVoted {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub reviewer: Address,
@@ -15,6 +19,7 @@ pub struct MilestoneVoted {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneRejected {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub reviewer: Address,
@@ -25,6 +30,7 @@ pub struct MilestoneRejected {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneStatusChanged {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub new_state: MilestoneState,
@@ -34,6 +40,7 @@ pub struct MilestoneStatusChanged {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestonePaid {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub amount: i128,
@@ -43,6 +50,7 @@ pub struct MilestonePaid {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantCancelled {
+    pub event_version: u32,
     pub grant_id: u64,
     pub owner: Address,
     pub reason: String,
@@ -53,22 +61,27 @@ pub struct GrantCancelled {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RefundExecuted {
+    pub event_version: u32,
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
+    pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RefundIssued {
+    pub event_version: u32,
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
+    pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantCompleted {
+    pub event_version: u32,
     pub grant_id: u64,
     pub total_paid: i128,
     pub remaining_balance: i128,
@@ -78,14 +91,18 @@ pub struct GrantCompleted {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FinalRefund {
+    pub event_version: u32,
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
+    pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContributorRegistered {
+    pub event_version: u32,
+    pub grant_id: u64,
     pub contributor: Address,
     pub name: String,
     pub timestamp: u64,
@@ -94,6 +111,8 @@ pub struct ContributorRegistered {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReputationIncreased {
+    pub event_version: u32,
+    pub grant_id: u64,
     pub contributor: Address,
     pub new_reputation_score: u64,
     pub total_earned: i128,
@@ -103,6 +122,7 @@ pub struct ReputationIncreased {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneSubmitted {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub description: String,
@@ -112,6 +132,7 @@ pub struct MilestoneSubmitted {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantFunded {
+    pub event_version: u32,
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
@@ -122,6 +143,7 @@ pub struct GrantFunded {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantCreated {
+    pub event_version: u32,
     pub grant_id: u64,
     pub owner: Address,
     pub title: String,
@@ -132,6 +154,7 @@ pub struct GrantCreated {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantMetadataUpdated {
+    pub event_version: u32,
     pub grant_id: u64,
     pub owner: Address,
     pub title: String,
@@ -141,14 +164,22 @@ pub struct GrantMetadataUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+<<<<<<< Implement_Minimum
 pub struct GrantPaused {
     pub grant_id: u64,
     pub owner: Address,
+=======
+pub struct ContractInitialized {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub council: Address,
+>>>>>>> main
     pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+<<<<<<< Implement_Minimum
 pub struct GrantResumed {
     pub grant_id: u64,
     pub owner: Address,
@@ -160,12 +191,40 @@ pub struct GrantResumed {
 pub struct GrantActivated {
     pub grant_id: u64,
     pub escrow_balance: i128,
+=======
+pub struct ContractUpgraded {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub actor: Address,
+    pub component: String,
+>>>>>>> main
     pub timestamp: u64,
 }
 
 pub struct Events;
 
 impl Events {
+    pub fn emit_contract_initialized(env: &Env, council: Address) {
+        let event = ContractInitialized {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            council,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_contract_upgraded(env: &Env, actor: Address, component: String) {
+        let event = ContractUpgraded {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            actor,
+            component,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
     pub fn emit_grant_cancelled(
         env: &Env,
         grant_id: u64,
@@ -174,6 +233,7 @@ impl Events {
         refund_amount: i128,
     ) {
         let event = GrantCancelled {
+            event_version: EVENT_VERSION,
             grant_id,
             owner,
             reason,
@@ -185,18 +245,22 @@ impl Events {
 
     pub fn emit_refund_executed(env: &Env, grant_id: u64, funder: Address, amount: i128) {
         let event = RefundExecuted {
+            event_version: EVENT_VERSION,
             grant_id,
             funder,
             amount,
+            timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
     }
 
     pub fn emit_refund_issued(env: &Env, grant_id: u64, funder: Address, amount: i128) {
         let event = RefundIssued {
+            event_version: EVENT_VERSION,
             grant_id,
             funder,
             amount,
+            timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
     }
@@ -208,6 +272,7 @@ impl Events {
         remaining_balance: i128,
     ) {
         let event = GrantCompleted {
+            event_version: EVENT_VERSION,
             grant_id,
             total_paid,
             remaining_balance,
@@ -218,9 +283,11 @@ impl Events {
 
     pub fn emit_final_refund(env: &Env, grant_id: u64, funder: Address, amount: i128) {
         let event = FinalRefund {
+            event_version: EVENT_VERSION,
             grant_id,
             funder,
             amount,
+            timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
     }
@@ -232,6 +299,7 @@ impl Events {
         description: String,
     ) {
         let event = MilestoneSubmitted {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             description,
@@ -248,6 +316,7 @@ impl Events {
         new_balance: i128,
     ) {
         let event = GrantFunded {
+            event_version: EVENT_VERSION,
             grant_id,
             funder,
             amount,
@@ -265,6 +334,7 @@ impl Events {
         total_amount: i128,
     ) {
         let event = GrantCreated {
+            event_version: EVENT_VERSION,
             grant_id,
             owner,
             title,
@@ -282,6 +352,7 @@ impl Events {
         description: String,
     ) {
         let event = GrantMetadataUpdated {
+            event_version: EVENT_VERSION,
             grant_id,
             owner,
             title,
@@ -291,6 +362,7 @@ impl Events {
         event.publish(env);
     }
 
+<<<<<<< Implement_Minimum
     pub fn emit_grant_paused(env: &Env, grant_id: u64, owner: Address) {
         let event = GrantPaused {
             grant_id,
@@ -319,7 +391,17 @@ impl Events {
     }
 
     pub fn emit_contributor_registered(env: &Env, contributor: Address, name: String) {
+=======
+    pub fn emit_contributor_registered(
+        env: &Env,
+        grant_id: u64,
+        contributor: Address,
+        name: String,
+    ) {
+>>>>>>> main
         let event = ContributorRegistered {
+            event_version: EVENT_VERSION,
+            grant_id,
             contributor,
             name,
             timestamp: env.ledger().timestamp(),
@@ -329,11 +411,14 @@ impl Events {
 
     pub fn emit_reputation_increased(
         env: &Env,
+        grant_id: u64,
         contributor: Address,
         new_reputation_score: u64,
         total_earned: i128,
     ) {
         let event = ReputationIncreased {
+            event_version: EVENT_VERSION,
+            grant_id,
             contributor,
             new_reputation_score,
             total_earned,
@@ -351,6 +436,7 @@ impl Events {
         feedback: Option<String>,
     ) {
         let event = MilestoneVoted {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             reviewer,
@@ -369,6 +455,7 @@ impl Events {
         reason: String,
     ) {
         let event = MilestoneRejected {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             reviewer,
@@ -385,6 +472,7 @@ impl Events {
         new_state: MilestoneState,
     ) {
         let event = MilestoneStatusChanged {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             new_state,
@@ -395,6 +483,7 @@ impl Events {
 
     pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
         let event = MilestonePaid {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             amount,
@@ -405,6 +494,7 @@ impl Events {
 
     pub fn emit_milestone_expired(env: &Env, grant_id: u64, milestone_idx: u32) {
         let event = MilestoneExpired {
+            event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             timestamp: env.ledger().timestamp(),
@@ -416,6 +506,7 @@ impl Events {
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneExpired {
+    pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub timestamp: u64,

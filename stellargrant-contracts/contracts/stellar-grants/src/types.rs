@@ -126,6 +126,7 @@ pub struct Grant {
     pub min_funding: i128,
     pub milestone_amount: i128,
     pub reviewers: Vec<Address>,
+    pub quorum: u32,
     pub total_milestones: u32,
     pub milestones_paid_out: u32,
     pub escrow_balance: i128,

@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 4,
+    "address": 5,
     "nonce": 0,
     "mux_id": 0
   },
@@ -37,7 +37,14 @@
                   "u32": 2
                 },
                 {
-                  "vec": []
+                  "vec": [
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                    }
+                  ]
+                },
+                {
+                  "u32": 1
                 },
                 "void"
               ]
@@ -225,6 +232,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "quorum"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "reason"
                     },
                     "val": "void"
@@ -234,7 +249,11 @@
                       "symbol": "reviewers"
                     },
                     "val": {
-                      "vec": []
+                      "vec": [
+                        {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                        }
+                      ]
                     }
                   },
                   {
@@ -291,7 +310,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {
@@ -315,7 +334,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {
@@ -467,7 +486,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {
@@ -592,7 +611,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {

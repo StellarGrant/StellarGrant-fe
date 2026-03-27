@@ -35,6 +35,7 @@ impl StellarGrantsContract {
     /// * None.
     pub fn initialize(env: Env, council: Address) -> Result<(), ContractError> {
         Storage::set_council(&env, &council);
+        Events::emit_contract_initialized(&env, council);
         Ok(())
     }
 
@@ -51,6 +52,11 @@ impl StellarGrantsContract {
             }
         }
         Storage::set_global_admin(&env, &new_admin);
+        Events::emit_contract_upgraded(
+            &env,
+            caller,
+            String::from_str(&env, "global_admin_updated"),
+        );
         Ok(())
     }
 
@@ -63,6 +69,7 @@ impl StellarGrantsContract {
             }
         }
         Storage::set_council(&env, &council);
+        Events::emit_contract_upgraded(&env, caller, String::from_str(&env, "council_updated"));
         Ok(())
     }
 
@@ -135,6 +142,7 @@ impl StellarGrantsContract {
         milestone_amount: i128,
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
+        quorum: u32,
         milestone_deadlines: Option<soroban_sdk::Vec<u64>>,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
@@ -154,6 +162,10 @@ impl StellarGrantsContract {
         }
 
         if num_milestones == 0 || num_milestones > 100 {
+            return Err(ContractError::InvalidInput);
+        }
+        let total_reviewers = reviewers.len();
+        if quorum == 0 || quorum > total_reviewers {
             return Err(ContractError::InvalidInput);
         }
 
@@ -178,6 +190,7 @@ impl StellarGrantsContract {
             min_funding,
             milestone_amount,
             reviewers,
+            quorum,
             total_milestones: num_milestones,
             milestones_paid_out: 0,
             escrow_balance: 0,
@@ -243,6 +256,7 @@ impl StellarGrantsContract {
         reviewers: soroban_sdk::Vec<Address>,
         min_reputation_score: u64,
     ) -> Result<u64, ContractError> {
+        let quorum = (reviewers.len() / 2) + 1;
         let grant_id = Self::grant_create(
             env.clone(),
             owner,
@@ -254,6 +268,7 @@ impl StellarGrantsContract {
             milestone_amount,
             num_milestones,
             reviewers,
+            quorum,
             None,
         )?;
         Storage::set_grant_min_reputation(&env, grant_id, min_reputation_score);
@@ -296,6 +311,7 @@ impl StellarGrantsContract {
         if multisig_signers.is_empty() {
             return Err(ContractError::InvalidInput);
         }
+        let quorum = (reviewers.len() / 2) + 1;
 
         let grant_id = Self::grant_create(
             env.clone(),
@@ -308,6 +324,7 @@ impl StellarGrantsContract {
             milestone_amount,
             num_milestones,
             reviewers,
+            quorum,
             None,
         )?;
 
@@ -362,7 +379,7 @@ impl StellarGrantsContract {
 
         Storage::set_contributor(&env, contributor.clone(), &profile);
 
-        Events::emit_contributor_registered(&env, contributor, name);
+        Events::emit_contributor_registered(&env, 0, contributor, name);
 
         Ok(())
     }
@@ -766,6 +783,7 @@ impl StellarGrantsContract {
                 Storage::set_contributor(env, grant.owner.clone(), &profile);
                 Events::emit_reputation_increased(
                     env,
+                    grant_id,
                     grant.owner.clone(),
                     profile.reputation_score,
                     profile.total_earned,
@@ -831,13 +849,7 @@ impl StellarGrantsContract {
             milestone.rejections += reputation;
         }
 
-        let mut total_weight: u32 = 0;
-        for r in grant.reviewers.iter() {
-            total_weight += Storage::get_reviewer_reputation(&env, r);
-        }
-
-        let quorum_threshold = (total_weight / 2) + 1;
-        let quorum_reached = milestone.approvals >= quorum_threshold;
+        let quorum_reached = milestone.approvals >= grant.quorum;
 
         if quorum_reached {
             milestone.state = MilestoneState::Approved;
@@ -907,13 +919,7 @@ impl StellarGrantsContract {
         milestone.rejections += reputation;
         milestone.reasons.set(reviewer.clone(), reason.clone());
 
-        let mut total_weight: u32 = 0;
-        for r in grant.reviewers.iter() {
-            total_weight += Storage::get_reviewer_reputation(&env, r);
-        }
-
-        let majority_threshold = (total_weight / 2) + 1;
-        let majority_rejected = milestone.rejections >= majority_threshold;
+        let majority_rejected = milestone.rejections >= grant.quorum;
 
         if majority_rejected {
             milestone.state = MilestoneState::Rejected;

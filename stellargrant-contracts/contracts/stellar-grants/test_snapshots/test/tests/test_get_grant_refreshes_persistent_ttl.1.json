@@ -11,7 +11,7 @@
   ],
   "ledger": {
     "protocol_version": 25,
-    "sequence_number": 0,
+    "sequence_number": 920000,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -32,7 +32,7 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "999"
+                    "u64": "78"
                   }
                 ]
               },
@@ -52,7 +52,7 @@
                       "symbol": "escrow_balance"
                     },
                     "val": {
-                      "i128": "500"
+                      "i128": "1000"
                     }
                   },
                   {
@@ -68,7 +68,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "999"
+                      "u64": "78"
                     }
                   },
                   {
@@ -154,7 +154,7 @@
                       "symbol": "total_amount"
                     },
                     "val": {
-                      "i128": "500"
+                      "i128": "1000"
                     }
                   },
                   {
@@ -171,7 +171,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 1000000
+        "live_until": 1920000
       },
       {
         "entry": {
@@ -194,7 +194,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 924095
       },
       {
         "entry": {

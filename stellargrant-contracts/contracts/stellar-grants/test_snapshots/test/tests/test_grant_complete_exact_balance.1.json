@@ -240,6 +240,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "quorum"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "reason"
                     },
                     "val": "void"
@@ -306,7 +314,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {
@@ -431,7 +439,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {

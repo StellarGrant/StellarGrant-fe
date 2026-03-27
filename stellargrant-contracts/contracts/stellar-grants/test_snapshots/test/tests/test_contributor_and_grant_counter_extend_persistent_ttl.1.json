@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 4,
+    "address": 3,
     "nonce": 0,
     "mux_id": 0
   },
@@ -11,7 +11,7 @@
   ],
   "ledger": {
     "protocol_version": 25,
-    "sequence_number": 0,
+    "sequence_number": 920000,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -29,10 +29,10 @@
               "key": {
                 "vec": [
                   {
-                    "symbol": "Grant"
+                    "symbol": "Contributor"
                   },
                   {
-                    "u64": "999"
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                   }
                 ]
               },
@@ -41,55 +41,15 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "description"
+                      "symbol": "bio"
                     },
                     "val": {
-                      "string": "Desc"
+                      "string": "Builds Soroban contracts"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
-                    },
-                    "val": {
-                      "i128": "500"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "funders"
-                    },
-                    "val": {
-                      "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "id"
-                    },
-                    "val": {
-                      "u64": "999"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "milestone_amount"
-                    },
-                    "val": {
-                      "i128": "500"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "owner"
+                      "symbol": "contributor"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -97,7 +57,15 @@
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "github_url"
+                    },
+                    "val": {
+                      "string": "https://github.com/alice"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "grants_count"
                     },
                     "val": {
                       "u32": 1
@@ -105,29 +73,15 @@
                   },
                   {
                     "key": {
-                      "symbol": "reason"
-                    },
-                    "val": "void"
-                  },
-                  {
-                    "key": {
-                      "symbol": "reviewers"
+                      "symbol": "name"
                     },
                     "val": {
-                      "vec": []
+                      "string": "Alice"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "timestamp"
+                      "symbol": "registration_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -135,37 +89,57 @@
                   },
                   {
                     "key": {
-                      "symbol": "title"
+                      "symbol": "reputation_score"
                     },
                     "val": {
-                      "string": "Test"
+                      "u64": "0"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "token"
+                      "symbol": "skills"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      "vec": [
+                        {
+                          "string": "Rust"
+                        }
+                      ]
                     }
                   },
                   {
                     "key": {
-                      "symbol": "total_amount"
+                      "symbol": "total_earned"
                     },
                     "val": {
-                      "i128": "500"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
+                      "i128": "100"
                     }
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1920000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "GrantCounter"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u64": "1"
               }
             }
           },
@@ -194,7 +168,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 924095
       },
       {
         "entry": {
