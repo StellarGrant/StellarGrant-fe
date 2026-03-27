@@ -28,7 +28,8 @@
                 },
                 {
                   "bool": true
-                }
+                },
+                "void"
               ]
             }
           },
@@ -70,6 +71,14 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "description"
+                    },
+                    "val": {
+                      "string": "Description"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "escrow_balance"
                     },
                     "val": {
@@ -90,6 +99,14 @@
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "milestone_amount"
+                    },
+                    "val": {
+                      "i128": "1000"
                     }
                   },
                   {
@@ -140,6 +157,14 @@
                     },
                     "val": {
                       "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "title"
+                    },
+                    "val": {
+                      "string": "Title"
                     }
                   },
                   {
@@ -295,6 +320,33 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "ReviewerReputation"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 2
               }
             }
           },

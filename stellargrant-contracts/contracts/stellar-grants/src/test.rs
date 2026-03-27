@@ -31,9 +31,12 @@ mod tests {
             let grant = Grant {
                 id: grant_id,
                 owner,
+                title: String::from_str(env, "Title"),
+                description: String::from_str(env, "Description"),
                 token,
                 status: GrantStatus::Active,
                 total_amount: 1000,
+                milestone_amount: 1000,
                 reviewers,
                 total_milestones: 1,
                 milestones_paid_out: 0,
@@ -127,7 +130,7 @@ mod tests {
         );
 
         env.mock_all_auths();
-        let result = client.milestone_vote(&grant_id, &milestone_idx, &reviewer, &true);
+        let result = client.milestone_vote(&grant_id, &milestone_idx, &reviewer, &true, &None);
 
         assert_eq!(result, true); // Quorum reached (1/1)
 
@@ -174,9 +177,12 @@ mod tests {
         let grant = Grant {
             id: grant_id,
             owner: owner.clone(),
+            title: String::from_str(&env, "Title"),
+            description: String::from_str(&env, "Description"),
             token: token_id.clone(),
             status: GrantStatus::Active,
             total_amount: total_funded,
+            milestone_amount: 1000,
             reviewers: Vec::new(&env),
             total_milestones: 1,
             milestones_paid_out: 0,
