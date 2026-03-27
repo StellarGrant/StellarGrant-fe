@@ -1,3 +1,11 @@
+#![allow(
+    unused_variables,
+    clippy::needless_borrow,
+    clippy::bool_assert_comparison,
+    clippy::useless_conversion,
+    clippy::needless_range_loop
+)]
+
 #[cfg(test)]
 mod tests {
     use crate::storage::Storage;
@@ -6,17 +14,8 @@ mod tests {
     use crate::StellarGrantsContractClient;
     use soroban_sdk::{testutils::Address as _, token, Address, Env, Map, String, Vec};
 
-    fn setup_test(
-        env: &Env,
-    ) -> (
-        StellarGrantsContractClient<'_>,
-        Address,
-        soroban_sdk::Address,
-    ) {
-        let contract_id = env.register(StellarGrantsContract, ());
-        let client = StellarGrantsContractClient::new(env, &contract_id);
-        let admin = Address::generate(env);
-        (client, admin, contract_id)
+        // Reentrant token callback attempts nested grant_fund call and must panic via lock.
+        client.grant_fund(&grant_id, &attacker, &100i128);
     }
 
     fn create_grant(
@@ -42,8 +41,12 @@ mod tests {
                 reason: None,
                 timestamp: env.ledger().timestamp(),
             };
-            Storage::set_grant(env, grant_id, &grant);
+            Storage::set_grant(&env, grant_id, &grant);
         });
+
+        let mut batch = Vec::new(&env);
+        batch.push_back((grant_id, 100i128));
+        client.fund_batch(&attacker, &batch);
     }
 
     fn create_milestone(
@@ -67,12 +70,14 @@ mod tests {
                 proof_url: Some(String::from_str(env, "https://proof.url")),
                 submission_timestamp: env.ledger().timestamp(),
             };
-            Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
+            Storage::set_grant(&env, grant_id, &grant);
         });
+
+        client.stake_to_review(&attacker, &grant_id, &100i128);
     }
 
     #[test]
-    fn test_get_milestone_success() {
+    fn test_reentrancy_guard_allows_sequential_grant_funds() {
         let env = Env::default();
         let (client, _, contract_id) = setup_test(&env);
         let grant_id = 1;
@@ -98,11 +103,94 @@ mod tests {
     }
 
     #[test]
-    fn test_get_milestone_grant_not_found() {
+    fn test_grant_create_invalid_num_milestones() {
         let env = Env::default();
         let (client, _, _) = setup_test(&env);
-        let result = client.try_get_milestone(&99, &0);
-        assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewers = Vec::new(&env);
+        let title = String::from_str(&env, "New Grant");
+        let description = String::from_str(&env, "Some desc");
+
+        env.mock_all_auths();
+
+        // 0 milestones
+        let res1 = client.try_grant_create(
+            &owner,
+            &title,
+            &description,
+            &token,
+            &1000i128,
+            &500i128,
+            &0u32,
+            &reviewers,
+        );
+        assert_eq!(res1, Err(Ok(ContractError::InvalidInput.into())));
+
+        // > 100 milestones
+        let res2 = client.try_grant_create(
+            &owner,
+            &title,
+            &description,
+            &token,
+            &100000i128,
+            &100i128,
+            &101u32,
+            &reviewers,
+        );
+        assert_eq!(res2, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_grant_create_amount_mismatch() {
+        let env = Env::default();
+        let (client, _, _) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewers = Vec::new(&env);
+        let title = String::from_str(&env, "New Grant");
+        let description = String::from_str(&env, "Some desc");
+
+        env.mock_all_auths();
+
+        // total < milestone_amount * num_milestones
+        // 800 < 500 * 2
+        let res = client.try_grant_create(
+            &owner,
+            &title,
+            &description,
+            &token,
+            &800i128,
+            &500i128,
+            &2u32,
+            &reviewers,
+        );
+        assert_eq!(res, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_grant_create_unauthorized() {
+        let env = Env::default();
+        let (client, _, _) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewers = Vec::new(&env);
+        let title = String::from_str(&env, "New Grant");
+        let description = String::from_str(&env, "Some desc");
+
+        // No mock_all_auths()
+
+        let res = client.try_grant_create(
+            &owner,
+            &title,
+            &description,
+            &token,
+            &1000i128,
+            &500i128,
+            &2u32,
+            &reviewers,
+        );
+        assert!(res.is_err());
     }
 
     #[test]
@@ -126,16 +214,28 @@ mod tests {
             MilestoneState::Submitted,
         );
 
-        env.mock_all_auths();
-        let result = client.milestone_vote(&grant_id, &milestone_idx, &reviewer, &true);
+        // Give high_rep_reviewer a reputation of 3, low_rep_reviewer a reputation of 1
+        env.as_contract(&contract_id, || {
+            Storage::set_reviewer_reputation(&env, high_rep_reviewer.clone(), 3);
+            Storage::set_reviewer_reputation(&env, low_rep_reviewer.clone(), 1);
+        });
 
-        assert_eq!(result, true); // Quorum reached (1/1)
+        env.mock_all_auths();
+
+        // Total weight = 3 + 1 = 4. Quorum margin = (4 / 2) + 1 = 3.
+        // high_rep_reviewer's vote (3 weight) should pass it alone.
+        let result =
+            client.milestone_vote(&grant_id, &milestone_idx, &high_rep_reviewer, &true, &None);
+        assert_eq!(result, true);
 
         env.as_contract(&contract_id, || {
             let updated_milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
-            assert_eq!(updated_milestone.approvals, 1);
             assert_eq!(updated_milestone.state, MilestoneState::Approved);
-            assert!(updated_milestone.votes.get(reviewer).unwrap());
+            // After consensus, high_rep_reviewer should have 4 (3 + 1)
+            assert_eq!(
+                Storage::get_reviewer_reputation(&env, high_rep_reviewer.clone()),
+                4
+            );
         });
     }
 

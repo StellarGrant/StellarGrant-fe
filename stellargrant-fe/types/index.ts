@@ -25,8 +25,10 @@ export interface Milestone {
   proof_hash: string | null;
   submitted: boolean;
   approved: boolean;
+  paid: boolean;
   submitted_at: bigint | null;
   approved_at: bigint | null;
+  paid_at: bigint | null;
 }
 
 export interface MilestoneVote {

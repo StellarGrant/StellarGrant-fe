@@ -1,10 +1,11 @@
 StellarGrants Protocol
 ======================
 
-This repository contains two tightly-coupled parts of the StellarGrants Protocol:
+This repository contains three tightly-coupled parts of the StellarGrants Protocol:
 
 1. **Smart contracts** (Soroban, Rust) in `stellargrant-contracts/`
 2. **Frontend** (Next.js, zero-backend) in `stellargrant-fe/`
+3. **Backend API middleware** (Express, TypeScript) in `api/`
 
 The overall goal is milestone-based grant management on Stellar:
 grant creation and funding are handled on-chain, and the frontend reads state directly from Stellar RPC while wallets sign and submit transactions.
@@ -28,6 +29,14 @@ Typical responsibilities:
 - Provide UI flows for grant lifecycle actions (create, fund, submit milestones, approve/vote)
 - Read contract state via RPC
 - Sign and submit transactions through supported wallets (for example: Freighter and other Stellar wallet providers)
+
+`api/`
+Express API middleware for cached grant reads and signature-verified write operations.
+
+Typical responsibilities:
+- Cache grant data fetched from Soroban (via contract client adapters)
+- Expose backend endpoints for grant listing and metadata
+- Validate Stellar signatures for write-intent endpoints (for example milestone proof submission)
 
 ----
 
@@ -98,7 +107,23 @@ make build
 make test
 ```
 
+### Smart Contracts: Code Coverage
+
+You can run test coverage locally using `cargo-tarpaulin`.
+
+1. Install `cargo-tarpaulin`:
+   ```bash
+   cargo install cargo-tarpaulin
+   ```
+2. Run coverage targeting the library logic:
+   ```bash
+   cd stellargrant-contracts
+   cargo tarpaulin --workspace --lib --target x86_64-unknown-linux-gnu --engine llvm --out Xml
+   ```
+   *Note: Our `.tarpaulin.toml` is configured to exclude test files automatically.*
+
 ### Frontend: Install and Run
+
 
 ```bash
 cd stellargrant-fe

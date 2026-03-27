@@ -1,16 +1,11 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 PR_DONE.md
->>>>>>> 57bc048 (Add reentrancy guard to grant funding and staking operations)
 
 /api/node_modules
 /api/dist
 /api/.env*
 =======
 =======
->>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)
+# >>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)
 # Coverage artifacts
 tarpaulin-report/
 tarpaulin-report.xml
@@ -19,7 +14,7 @@ cobertura.xml
 coverage/
 *.profraw
 *.profdata
-<<<<<<< HEAD
->>>>>>> 256e004 (feat: add automated code coverage using cargo-tarpaulin)
-=======
->>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)
+# <<<<<<< HEAD
+# >>>>>>> 256e004 (feat: add automated code coverage using cargo-tarpaulin)
+# =======
+# >>>>>>> 2fd7037 (feat: add milestone deadlines, expiry logic, and fund reclaim mechanism)

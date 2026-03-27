@@ -15,7 +15,7 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "milestone_vote",
+              "function_name": "milestone_reject",
               "args": [
                 {
                   "u64": "1"
@@ -27,9 +27,36 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "bool": true
+                  "string": "Incomplete"
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "milestone_dispute",
+              "args": [
+                {
+                  "u64": "1"
                 },
-                "void"
+                {
+                  "u32": 0
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "string": "Unfair rejection"
+                }
               ]
             }
           },
@@ -71,6 +98,14 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "description"
+                    },
+                    "val": {
+                      "string": "Desc"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "escrow_balance"
                     },
                     "val": {
@@ -91,6 +126,14 @@
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "milestone_amount"
+                    },
+                    "val": {
+                      "i128": "500"
                     }
                   },
                   {
@@ -141,6 +184,14 @@
                     },
                     "val": {
                       "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "title"
+                    },
+                    "val": {
+                      "string": "Test"
                     }
                   },
                   {
@@ -211,7 +262,7 @@
                       "symbol": "approvals"
                     },
                     "val": {
-                      "u32": 1
+                      "u32": 0
                     }
                   },
                   {
@@ -243,7 +294,16 @@
                       "symbol": "reasons"
                     },
                     "val": {
-                      "map": []
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                          },
+                          "val": {
+                            "string": "Incomplete"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -251,7 +311,7 @@
                       "symbol": "rejections"
                     },
                     "val": {
-                      "u32": 0
+                      "u32": 1
                     }
                   },
                   {
@@ -259,7 +319,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 2
+                      "u32": 5
                     }
                   },
                   {
@@ -289,7 +349,7 @@
                             "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                           },
                           "val": {
-                            "bool": true
+                            "bool": false
                           }
                         }
                       ]
@@ -352,6 +412,26 @@
           "ext": "v0"
         },
         "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "key": {
+                "ledger_key_nonce": {
+                  "nonce": "5541220902715666415"
+                }
+              },
+              "durability": "temporary",
+              "val": "void"
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 6311999
       },
       {
         "entry": {
