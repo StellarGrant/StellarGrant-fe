@@ -99,9 +99,11 @@ pub struct MilestoneSubmission {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum GrantStatus {
+    PendingFunding = 0,
     Active = 1,
-    Cancelled = 2,
-    Completed = 3,
+    Paused = 2,
+    Cancelled = 3,
+    Completed = 4,
 }
 
 #[contracttype]
@@ -121,6 +123,7 @@ pub struct Grant {
     pub token: Address,
     pub status: GrantStatus,
     pub total_amount: i128,
+    pub min_funding: i128,
     pub milestone_amount: i128,
     pub reviewers: Vec<Address>,
     pub quorum: u32,

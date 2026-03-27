@@ -164,20 +164,40 @@ pub struct GrantMetadataUpdated {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+<<<<<<< Implement_Minimum
+pub struct GrantPaused {
+    pub grant_id: u64,
+    pub owner: Address,
+=======
 pub struct ContractInitialized {
     pub event_version: u32,
     pub grant_id: u64,
     pub council: Address,
+>>>>>>> main
     pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+<<<<<<< Implement_Minimum
+pub struct GrantResumed {
+    pub grant_id: u64,
+    pub owner: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantActivated {
+    pub grant_id: u64,
+    pub escrow_balance: i128,
+=======
 pub struct ContractUpgraded {
     pub event_version: u32,
     pub grant_id: u64,
     pub actor: Address,
     pub component: String,
+>>>>>>> main
     pub timestamp: u64,
 }
 
@@ -342,12 +362,43 @@ impl Events {
         event.publish(env);
     }
 
+<<<<<<< Implement_Minimum
+    pub fn emit_grant_paused(env: &Env, grant_id: u64, owner: Address) {
+        let event = GrantPaused {
+            grant_id,
+            owner,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_resumed(env: &Env, grant_id: u64, owner: Address) {
+        let event = GrantResumed {
+            grant_id,
+            owner,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_activated(env: &Env, grant_id: u64, escrow_balance: i128) {
+        let event = GrantActivated {
+            grant_id,
+            escrow_balance,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_contributor_registered(env: &Env, contributor: Address, name: String) {
+=======
     pub fn emit_contributor_registered(
         env: &Env,
         grant_id: u64,
         contributor: Address,
         name: String,
     ) {
+>>>>>>> main
         let event = ContributorRegistered {
             event_version: EVENT_VERSION,
             grant_id,
