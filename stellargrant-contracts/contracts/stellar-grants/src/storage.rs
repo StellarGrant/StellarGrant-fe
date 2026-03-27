@@ -20,6 +20,7 @@ pub enum DataKey {
     EscrowState(u64),
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
+    IsPaused,
 }
 
 pub struct Storage;
@@ -194,5 +195,18 @@ impl Storage {
             &DataKey::ReleaseSignerApproval(grant_id, signer.clone()),
             &approved,
         );
+    }
+
+    pub fn get_is_paused(env: &Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::IsPaused)
+            .unwrap_or(false)
+    }
+
+    pub fn set_is_paused(env: &Env, is_paused: bool) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::IsPaused, &is_paused);
     }
 }

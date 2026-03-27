@@ -29,6 +29,7 @@ pub enum ContractError {
     AlreadySignedRelease = 22,
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
+    ContractPaused = 25,
 }
 
 #[contracttype]

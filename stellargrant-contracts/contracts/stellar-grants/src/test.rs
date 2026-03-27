@@ -9,8 +9,501 @@ mod tests {
     use crate::StellarGrantsContractClient;
     use soroban_sdk::{
         contract, contractimpl, contracttype, testutils::Address as _, token, Address, Env, Map,
-        String, Vec,
+        String, Vec, vec,
     };
+
+    #[test]
+    fn test_pause_and_unpause() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+
+        // Set global admin first
+        client.set_global_admin(&admin, &admin);
+
+        // Test pause by admin
+        client.pause(&admin);
+        let is_paused = env.as_contract(&contract_id, || {
+            Storage::get_is_paused(&env)
+        });
+        assert!(is_paused);
+
+        // Test unpause by admin
+        client.unpause(&admin);
+        let is_paused = env.as_contract(&contract_id, || {
+            Storage::get_is_paused(&env)
+        });
+        assert!(!is_paused);
+    }
+
+    #[test]
+    fn test_pause_unauthorized() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let non_admin = Address::generate(&env);
+
+        // Set global admin first
+        client.set_global_admin(&admin, &admin);
+
+        // Test pause by non-admin should fail
+        let result = client.try_pause(&non_admin);
+        assert!(result.is_err());
+
+        // Test unpause by non-admin should fail
+        client.pause(&admin); // First pause by admin
+        let result = client.try_unpause(&non_admin);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_with_no_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+
+        // Test pause with no admin set should fail
+        let result = client.try_pause(&admin);
+        assert!(result.is_err());
+
+        // Test unpause with no admin set should fail
+        let result = client.try_unpause(&admin);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_grant_create() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin and pause
+        client.set_global_admin(&admin, &admin);
+        client.pause(&admin);
+
+        // Test grant_create should fail when paused
+        let result = client.try_grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_grant_fund() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test grant_fund should fail when paused
+        let result = client.try_grant_fund(&grant_id, &funder, &100);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_milestone_submit() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test milestone_submit should fail when paused
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &0,
+            &owner,
+            &String::from_str(&env, "Test milestone"),
+            &String::from_str(&env, "https://example.com"),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_milestone_vote() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &vec![&env, reviewer.clone()],
+        );
+
+        // Submit a milestone first
+        client.milestone_submit(
+            &grant_id,
+            &0,
+            &owner,
+            &String::from_str(&env, "Test milestone"),
+            &String::from_str(&env, "https://example.com"),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test milestone_vote should fail when paused
+        let result = client.try_milestone_vote(
+            &grant_id,
+            &0,
+            &reviewer,
+            &true,
+            &Some(String::from_str(&env, "Good work")),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_contributor_register() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Set global admin and pause
+        client.set_global_admin(&admin, &admin);
+        client.pause(&admin);
+
+        // Test contributor_register should fail when paused
+        let result = client.try_contributor_register(
+            &contributor,
+            &String::from_str(&env, "John Doe"),
+            &String::from_str(&env, "I am a developer"),
+            &Vec::new(&env),
+            &String::from_str(&env, "https://github.com/johndoe"),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_cancel_grant() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test cancel_grant should fail when paused
+        let result = client.try_cancel_grant(
+            &grant_id,
+            &owner,
+            &String::from_str(&env, "Cancel reason"),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_stake_to_review() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin and staking config
+        client.set_global_admin(&admin, &admin);
+        client.set_staking_config(&admin, &100, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &vec![&env, reviewer.clone()],
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test stake_to_review should fail when paused
+        let result = client.try_stake_to_review(&reviewer, &grant_id, &100);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_admin_functions() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin and staking config
+        client.set_global_admin(&admin, &admin);
+        client.set_staking_config(&admin, &100, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &admin,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &vec![&env, reviewer.clone()],
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test set_staking_config should fail when paused
+        let result = client.try_set_staking_config(&admin, &200, &admin);
+        assert!(result.is_err());
+
+        // Test set_identity_oracle should fail when paused
+        let result = client.try_set_identity_oracle(&admin, &token);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pause_blocks_fund_batch() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create two grants first
+        let grant_id1 = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant 1"),
+            &String::from_str(&env, "Test Description 1"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        let grant_id2 = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant 2"),
+            &String::from_str(&env, "Test Description 2"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test fund_batch should fail when paused
+        let grants = vec![&env, (grant_id1, 100), (grant_id2, 200)];
+        let result = client.try_fund_batch(&funder, &grants);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unpause_resumes_functionality() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Verify grant_create fails when paused
+        let result = client.try_grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+        assert!(result.is_err());
+
+        // Unpause the contract
+        client.unpause(&admin);
+
+        // Verify grant_create works after unpause
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+        assert!(grant_id > 0);
+    }
+
+    #[test]
+    fn test_read_functions_work_when_paused() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, StellarGrantsContract);
+        let client = StellarGrantsContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        // Set global admin
+        client.set_global_admin(&admin, &admin);
+
+        // Create a grant first
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Test Grant"),
+            &String::from_str(&env, "Test Description"),
+            &token,
+            &1000,
+            &100,
+            &5,
+            &Vec::new(&env),
+        );
+
+        // Pause the contract
+        client.pause(&admin);
+
+        // Test that read functions still work when paused
+        let grant = client.get_grant(&grant_id);
+        assert_eq!(grant.id, grant_id);
+        assert_eq!(grant.title, String::from_str(&env, "Test Grant"));
+
+        // Test get_milestone (should return MilestoneNotFound since none exist)
+        let result = client.try_get_milestone(&grant_id, &0);
+        assert!(result.is_err());
+    }
 
     #[contracttype]
     #[derive(Clone)]

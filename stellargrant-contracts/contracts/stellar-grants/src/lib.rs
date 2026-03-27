@@ -1,6 +1,7 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
 mod events;
+mod pausable;
 mod reentrancy;
 mod storage;
 mod types;
@@ -40,6 +41,36 @@ impl StellarGrantsContract {
         Ok(())
     }
 
+    /// Pause the contract - only callable by global admin
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        
+        let current_admin = Storage::get_global_admin(&env)
+            .ok_or(ContractError::Unauthorized)?;
+        
+        if current_admin != admin {
+            return Err(ContractError::Unauthorized);
+        }
+        
+        Storage::set_is_paused(&env, true);
+        Ok(())
+    }
+
+    /// Unpause the contract - only callable by global admin
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        
+        let current_admin = Storage::get_global_admin(&env)
+            .ok_or(ContractError::Unauthorized)?;
+        
+        if current_admin != admin {
+            return Err(ContractError::Unauthorized);
+        }
+        
+        Storage::set_is_paused(&env, false);
+        Ok(())
+    }
+
     /// Allows a grant developer/owner to create a new milestone-based grant.
     ///
     /// # Arguments
@@ -66,6 +97,7 @@ impl StellarGrantsContract {
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
     ) -> Result<u64, ContractError> {
+        pausable::assert_not_paused(&env)?;
         owner.require_auth();
 
         if total_amount <= 0 || milestone_amount <= 0 {
@@ -135,6 +167,7 @@ impl StellarGrantsContract {
         reviewers: soroban_sdk::Vec<Address>,
         multisig_signers: soroban_sdk::Vec<Address>,
     ) -> Result<u64, ContractError> {
+        pausable::assert_not_paused(&env)?;
         if multisig_signers.is_empty() {
             return Err(ContractError::InvalidInput);
         }
@@ -175,6 +208,7 @@ impl StellarGrantsContract {
         skills: soroban_sdk::Vec<String>,
         github_url: String,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         contributor.require_auth();
 
         if name.is_empty() || name.len() > 100 {
@@ -223,6 +257,7 @@ impl StellarGrantsContract {
         caller: Address,
         reason: String,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         caller.require_auth();
         reentrancy::with_non_reentrant(&env, || {
             let mut grant =
@@ -307,6 +342,7 @@ impl StellarGrantsContract {
 
     /// Mark a grant as completed when all milestones are approved and refund the remaining balance
     pub fn grant_complete(env: Env, grant_id: u64) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
@@ -337,6 +373,7 @@ impl StellarGrantsContract {
     }
 
     pub fn sign_release(env: Env, grant_id: u64, signer: Address) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         signer.require_auth();
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -484,6 +521,7 @@ impl StellarGrantsContract {
         approve: bool,
         feedback: Option<String>,
     ) -> Result<bool, ContractError> {
+        pausable::assert_not_paused(&env)?;
         reviewer.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -561,6 +599,7 @@ impl StellarGrantsContract {
         reviewer: Address,
         reason: String,
     ) -> Result<bool, ContractError> {
+        pausable::assert_not_paused(&env)?;
         reviewer.require_auth();
 
         if reason.len() > 256 {
@@ -646,6 +685,7 @@ impl StellarGrantsContract {
         description: String,
         proof_url: String,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         recipient.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -680,6 +720,7 @@ impl StellarGrantsContract {
         recipient: Address,
         submissions: Vec<MilestoneSubmission>,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         recipient.require_auth();
 
         let batch_len = submissions.len();
@@ -731,6 +772,7 @@ impl StellarGrantsContract {
         funder: Address,
         amount: i128,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         funder.require_auth();
         reentrancy::with_non_reentrant(&env, || {
             if amount <= 0 {
@@ -824,6 +866,7 @@ impl StellarGrantsContract {
         min_stake: i128,
         treasury: Address,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         admin.require_auth();
         if min_stake <= 0 {
             return Err(ContractError::InvalidInput);
@@ -844,6 +887,7 @@ impl StellarGrantsContract {
         grant_id: u64,
         amount: i128,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         reviewer.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -873,6 +917,7 @@ impl StellarGrantsContract {
         grant_id: u64,
         reviewer: Address,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         admin.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -892,6 +937,7 @@ impl StellarGrantsContract {
 
     /// Reviewer unstakes tokens after a grant lifecycle completes.
     pub fn unstake(env: Env, reviewer: Address, grant_id: u64) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         reviewer.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -920,6 +966,7 @@ impl StellarGrantsContract {
         admin: Address,
         oracle: Address,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         admin.require_auth();
         env.storage()
             .persistent()
@@ -938,6 +985,7 @@ impl StellarGrantsContract {
         funder: Address,
         grants: Vec<(u64, i128)>,
     ) -> Result<(), ContractError> {
+        pausable::assert_not_paused(&env)?;
         funder.require_auth();
 
         let batch_len = grants.len();
