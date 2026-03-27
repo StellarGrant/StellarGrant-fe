@@ -1,11 +1,3 @@
-#![allow(
-    unused_variables,
-    clippy::needless_borrow,
-    clippy::bool_assert_comparison,
-    clippy::useless_conversion,
-    clippy::needless_range_loop
-)]
-
 #[cfg(test)]
 mod tests {
     use crate::storage::Storage;

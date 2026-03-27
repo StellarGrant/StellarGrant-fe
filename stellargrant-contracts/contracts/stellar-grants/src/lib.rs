@@ -109,24 +109,6 @@ impl StellarGrantsContract {
         Ok(grant_id)
     }
 
-    /// Create a high-security grant that requires multisig final release.
-    ///
-    /// # Arguments
-    /// * `owner` - Grant owner address.
-    /// * `title` - Grant title.
-    /// * `description` - Grant description.
-    /// * `token` - Token address used for funding and payouts.
-    /// * `total_amount` - Total amount requested for the grant.
-    /// * `milestone_amount` - Per-milestone payout amount.
-    /// * `num_milestones` - Number of milestones to support.
-    /// * `reviewers` - Reviewer addresses for milestone votes.
-    /// * `multisig_signers` - Required addresses for release approval.
-    ///
-    /// # Returns
-    /// * `Ok(grant_id)` on successful creation.
-    ///
-    /// # Errors
-    /// * [`ContractError::InvalidInput`] when `multisig_signers` is empty or if underlying creation fails.
     #[allow(clippy::too_many_arguments)]
     pub fn grant_create_high_security(
         env: Env,
@@ -341,23 +323,6 @@ impl StellarGrantsContract {
         })
     }
 
-    /// Sign release for a high-security grant.
-    ///
-    /// # Arguments
-    /// * `grant_id` - Grant identifier.
-    /// * `signer` - Multisig signer address.
-    ///
-    /// # Returns
-    /// * `Ok(())` on successful signature.
-    ///
-    /// # Errors
-    /// * [`ContractError::GrantNotFound`] if grant is missing.
-    /// * [`ContractError::InvalidState`] if grant is not active or not high-security.
-    /// * [`ContractError::NotMultisigSigner`] if signer is not allowed.
-    /// * [`ContractError::AlreadySignedRelease`] if signer already signed.
-    ///
-    /// # Side Effects
-    /// * Updates release approval state and can call `finalize_grant_release` if quorum is met.
     pub fn sign_release(env: Env, grant_id: u64, signer: Address) -> Result<(), ContractError> {
         signer.require_auth();
         reentrancy::with_non_reentrant(&env, || {
