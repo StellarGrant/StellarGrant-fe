@@ -5,7 +5,7 @@ mod tests {
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
     use soroban_sdk::{
-        contract, contractimpl, contracttype, testutils::Address as _, token, Address, Env, Map,
+        contract, contractimpl, contracttype, testutils::Address as _, token, Address, BytesN, Env, Map,
         String, Vec,
     };
 
@@ -165,6 +165,8 @@ mod tests {
                 reasons: Map::new(env),
                 status_updated_at: 0,
                 proof_url: Some(String::from_str(env, "https://proof.url")),
+                proof_hash: BytesN::from_array(env, &[0u8; 32]),
+                proof_hash: BytesN::from_array(env, &[0u8; 32]),
                 submission_timestamp: env.ledger().timestamp(),
             };
             Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
@@ -584,6 +586,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                    proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                     submission_timestamp: 0,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -651,6 +654,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                 submission_timestamp: 0,
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -666,6 +670,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                 submission_timestamp: 0,
             };
             Storage::set_milestone(&env, grant_id, 1, &m2);
@@ -725,6 +730,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                 submission_timestamp: 0,
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -786,6 +792,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                     submission_timestamp: 0,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -849,6 +856,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                proof_hash: BytesN::from_array(&env, &[0u8; 32]),
                     submission_timestamp: 0,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1056,7 +1064,8 @@ mod tests {
         let description = String::from_str(&env, "Completed smart contract implementation");
         let proof_url = String::from_str(&env, "https://github.com/org/repo/pull/42");
 
-        client.milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
+        let proof_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url, &proof_hash);
 
         // Verify the milestone was stored correctly
         env.as_contract(&contract_id, || {
@@ -1073,6 +1082,7 @@ mod tests {
                     "https://github.com/org/repo/pull/42"
                 ))
             );
+            assert_eq!(milestone.proof_hash, BytesN::from_array(&env, &[1u8; 32]));
             assert_eq!(milestone.idx, milestone_idx);
         });
     }
@@ -1087,8 +1097,15 @@ mod tests {
         let description = String::from_str(&env, "Work done");
         let proof_url = String::from_str(&env, "https://proof.url");
 
-        let result =
-            client.try_milestone_submit(&999u64, &0u32, &recipient, &description, &proof_url);
+        let invalid_hash = BytesN::from_array(&env, &[0u8; 32]);
+        let result = client.try_milestone_submit(
+            &999u64,
+            &0u32,
+            &recipient,
+            &description,
+            &proof_url,
+            &invalid_hash,
+        );
         assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
     }
 
@@ -1115,8 +1132,15 @@ mod tests {
         let proof_url = String::from_str(&env, "https://proof.url");
 
         // The grant has total_milestones = 1, so index 1 is out of bounds
-        let result =
-            client.try_milestone_submit(&grant_id, &1u32, &owner, &description, &proof_url);
+        let invalid_hash = BytesN::from_array(&env, &[0u8; 32]);
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &1u32,
+            &owner,
+            &description,
+            &proof_url,
+            &invalid_hash,
+        );
         assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
     }
 
@@ -1151,17 +1175,93 @@ mod tests {
         let description = String::from_str(&env, "Work done");
         let proof_url = String::from_str(&env, "https://proof.url");
 
+        let new_hash = BytesN::from_array(&env, &[2u8; 32]);
         let result = client.try_milestone_submit(
             &grant_id,
             &milestone_idx,
             &owner,
             &description,
             &proof_url,
+            &new_hash,
         );
-        assert_eq!(
-            result,
-            Err(Ok(ContractError::MilestoneAlreadySubmitted.into()))
+        assert_eq!(result, Ok(()));
+
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.proof_hash, new_hash);
+        });
+    }
+
+    #[test]
+    fn test_milestone_submit_invalid_hash() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        let invalid_proof_hash = BytesN::from_array(&env, &[0u8; 32]);
+
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &description,
+            &proof_url,
+            &invalid_proof_hash,
         );
+
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_milestone_submit_resubmit_with_correct_hash() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+        let milestone_idx = 0u32;
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+
+        let description = String::from_str(&env, "Initial submission");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        let first_hash = BytesN::from_array(&env, &[0u8; 32]);
+
+        let failed = client.try_milestone_submit(
+            &grant_id,
+            &milestone_idx,
+            &owner,
+            &description,
+            &proof_url,
+            &first_hash,
+        );
+        assert_eq!(failed, Err(Ok(ContractError::InvalidInput.into())));
+
+        let good_hash = BytesN::from_array(&env, &[1u8; 32]);
+        let ok = client.milestone_submit(
+            &grant_id,
+            &milestone_idx,
+            &owner,
+            &description,
+            &proof_url,
+            &good_hash,
+        );
+        assert!(ok.is_ok());
+
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
+            assert_eq!(milestone.proof_hash, good_hash);
+        });
     }
 
     #[test]
@@ -1181,8 +1281,15 @@ mod tests {
         let proof_url = String::from_str(&env, "https://proof.url");
 
         // attacker is not the grant owner
-        let result =
-            client.try_milestone_submit(&grant_id, &0u32, &attacker, &description, &proof_url);
+        let invalid_hash = BytesN::from_array(&env, &[0u8; 32]);
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &0u32,
+            &attacker,
+            &description,
+            &proof_url,
+            &invalid_hash,
+        );
         assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
     }
 
@@ -1220,8 +1327,15 @@ mod tests {
         let description = String::from_str(&env, "Work done");
         let proof_url = String::from_str(&env, "https://proof.url");
 
-        let result =
-            client.try_milestone_submit(&grant_id, &0u32, &owner, &description, &proof_url);
+        let invalid_hash = BytesN::from_array(&env, &[0u8; 32]);
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &description,
+            &proof_url,
+            &invalid_hash,
+        );
         assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
     }
 

@@ -12,7 +12,7 @@ pub use types::{
     Milestone, MilestoneState,
 };
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, String, Vec};
 
 #[contract]
 pub struct StellarGrantsContract;
@@ -631,13 +631,22 @@ impl StellarGrantsContract {
     /// * `recipient` - The address of the grant recipient submitting the milestone.
     /// * `description` - A human-readable description of work completed for this milestone.
     /// * `proof_url` - A URL pointing to proof of completion (e.g. GitHub PR, report link).
+    /// * `proof_hash` - A 32-byte cryptographic proof hash (mandatory, not all zero bytes).
     ///
     /// # Errors
     /// * [`ContractError::GrantNotFound`] – if no grant exists with the given `grant_id`.
     /// * [`ContractError::InvalidState`] – if the grant is not in `Active` status.
     /// * [`ContractError::InvalidInput`] – if `milestone_idx` is out of bounds.
     /// * [`ContractError::Unauthorized`] – if `recipient` is not the grant owner.
-    /// * [`ContractError::MilestoneAlreadySubmitted`] – if the milestone is already submitted or approved.
+    /// * [`ContractError::MilestoneAlreadySubmitted`] – if the milestone has already been approved.
+    fn validate_proof_hash(env: &Env, proof_hash: &BytesN<32>) -> Result<(), ContractError> {
+        let zero_hash = BytesN::<32>::from_array(env, &[0u8; 32]);
+        if proof_hash == &zero_hash {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
     pub fn milestone_submit(
         env: Env,
         grant_id: u64,
@@ -645,6 +654,7 @@ impl StellarGrantsContract {
         recipient: Address,
         description: String,
         proof_url: String,
+        proof_hash: BytesN<32>,
     ) -> Result<(), ContractError> {
         recipient.require_auth();
 
@@ -666,11 +676,12 @@ impl StellarGrantsContract {
             return Err(ContractError::Unauthorized);
         }
 
-        // 5. Milestone must not already be submitted or approved
+        // 5. Validate proof hash format
+        Self::validate_proof_hash(&env, &proof_hash)?;
+
+        // 6. Milestone must not be approved (allow resubmit for Pending/Submitted/Rejected)
         if let Some(existing) = Storage::get_milestone(&env, grant_id, milestone_idx) {
-            if existing.state == MilestoneState::Submitted
-                || existing.state == MilestoneState::Approved
-            {
+            if existing.state == MilestoneState::Approved {
                 return Err(ContractError::MilestoneAlreadySubmitted);
             }
         }
@@ -687,13 +698,15 @@ impl StellarGrantsContract {
             reasons: soroban_sdk::Map::new(&env),
             status_updated_at: 0,
             proof_url: Some(proof_url),
+            proof_hash: proof_hash.clone(),
             submission_timestamp: env.ledger().timestamp(),
         };
 
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
 
-        // Emit submission event
+        // Emit submission events
         Events::emit_milestone_submitted(&env, grant_id, milestone_idx, description);
+        Events::emit_milestone_proof_submitted(&env, grant_id, milestone_idx, proof_hash);
 
         Ok(())
     }

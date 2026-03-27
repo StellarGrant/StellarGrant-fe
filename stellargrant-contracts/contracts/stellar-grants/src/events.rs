@@ -93,6 +93,15 @@ pub struct MilestoneSubmitted {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneProofSubmitted {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub proof_hash: soroban_sdk::BytesN<32>,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantFunded {
     pub grant_id: u64,
     pub funder: Address,
@@ -183,6 +192,21 @@ impl Events {
             grant_id,
             milestone_idx,
             description,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_proof_submitted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        proof_hash: soroban_sdk::BytesN<32>,
+    ) {
+        let event = MilestoneProofSubmitted {
+            grant_id,
+            milestone_idx,
+            proof_hash,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

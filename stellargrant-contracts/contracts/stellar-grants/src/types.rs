@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map, String, Vec};
 
 /// Contract error types
 #[contracterror]
@@ -80,6 +80,7 @@ pub struct Milestone {
     pub reasons: Map<Address, String>,
     pub status_updated_at: u64,
     pub proof_url: Option<String>,
+    pub proof_hash: BytesN<32>,
     pub submission_timestamp: u64,
 }
 
