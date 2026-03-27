@@ -385,7 +385,9 @@ impl StellarGrantsContract {
         let mut approved_count = 0;
         for milestone_idx in 0..total_milestones {
             if let Some(milestone) = Storage::get_milestone(env, grant_id, milestone_idx) {
-                if milestone.state != MilestoneState::Approved && milestone.state != MilestoneState::Paid {
+                if milestone.state != MilestoneState::Approved
+                    && milestone.state != MilestoneState::Paid
+                {
                     return Err(ContractError::NotAllMilestonesApproved);
                 }
                 total_paid += milestone.amount;
@@ -474,12 +476,7 @@ impl StellarGrantsContract {
                         milestone_idx,
                         MilestoneState::Paid,
                     );
-                    Events::emit_milestone_paid(
-                        env,
-                        grant_id,
-                        milestone_idx,
-                        milestone.amount,
-                    );
+                    Events::emit_milestone_paid(env, grant_id, milestone_idx, milestone.amount);
                 }
             }
         }

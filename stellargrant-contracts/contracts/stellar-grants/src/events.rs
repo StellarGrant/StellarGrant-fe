@@ -291,12 +291,7 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_milestone_paid(
-        env: &Env,
-        grant_id: u64,
-        milestone_idx: u32,
-        amount: i128,
-    ) {
+    pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
         let event = MilestonePaid {
             grant_id,
             milestone_idx,
