@@ -35,7 +35,7 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "77"
+                    "u64": "88"
                   }
                 ]
               },
@@ -71,7 +71,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "77"
+                      "u64": "88"
                     }
                   },
                   {
@@ -133,7 +133,7 @@
                       "symbol": "title"
                     },
                     "val": {
-                      "string": "Reentrancy Test"
+                      "string": "Batch Reentrancy"
                     }
                   },
                   {
@@ -282,10 +282,13 @@
                     "val": {
                       "vec": [
                         {
-                          "symbol": "GrantFund"
+                          "symbol": "FundBatchOne"
                         },
                         {
-                          "u64": "77"
+                          "u64": "88"
+                        },
+                        {
+                          "i128": "1"
                         }
                       ]
                     }
