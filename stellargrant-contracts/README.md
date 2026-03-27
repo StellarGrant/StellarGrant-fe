@@ -21,7 +21,8 @@
 ### Security & Reliability
 - **Reentrancy Protection**: Industry-standard security patterns
 - **Overflow Protection**: Checked arithmetic for all operations
-- **Access Control**: Role-based permissions and authentication
+- **Access Control (RBAC)**: Fine-grained permissions (Admin, GrantCreator, Reviewer, Pauser)
+- **Emergency Pause**: Contract-level pause/unpause for security
 - **Audit-Ready**: Comprehensive security best practices
 
 ### Developer Experience
@@ -52,7 +53,9 @@ The StellarGrants contract is organized into modular components:
 - **`types.rs`**: Data structures, error types, and type definitions
 - **`storage.rs`**: Storage key helpers and data persistence
 - **`events.rs`**: Event definitions and emission helpers
-- **`test.rs`**: Unit tests for contract functions
+- **`access_control.rs`**: RBAC and emergency pause logic
+- **`test.rs`**: Main functional unit tests
+- **`rbac_test.rs`**: RBAC specific unit tests
 
 ### Grant Lifecycle
 
@@ -227,7 +230,8 @@ After deployment, initialize the contract:
 stellar contract invoke \
   --id CONTRACT_ID \
   --network testnet \
-  -- initialize
+  -- initialize \
+  --admin YOUR_ADDRESS
 ```
 
 ## 💡 Usage Examples

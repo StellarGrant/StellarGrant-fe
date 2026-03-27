@@ -1,4 +1,4 @@
-use crate::types::MilestoneState;
+use crate::types::{MilestoneState, Role};
 use soroban_sdk::{contractevent, Address, Env, String};
 
 #[contractevent]
@@ -108,6 +108,22 @@ pub struct GrantCreated {
     pub owner: Address,
     pub title: String,
     pub total_amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleGranted {
+    pub address: Address,
+    pub role: Role,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRevoked {
+    pub address: Address,
+    pub role: Role,
     pub timestamp: u64,
 }
 
@@ -277,6 +293,24 @@ impl Events {
             grant_id,
             milestone_idx,
             new_state,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_role_granted(env: &Env, address: Address, role: Role) {
+        let event = RoleGranted {
+            address,
+            role,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_role_revoked(env: &Env, address: Address, role: Role) {
+        let event = RoleRevoked {
+            address,
+            role,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

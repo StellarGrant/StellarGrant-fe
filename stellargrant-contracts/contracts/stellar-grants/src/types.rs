@@ -1,5 +1,15 @@
 use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
 
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum Role {
+    Admin = 1,
+    GrantCreator = 2,
+    Reviewer = 3,
+    Pauser = 4,
+}
+
 /// Contract error types
 #[contracterror]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +39,8 @@ pub enum ContractError {
     AlreadySignedRelease = 22,
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
+    RoleAlreadyAssigned = 25,
+    RoleNotFound = 26,
 }
 
 #[contracttype]

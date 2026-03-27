@@ -4,12 +4,14 @@ mod events;
 mod reentrancy;
 mod storage;
 mod types;
+mod access_control;
 
 pub use events::Events;
 pub use storage::Storage;
+pub use access_control::AccessControl;
 pub use types::{
     ContractError, EscrowLifecycleState, EscrowMode, EscrowState, Grant, GrantFund, GrantStatus,
-    Milestone, MilestoneState,
+    Milestone, MilestoneState, Role,
 };
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Vec};
@@ -19,25 +21,66 @@ pub struct StellarGrantsContract;
 
 #[contractimpl]
 impl StellarGrantsContract {
-    /// Initialize the contract
-    pub fn initialize(_env: Env) -> Result<(), ContractError> {
+    /// Initialize the contract with an admin
+    pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
+        if Storage::get_global_admin(&env).is_some() {
+            return Err(ContractError::Unauthorized); // Already initialized
+        }
+        Storage::set_global_admin(&env, &admin);
+        AccessControl::grant_role(&env, &admin, Role::Admin)?;
         Ok(())
     }
 
-    /// Configure or rotate a single global admin address.
     pub fn set_global_admin(
         env: Env,
         caller: Address,
         new_admin: Address,
     ) -> Result<(), ContractError> {
         caller.require_auth();
-        if let Some(current_admin) = Storage::get_global_admin(&env) {
-            if current_admin != caller {
-                return Err(ContractError::Unauthorized);
-            }
-        }
+        AccessControl::require_role(&env, &caller, Role::Admin)?;
+        
         Storage::set_global_admin(&env, &new_admin);
+        AccessControl::grant_role(&env, &new_admin, Role::Admin)?;
         Ok(())
+    }
+
+    /// RBAC: Grant a role to an address. Only Admins can grant roles.
+    pub fn grant_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: Role,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        AccessControl::require_role(&env, &caller, Role::Admin)?;
+        AccessControl::grant_role(&env, &target, role)
+    }
+
+    /// RBAC: Revoke a role from an address. Only Admins can revoke roles.
+    pub fn revoke_role(
+        env: Env,
+        caller: Address,
+        target: Address,
+        role: Role,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        AccessControl::require_role(&env, &caller, Role::Admin)?;
+        AccessControl::revoke_role(&env, &target, role)
+    }
+
+        address.require_auth();
+        AccessControl::revoke_role(&env, &address, role)
+    }
+
+    /// Emergency: Pause/Unpause the contract. Only Pausers can pause, Only Admins can unpause.
+    pub fn set_paused(env: Env, caller: Address, paused: bool) -> Result<(), ContractError> {
+        caller.require_auth();
+        AccessControl::set_paused(&env, &caller, paused)
+    }
+
+    /// RBAC: Check if an address has a role.
+    pub fn has_role(env: Env, address: Address, role: Role) -> bool {
+        AccessControl::has_role(&env, &address, role)
     }
 
     /// Allows a grant developer/owner to create a new milestone-based grant.
@@ -67,6 +110,8 @@ impl StellarGrantsContract {
         reviewers: soroban_sdk::Vec<Address>,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
+        AccessControl::require_unpaused(&env)?;
+        AccessControl::require_role(&env, &owner, Role::GrantCreator)?;
 
         if total_amount <= 0 || milestone_amount <= 0 {
             return Err(ContractError::InvalidInput);
@@ -229,7 +274,7 @@ impl StellarGrantsContract {
                 Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
             let caller_is_owner = grant.owner == caller;
-            let caller_is_admin = Storage::get_global_admin(&env) == Some(caller.clone());
+            let caller_is_admin = AccessControl::has_role(&env, &caller, Role::Admin);
             if !caller_is_owner && !caller_is_admin {
                 return Err(ContractError::Unauthorized);
             }
@@ -485,6 +530,8 @@ impl StellarGrantsContract {
         feedback: Option<String>,
     ) -> Result<bool, ContractError> {
         reviewer.require_auth();
+        AccessControl::require_unpaused(&env)?;
+        AccessControl::require_role(&env, &reviewer, Role::Reviewer)?;
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
@@ -562,6 +609,8 @@ impl StellarGrantsContract {
         reason: String,
     ) -> Result<bool, ContractError> {
         reviewer.require_auth();
+        AccessControl::require_unpaused(&env)?;
+        AccessControl::require_role(&env, &reviewer, Role::Reviewer)?;
 
         if reason.len() > 256 {
             return Err(ContractError::InvalidInput);
@@ -647,6 +696,7 @@ impl StellarGrantsContract {
         proof_url: String,
     ) -> Result<(), ContractError> {
         recipient.require_auth();
+        AccessControl::require_unpaused(&env)?;
 
         // 1. Grant must exist
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -716,6 +766,7 @@ impl StellarGrantsContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         funder.require_auth();
+        AccessControl::require_unpaused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             if amount <= 0 {
                 return Err(ContractError::InvalidInput);
@@ -829,6 +880,7 @@ impl StellarGrantsContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         reviewer.require_auth();
+        AccessControl::require_unpaused(&env)?;
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         if grant.status != GrantStatus::Active {
@@ -858,6 +910,7 @@ impl StellarGrantsContract {
         reviewer: Address,
     ) -> Result<(), ContractError> {
         admin.require_auth();
+        AccessControl::require_role(&env, &admin, Role::Admin)?;
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         let stake = Storage::get_reviewer_stake(&env, grant_id, &reviewer);
@@ -905,6 +958,7 @@ impl StellarGrantsContract {
         oracle: Address,
     ) -> Result<(), ContractError> {
         admin.require_auth();
+        AccessControl::require_role(&env, &admin, Role::Admin)?;
         env.storage()
             .persistent()
             .set(&storage::DataKey::IdentityOracle, &oracle);
@@ -986,3 +1040,5 @@ impl StellarGrantsContract {
 
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod rbac_test;

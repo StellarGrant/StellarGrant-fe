@@ -20,6 +20,8 @@ pub enum DataKey {
     EscrowState(u64),
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
+    Role(soroban_sdk::Address, crate::types::Role),
+    IsPaused,
 }
 
 pub struct Storage;
@@ -194,5 +196,36 @@ impl Storage {
             &DataKey::ReleaseSignerApproval(grant_id, signer.clone()),
             &approved,
         );
+    }
+
+    // --- RBAC helpers ---
+
+    pub fn has_role(env: &Env, address: &soroban_sdk::Address, role: crate::types::Role) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::Role(address.clone(), role))
+    }
+
+    pub fn set_role(env: &Env, address: &soroban_sdk::Address, role: crate::types::Role) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::Role(address.clone(), role), &true);
+    }
+
+    pub fn remove_role(env: &Env, address: &soroban_sdk::Address, role: crate::types::Role) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::Role(address.clone(), role));
+    }
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::IsPaused)
+            .unwrap_or(false)
+    }
+
+    pub fn set_paused(env: &Env, paused: bool) {
+        env.storage().persistent().set(&DataKey::IsPaused, &paused);
     }
 }
