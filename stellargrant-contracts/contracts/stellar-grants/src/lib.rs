@@ -180,6 +180,10 @@ impl StellarGrantsContract {
         reviewers: soroban_sdk::Vec<Address>,
         multisig_signers: soroban_sdk::Vec<Address>,
     ) -> Result<u64, ContractError> {
+        owner.require_auth();
+        AccessControl::require_unpaused(&env)?;
+        AccessControl::require_role(&env, &owner, Role::GrantCreator)?;
+
         if multisig_signers.is_empty() {
             return Err(ContractError::InvalidInput);
         }
@@ -221,6 +225,7 @@ impl StellarGrantsContract {
         github_url: String,
     ) -> Result<(), ContractError> {
         contributor.require_auth();
+        AccessControl::require_unpaused(&env)?;
 
         if name.is_empty() || name.len() > 100 {
             return Err(ContractError::InvalidInput);
@@ -269,6 +274,7 @@ impl StellarGrantsContract {
         reason: String,
     ) -> Result<(), ContractError> {
         caller.require_auth();
+        AccessControl::require_unpaused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             let mut grant =
                 Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -350,8 +356,8 @@ impl StellarGrantsContract {
         })
     }
 
-    /// Mark a grant as completed when all milestones are approved and refund the remaining balance
     pub fn grant_complete(env: Env, grant_id: u64) -> Result<(), ContractError> {
+        AccessControl::require_unpaused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
@@ -383,6 +389,7 @@ impl StellarGrantsContract {
 
     pub fn sign_release(env: Env, grant_id: u64, signer: Address) -> Result<(), ContractError> {
         signer.require_auth();
+        AccessControl::require_unpaused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
             if grant.status != GrantStatus::Active {
@@ -930,6 +937,7 @@ impl StellarGrantsContract {
     /// Reviewer unstakes tokens after a grant lifecycle completes.
     pub fn unstake(env: Env, reviewer: Address, grant_id: u64) -> Result<(), ContractError> {
         reviewer.require_auth();
+        AccessControl::require_unpaused(&env)?;
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         if grant.status == GrantStatus::Active {
@@ -977,6 +985,7 @@ impl StellarGrantsContract {
         grants: Vec<(u64, i128)>,
     ) -> Result<(), ContractError> {
         funder.require_auth();
+        AccessControl::require_unpaused(&env)?;
 
         let batch_len = grants.len();
         if batch_len == 0 {
