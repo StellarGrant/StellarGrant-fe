@@ -155,6 +155,14 @@ pub struct GrantResumed {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantActivated {
+    pub grant_id: u64,
+    pub escrow_balance: i128,
+    pub timestamp: u64,
+}
+
 pub struct Events;
 
 impl Events {
@@ -296,6 +304,15 @@ impl Events {
         let event = GrantResumed {
             grant_id,
             owner,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_activated(env: &Env, grant_id: u64, escrow_balance: i128) {
+        let event = GrantActivated {
+            grant_id,
+            escrow_balance,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

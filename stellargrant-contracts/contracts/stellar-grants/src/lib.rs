@@ -6,6 +6,9 @@ mod reentrancy;
 mod storage;
 mod types;
 
+#[cfg(test)]
+mod test_pending_funding;
+
 pub use events::Events;
 pub use storage::Storage;
 pub use types::{
@@ -113,6 +116,7 @@ impl StellarGrantsContract {
     /// * `description` - The description of the grant.
     /// * `token` - The underlying token for funding the grant.
     /// * `total_amount` - The total amount to be raised.
+    /// * `min_funding` - The minimum funding threshold for the grant to become active.
     /// * `milestone_amount` - The payout chunk for each milestone.
     /// * `num_milestones` - The number of milestones (up to 100).
     /// * `reviewers` - A list of addresses authorized to approve/reject milestones.
@@ -127,6 +131,7 @@ impl StellarGrantsContract {
         description: String,
         token: Address,
         total_amount: i128,
+        min_funding: i128,
         milestone_amount: i128,
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
@@ -140,7 +145,11 @@ impl StellarGrantsContract {
             }
         }
 
-        if total_amount <= 0 || milestone_amount <= 0 {
+        if total_amount <= 0 || milestone_amount <= 0 || min_funding <= 0 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        if min_funding > total_amount {
             return Err(ContractError::InvalidInput);
         }
 
@@ -164,8 +173,9 @@ impl StellarGrantsContract {
             title: title.clone(),
             description,
             token,
-            status: GrantStatus::Active,
+            status: GrantStatus::PendingFunding,
             total_amount,
+            min_funding,
             milestone_amount,
             reviewers,
             total_milestones: num_milestones,
@@ -227,6 +237,7 @@ impl StellarGrantsContract {
         description: String,
         token: Address,
         total_amount: i128,
+        min_funding: i128,
         milestone_amount: i128,
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
@@ -239,6 +250,7 @@ impl StellarGrantsContract {
             description,
             token,
             total_amount,
+            min_funding,
             milestone_amount,
             num_milestones,
             reviewers,
@@ -256,6 +268,7 @@ impl StellarGrantsContract {
     /// * `description` - Grant description.
     /// * `token` - Token address used for funding and payouts.
     /// * `total_amount` - Total amount requested for the grant.
+    /// * `min_funding` - Minimum funding threshold for the grant to become active.
     /// * `milestone_amount` - Per-milestone payout amount.
     /// * `num_milestones` - Number of milestones to support.
     /// * `reviewers` - Reviewer addresses for milestone votes.
@@ -274,6 +287,7 @@ impl StellarGrantsContract {
         description: String,
         token: Address,
         total_amount: i128,
+        min_funding: i128,
         milestone_amount: i128,
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
@@ -290,6 +304,7 @@ impl StellarGrantsContract {
             description,
             token,
             total_amount,
+            min_funding,
             milestone_amount,
             num_milestones,
             reviewers,
@@ -1004,7 +1019,7 @@ impl StellarGrantsContract {
     ///
     /// # Errors
     /// * [`ContractError::GrantNotFound`] – if no grant exists with the given `grant_id`.
-    /// * [`ContractError::InvalidState`] – if the grant is not in `Active` status.
+    /// * [`ContractError::InvalidState`] – if the grant is not in `Active` status (PendingFunding grants are rejected).
     /// * [`ContractError::InvalidInput`] – if `milestone_idx` is out of bounds.
     /// * [`ContractError::Unauthorized`] – if `recipient` is not the grant owner.
     /// * [`ContractError::MilestoneAlreadySubmitted`] – if the milestone is already submitted or approved.
@@ -1020,6 +1035,8 @@ impl StellarGrantsContract {
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
+        // Only allow milestone submissions for Active grants
+        // PendingFunding grants must reach min_funding threshold first
         if grant.status != GrantStatus::Active {
             return Err(ContractError::InvalidState);
         }
@@ -1064,6 +1081,8 @@ impl StellarGrantsContract {
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
+        // Only allow milestone submissions for Active grants
+        // PendingFunding grants must reach min_funding threshold first
         if grant.status != GrantStatus::Active {
             return Err(ContractError::InvalidState);
         }
@@ -1098,7 +1117,7 @@ impl StellarGrantsContract {
     /// # Errors
     /// * [`ContractError::InvalidInput`] – if `amount <= 0` or if addition overflows.
     /// * [`ContractError::GrantNotFound`] – if no grant exists with the given `grant_id`.
-    /// * [`ContractError::InvalidState`] – if the grant is not in `Active` status.
+    /// * [`ContractError::InvalidState`] – if the grant is not in `Active` or `PendingFunding` status.
     pub fn grant_fund(
         env: Env,
         grant_id: u64,
@@ -1114,7 +1133,8 @@ impl StellarGrantsContract {
             let mut grant =
                 Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
-            if grant.status != GrantStatus::Active {
+            // Allow funding for both Active and PendingFunding grants
+            if grant.status != GrantStatus::Active && grant.status != GrantStatus::PendingFunding {
                 return Err(ContractError::InvalidState);
             }
 
@@ -1149,6 +1169,13 @@ impl StellarGrantsContract {
                     funder: funder.clone(),
                     amount,
                 });
+            }
+
+            // Check if grant should transition from PendingFunding to Active
+            let was_pending_funding = grant.status == GrantStatus::PendingFunding;
+            if was_pending_funding && grant.escrow_balance >= grant.min_funding {
+                grant.status = GrantStatus::Active;
+                Events::emit_grant_activated(&env, grant_id, grant.escrow_balance);
             }
 
             Storage::set_grant(&env, grant_id, &grant);
@@ -1443,6 +1470,3 @@ fn ensure_min_reputation_for_grant(
 
     Ok(())
 }
-
-#[cfg(test)]
-mod test;

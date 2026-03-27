@@ -50,6 +50,7 @@ mod tests {
                 token,
                 status: GrantStatus::Active,
                 total_amount: 1000,
+                min_funding: 500,
                 milestone_amount: 500,
                 reviewers,
                 total_milestones: 1,
