@@ -24,9 +24,15 @@ pub struct Storage;
 
 impl Storage {
     pub fn increment_grant_counter(env: &Env) -> u64 {
-        let mut count: u64 = env.storage().persistent().get(&DataKey::GrantCounter).unwrap_or(0);
+        let mut count: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::GrantCounter)
+            .unwrap_or(0);
         count += 1;
-        env.storage().persistent().set(&DataKey::GrantCounter, &count);
+        env.storage()
+            .persistent()
+            .set(&DataKey::GrantCounter, &count);
         count
     }
 
@@ -57,7 +63,9 @@ impl Storage {
     }
 
     pub fn set_grant(env: &Env, grant_id: u64, grant: &Grant) {
-        env.storage().persistent().set(&DataKey::Grant(grant_id), grant);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Grant(grant_id), grant);
     }
 
     pub fn has_grant(env: &Env, grant_id: u64) -> bool {
@@ -83,11 +91,15 @@ impl Storage {
     }
 
     pub fn get_contributor(env: &Env, contributor: Address) -> Option<ContributorProfile> {
-        env.storage().persistent().get(&DataKey::Contributor(contributor))
+        env.storage()
+            .persistent()
+            .get(&DataKey::Contributor(contributor))
     }
 
     pub fn set_contributor(env: &Env, contributor: Address, profile: &ContributorProfile) {
-        env.storage().persistent().set(&DataKey::Contributor(contributor), profile);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Contributor(contributor), profile);
     }
 
     pub fn get_escrow_state(env: &Env, grant_id: u64) -> EscrowState {
@@ -100,7 +112,9 @@ impl Storage {
     }
 
     pub fn set_escrow_state(env: &Env, grant_id: u64, state: &EscrowState) {
-        env.storage().persistent().set(&DataKey::EscrowState(grant_id), state);
+        env.storage()
+            .persistent()
+            .set(&DataKey::EscrowState(grant_id), state);
     }
 
     pub fn get_multisig_signers(env: &Env, grant_id: u64) -> Vec<Address> {
@@ -124,9 +138,10 @@ impl Storage {
     }
 
     pub fn set_release_approval(env: &Env, grant_id: u64, signer: &Address, approved: bool) {
-        env.storage()
-            .persistent()
-            .set(&DataKey::ReleaseApproval(grant_id, signer.clone()), &approved);
+        env.storage().persistent().set(
+            &DataKey::ReleaseApproval(grant_id, signer.clone()),
+            &approved,
+        );
     }
 
     pub fn get_reviewer_reputation(env: &Env, reviewer: Address) -> u32 {
