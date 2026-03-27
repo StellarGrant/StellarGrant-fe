@@ -398,24 +398,6 @@ impl StellarGrantsContract {
         })
     }
 
-    /// Sign release for a high-security grant.
-    ///
-    /// # Arguments
-    /// * `grant_id` - Grant identifier.
-    /// * `signer` - Multisig signer address.
-    ///
-    /// # Returns
-    /// * `Ok(())` on successful signature.
-    ///
-    /// # Errors
-    /// * [`ContractError::GrantNotFound`] if grant is missing.
-    /// * [`ContractError::InvalidState`] if grant not active/high-security.
-    /// * [`ContractError::NotMultisigSigner`] if signer is not in multisig set.
-    /// * [`ContractError::AlreadySignedRelease`] if signer already signed.
-    ///
-    /// # Side Effects
-    /// * When quorum and readiness are met, calls `finalize_grant_release`.
-
     fn compute_total_paid_if_quorum_ready(
         env: &Env,
         grant_id: u64,
