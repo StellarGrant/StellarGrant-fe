@@ -73,6 +73,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "metadata"
+                    },
+                    "val": {
+                      "u128": "79228162532711081671548469251"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "milestone_amount"
                     },
                     "val": {
@@ -81,26 +89,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "quorum"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -115,14 +107,6 @@
                     },
                     "val": {
                       "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 3
                     }
                   },
                   {
@@ -155,14 +139,6 @@
                     },
                     "val": {
                       "i128": "100"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]

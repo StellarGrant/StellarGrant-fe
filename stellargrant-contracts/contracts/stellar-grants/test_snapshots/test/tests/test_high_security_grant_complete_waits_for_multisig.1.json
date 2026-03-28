@@ -338,6 +338,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "metadata"
+                    },
+                    "val": {
+                      "u128": "36893488151714070529"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "milestone_amount"
                     },
                     "val": {
@@ -346,26 +354,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "quorum"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -384,14 +376,6 @@
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -424,14 +408,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 2
                     }
                   }
                 ]
@@ -526,14 +502,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "deadline"
                     },
                     "val": {
@@ -550,10 +518,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "metadata"
                     },
                     "val": {
-                      "u32": 0
+                      "u128": "18446744082299486208"
                     }
                   },
                   {
@@ -572,22 +540,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "state"
-                    },
-                    "val": {
-                      "u32": 2
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "status_updated_at"
                     },
                     "val": {
@@ -597,6 +549,14 @@
                   {
                     "key": {
                       "symbol": "submission_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "vesting_period"
                     },
                     "val": {
                       "u64": "0"
@@ -651,14 +611,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "deadline"
                     },
                     "val": {
@@ -675,10 +627,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "metadata"
                     },
                     "val": {
-                      "u32": 1
+                      "u128": "18446744082299486209"
                     }
                   },
                   {
@@ -697,22 +649,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "state"
-                    },
-                    "val": {
-                      "u32": 2
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "status_updated_at"
                     },
                     "val": {
@@ -722,6 +658,14 @@
                   {
                     "key": {
                       "symbol": "submission_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "vesting_period"
                     },
                     "val": {
                       "u64": "0"

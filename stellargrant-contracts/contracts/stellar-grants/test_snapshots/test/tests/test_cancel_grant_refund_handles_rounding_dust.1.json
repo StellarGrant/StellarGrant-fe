@@ -243,6 +243,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "metadata"
+                    },
+                    "val": {
+                      "u128": "55340232225423622146"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "milestone_amount"
                     },
                     "val": {
@@ -251,26 +259,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "quorum"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -287,14 +279,6 @@
                     },
                     "val": {
                       "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 2
                     }
                   },
                   {
@@ -327,14 +311,6 @@
                     },
                     "val": {
                       "i128": "150"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 3
                     }
                   }
                 ]
