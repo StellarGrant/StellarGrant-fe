@@ -16,12 +16,16 @@
 - **Decentralized Voting**: DAO-based governance for grant and milestone approvals
 - **Multi-Token Support**: Support for XLM, USDC, and custom tokens
 - **Time-Based Deadlines**: Optional deadline tracking for grants and milestones
+- **Heartbeat Mechanism**: Automatic inactivity tracking (30-day inactive, 60-day cancellation trigger)
+- **Machine-Readable Receipts**: Standardized `PayerReceipt` and `PayeeReceipt` events for automated accounting
 - **Transparent Events**: All state changes emit events for off-chain indexing
 
 ### Security & Reliability
 - **Reentrancy Protection**: Industry-standard security patterns
 - **Overflow Protection**: Checked arithmetic for all operations
 - **Access Control**: Role-based permissions and authentication
+- **Global Blacklist**: Administrative power to block malicious addresses from contract interaction
+- **Heartbeat Enforcement**: Ensuring grant recipients maintain active communication with the protocol
 - **Audit-Ready**: Comprehensive security best practices
 
 ### Developer Experience
@@ -362,11 +366,10 @@ Security is a top priority. Before deployment:
 - Basic contract framework
 - Module organization (types, events, storage)
 - Issue tracking system
-
-### 🚧 In Progress
-- Core contract implementation
-- Test suite development
-- CI/CD pipeline setup
+- Heartbeat Mechanism implementation
+- Blacklist System for security enforcement
+- Machine-Readable Receipt System
+- Comprehensive test suite (64 tests)
 
 ### 📋 Planned
 - TypeScript SDK

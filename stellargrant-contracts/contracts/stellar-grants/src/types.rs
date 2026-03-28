@@ -30,6 +30,8 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
+    HeartbeatMissed = 26,
+    Blacklisted = 27,
 }
 
 #[contracttype]
@@ -102,6 +104,9 @@ pub enum GrantStatus {
     Active = 1,
     Cancelled = 2,
     Completed = 3,
+    /// Set automatically when the owner misses the heartbeat window (30 days).
+    /// Funders may immediately cancel an Inactive grant.
+    Inactive = 4,
 }
 
 #[contracttype]
@@ -130,6 +135,9 @@ pub struct Grant {
     pub funders: Vec<GrantFund>,
     pub reason: Option<String>,
     pub timestamp: u64,
+    /// Ledger timestamp of the last successful `grant_ping` call.
+    /// Initialised to the grant creation timestamp.
+    pub last_heartbeat: u64,
 }
 
 #[contracttype]

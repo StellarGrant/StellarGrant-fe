@@ -450,6 +450,71 @@ impl Events {
         };
         event.publish(env);
     }
+
+    /// Emit a receipt for the funder side of a grant deposit.
+    pub fn emit_payer_receipt(
+        env: &Env,
+        grant_id: u64,
+        payer: Address,
+        token: Address,
+        amount: i128,
+        memo: Option<String>,
+    ) {
+        let event = PayerReceipt {
+            event_version: EVENT_VERSION,
+            grant_id,
+            payer,
+            token,
+            amount,
+            memo,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    /// Emit a receipt for the payee (grant owner) side of a milestone payout.
+    pub fn emit_payee_receipt(
+        env: &Env,
+        grant_id: u64,
+        recipient: Address,
+        token: Address,
+        amount: i128,
+        milestone_index: u32,
+    ) {
+        let event = PayeeReceipt {
+            event_version: EVENT_VERSION,
+            grant_id,
+            recipient,
+            token,
+            amount,
+            milestone_index,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    /// Emit when the grant owner sends a successful heartbeat ping.
+    pub fn emit_heartbeat_updated(env: &Env, grant_id: u64, owner: Address, last_heartbeat: u64) {
+        let event = HeartbeatUpdated {
+            event_version: EVENT_VERSION,
+            grant_id,
+            owner,
+            last_heartbeat,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    /// Emit when a grant transitions to Inactive due to a missed heartbeat.
+    pub fn emit_grant_gone_inactive(env: &Env, grant_id: u64, last_heartbeat: u64) {
+        let event = GrantGoneInactive {
+            event_version: EVENT_VERSION,
+            grant_id,
+            last_heartbeat,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
 }
 
 #[contractevent]
@@ -458,5 +523,54 @@ pub struct MilestoneExpired {
     pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when a funder deposits tokens into escrow.
+/// Provides a machine-readable receipt suitable for accounting exports.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayerReceipt {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub payer: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub memo: Option<String>,
+    pub timestamp: u64,
+}
+
+/// Emitted when a milestone payout is transferred to the grant owner.
+/// Provides a machine-readable receipt suitable for accounting exports.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayeeReceipt {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub recipient: Address,
+    pub token: Address,
+    pub amount: i128,
+    pub milestone_index: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when the grant owner sends a successful heartbeat ping.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeartbeatUpdated {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub owner: Address,
+    pub last_heartbeat: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when a grant transitions to Inactive due to a missed heartbeat window.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantGoneInactive {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub last_heartbeat: u64,
     pub timestamp: u64,
 }
