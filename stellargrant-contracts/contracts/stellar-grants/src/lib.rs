@@ -837,7 +837,7 @@ impl StellarGrantsContract {
 
         let (immediate_paid, deferred_paid) =
             Self::compute_total_paid_if_quorum_ready(env, grant_id, grant.total_milestones)?;
-        
+
         let total_payout_committed = immediate_paid + deferred_paid;
 
         if grant.escrow_balance < total_payout_committed {
@@ -847,7 +847,11 @@ impl StellarGrantsContract {
         let token_client = token::Client::new(env, &grant.token);
 
         if immediate_paid > 0 {
-            token_client.transfer(&env.current_contract_address(), &grant.owner, &immediate_paid);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &grant.owner,
+                &immediate_paid,
+            );
         }
 
         if remaining_balance > 0 {
@@ -928,7 +932,7 @@ impl StellarGrantsContract {
         } else {
             GrantStatus::Active
         };
-        
+
         grant.escrow_balance = deferred_paid;
         grant.milestones_paid_out = milestones_paid_out;
         grant.timestamp = env.ledger().timestamp();
@@ -940,7 +944,7 @@ impl StellarGrantsContract {
                     .total_earned
                     .checked_add(immediate_paid)
                     .ok_or(ContractError::InvalidInput)?;
-                
+
                 // Reputation increment
                 profile.reputation_score = profile
                     .reputation_score
@@ -981,7 +985,8 @@ impl StellarGrantsContract {
     ) -> Result<(), ContractError> {
         recipient.require_auth();
         reentrancy::with_non_reentrant(&env, || {
-            let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+            let mut grant =
+                Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
             if recipient != grant.owner {
                 return Err(ContractError::Unauthorized);
             }
@@ -999,7 +1004,11 @@ impl StellarGrantsContract {
             }
 
             let token_client = token::Client::new(&env, &grant.token);
-            token_client.transfer(&env.current_contract_address(), &recipient, &milestone.amount);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &recipient,
+                &milestone.amount,
+            );
 
             milestone.state = MilestoneState::Paid;
             milestone.status_updated_at = now;
