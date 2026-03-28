@@ -385,6 +385,94 @@ impl StellarGrantsContract {
         Ok(())
     }
 
+    /// Pause a grant, preventing funding, milestone submissions, and approvals.
+    ///
+    /// # Arguments
+    /// * `grant_id` - Grant identifier to pause.
+    /// * `owner` - Grant owner or admin requesting the pause.
+    ///
+    /// # Returns
+    /// * `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * [`ContractError::GrantNotFound`] - if grant doesn't exist.
+    /// * [`ContractError::Unauthorized`] - if caller is not grant owner or admin.
+    /// * [`ContractError::InvalidState`] - if grant is not in Active status.
+    pub fn grant_pause(
+        env: Env,
+        grant_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        // Check if caller is grant owner or admin
+        let caller_is_owner = grant.owner == owner;
+        let caller_is_admin = Storage::get_global_admin(&env) == Some(owner.clone());
+        if !caller_is_owner && !caller_is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Can only pause active grants
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        // Update grant status to paused
+        grant.status = GrantStatus::Paused;
+        grant.timestamp = env.ledger().timestamp();
+        Storage::set_grant(&env, grant_id, &grant);
+
+        Events::emit_grant_paused(&env, grant_id, owner);
+
+        Ok(())
+    }
+
+    /// Resume a paused grant, allowing funding, milestone submissions, and approvals.
+    ///
+    /// # Arguments
+    /// * `grant_id` - Grant identifier to resume.
+    /// * `owner` - Grant owner or admin requesting the resume.
+    ///
+    /// # Returns
+    /// * `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * [`ContractError::GrantNotFound`] - if grant doesn't exist.
+    /// * [`ContractError::Unauthorized`] - if caller is not grant owner or admin.
+    /// * [`ContractError::InvalidState`] - if grant is not in Paused status.
+    pub fn grant_resume(
+        env: Env,
+        grant_id: u64,
+        owner: Address,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        // Check if caller is grant owner or admin
+        let caller_is_owner = grant.owner == owner;
+        let caller_is_admin = Storage::get_global_admin(&env) == Some(owner.clone());
+        if !caller_is_owner && !caller_is_admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Can only resume paused grants
+        if grant.status != GrantStatus::Paused {
+            return Err(ContractError::InvalidState);
+        }
+
+        // Update grant status to active
+        grant.status = GrantStatus::Active;
+        grant.timestamp = env.ledger().timestamp();
+        Storage::set_grant(&env, grant_id, &grant);
+
+        Events::emit_grant_resumed(&env, grant_id, owner);
+
+        Ok(())
+    }
+
     /// Cancel a grant and refund remaining balance to funders
     pub fn grant_cancel(
         env: Env,
@@ -776,6 +864,12 @@ impl StellarGrantsContract {
         reviewer.require_auth();
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        
+        // Check that grant is active (not paused, cancelled, or completed)
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+        
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotSubmitted)?;
 
@@ -867,6 +961,12 @@ impl StellarGrantsContract {
         }
 
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        
+        // Check that grant is active (not paused, cancelled, or completed)
+        if grant.status != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+        
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotSubmitted)?;
 
