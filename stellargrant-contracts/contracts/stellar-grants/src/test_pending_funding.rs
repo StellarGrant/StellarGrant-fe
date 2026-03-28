@@ -1,12 +1,9 @@
 #![cfg(test)]
 mod tests {
+    use crate::types::{ContractError, GrantStatus};
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
-    use crate::types::{GrantStatus, ContractError};
-    use soroban_sdk::{
-        testutils::{Address as _},
-        token, Address, Env, Vec, String,
-    };
+    use soroban_sdk::{testutils::Address as _, token, Address, Env, String, Vec};
 
     fn setup_test(env: &Env) -> (StellarGrantsContractClient<'_>, Address) {
         let contract_id = env.register(StellarGrantsContract, ());
@@ -36,10 +33,10 @@ mod tests {
         // Create token contract and mint tokens
         let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
         let token_client = token::StellarAssetClient::new(&env, &token_contract.address());
-        
+
         env.mock_all_auths();
         token_client.mint(&funder, &1000);
-        
+
         // Create grant - should start in PendingFunding
         let grant_id = client.grant_create(
             &owner,
@@ -85,7 +82,7 @@ mod tests {
         reviewers.push_back(reviewer);
 
         env.mock_all_auths();
-        
+
         let grant_id = client.grant_create(
             &owner,
             &String::from_str(&env, "Test Grant"),
