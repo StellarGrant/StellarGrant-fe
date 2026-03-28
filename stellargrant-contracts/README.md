@@ -192,6 +192,44 @@ cargo clippy -- -D warnings
 cargo fmt --all -- --check
 ```
 
+## 🧪 Fuzz Testing
+
+### Running Fuzzers
+
+Fuzz testing is used to catch edge cases, arithmetic overflows, and unpredictable states in the core grant lifecycle. We use [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz).
+
+#### Prerequisites
+- Install cargo-fuzz:
+  ```bash
+  cargo install cargo-fuzz
+  ```
+
+#### How to Run Fuzzers
+
+From the `stellargrant-contracts` directory:
+
+```bash
+cd fuzz
+# Run grant lifecycle fuzz target
+cargo fuzz run grant_lifecycle
+# Run milestone submit fuzz target
+cargo fuzz run milestone_submit
+# Run milestone vote fuzz target
+cargo fuzz run milestone_vote
+```
+
+Let each fuzzer run for at least 1 hour to ensure no panics or crashes are found.
+
+#### Adding New Fuzz Targets
+- Add a new file in `fuzz/fuzz_targets/` and register it in `fuzz/Cargo.toml` as a new `[[bin]]` entry.
+
+#### Invariants Checked
+- Total funds escrowed should always equal the sum of unapproved milestone amounts.
+- A reviewer shouldn't be able to vote twice.
+- State should not enter panic conditions under valid but extreme i128 values.
+
+See also: [ContributionGuide.md](ContributionGuide.md) for more details.
+
 ## 🚢 Deployment
 
 ### Deploy to Testnet

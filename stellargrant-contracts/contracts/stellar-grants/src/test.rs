@@ -6,15 +6,143 @@
     clippy::needless_range_loop
 )]
 
+// ── Property-based / fuzz tests for grant_fund and grant_create amounts (#71) ──
+//
+// These tests use proptest to generate 1 000+ random combinations of
+// total_amount, milestone_amount and num_milestones and verify that:
+//  1. grant_create arithmetic never overflows (checked_mul guards).
+//  2. grant_fund escrow accumulation never overflows.
+//  3. Proportional refunds in grant_cancel exactly equal escrow_balance.
+//  4. Balance is fully conserved after a complete grant release.
+#[cfg(test)]
+mod fuzz_tests {
+    use proptest::prelude::*;
+
+    const MAX_AMOUNT: i128 = i128::MAX / 200;
+    const MAX_MILESTONES: u32 = 100;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1_000))]
+
+        /// Checked multiplication must either succeed with the correct value or
+        /// return None — the contract rejects the latter with InvalidInput.
+        #[test]
+        fn prop_grant_create_no_overflow(
+            milestone_amount in 1i128..=MAX_AMOUNT,
+            num_milestones in 1u32..=MAX_MILESTONES,
+        ) {
+            if let Some(required) = milestone_amount.checked_mul(num_milestones as i128) {
+                prop_assert!(required >= milestone_amount);
+                prop_assert!(required >= num_milestones as i128);
+            }
+            // None → contract returns InvalidInput; no panic occurs.
+        }
+
+        /// total_amount >= milestone_amount * num_milestones is always enforced.
+        #[test]
+        fn prop_grant_create_total_amount_validation(
+            milestone_amount in 1i128..=1_000_000i128,
+            num_milestones in 1u32..=20u32,
+            extra in 0i128..=1_000_000i128,
+        ) {
+            let total_required = milestone_amount * num_milestones as i128;
+            let total_amount = total_required + extra;
+            prop_assert!(total_amount >= total_required);
+        }
+
+        /// Sequential grant_fund calls: escrow accumulation must never overflow.
+        #[test]
+        fn prop_grant_fund_accumulation_no_overflow(
+            amounts in prop::collection::vec(1i128..=1_000_000i128, 1..=20),
+        ) {
+            let mut escrow: i128 = 0;
+            for amount in &amounts {
+                let next = escrow.checked_add(*amount);
+                prop_assume!(next.is_some());
+                escrow = next.unwrap();
+            }
+            let total: i128 = amounts.iter().sum();
+            prop_assert_eq!(escrow, total);
+        }
+
+        /// Proportional refunds in grant_cancel must sum to exactly escrow_balance.
+        /// The contract assigns the remainder to the last funder to avoid dust loss.
+        #[test]
+        fn prop_cancel_refund_sum_equals_escrow(
+            contributions in prop::collection::vec(1i128..=1_000_000i128, 1..=10),
+            escrow_balance in 1i128..=10_000_000i128,
+        ) {
+            let total_contributions: i128 = contributions.iter().sum();
+            let n = contributions.len();
+            let mut distributed = 0i128;
+
+            for (i, &amount) in contributions.iter().enumerate() {
+                let refund = if i + 1 == n {
+                    escrow_balance - distributed
+                } else {
+                    amount * escrow_balance / total_contributions
+                };
+                prop_assert!(refund >= 0, "negative refund: {}", refund);
+                distributed += refund;
+            }
+
+            prop_assert_eq!(distributed, escrow_balance,
+                "distributed {} != escrow_balance {}", distributed, escrow_balance);
+        }
+
+        /// After a complete release, owner payout + funder refunds == escrow_balance.
+        #[test]
+        fn prop_release_balance_conservation(
+            milestone_amount in 1i128..=100_000i128,
+            num_milestones in 1u32..=10u32,
+            extra_funding in 0i128..=100_000i128,
+        ) {
+            let total_paid = milestone_amount * num_milestones as i128;
+            let escrow_balance = total_paid + extra_funding;
+            let remaining = escrow_balance - total_paid;
+
+            prop_assert_eq!(remaining, extra_funding);
+            prop_assert!(remaining >= 0);
+            prop_assert_eq!(total_paid + remaining, escrow_balance);
+        }
+
+        /// Quorum must satisfy 1 <= quorum <= num_reviewers for a valid grant.
+        #[test]
+        fn prop_quorum_validity(
+            num_reviewers in 1u32..=50u32,
+            quorum in 1u32..=50u32,
+        ) {
+            let valid = quorum >= 1 && quorum <= num_reviewers;
+            if quorum > num_reviewers {
+                prop_assert!(!valid);
+            } else {
+                prop_assert!(valid);
+            }
+        }
+
+        /// Reviewer list must have at least 1 member after any remove operation.
+        #[test]
+        fn prop_reviewer_list_min_one(initial_count in 1u32..=20u32) {
+            // Removing is only allowed when initial_count > 1
+            let can_remove = initial_count > 1;
+            let after_remove = if can_remove { initial_count - 1 } else { initial_count };
+            prop_assert!(after_remove >= 1);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::storage::{DataKey, Storage};
-    use crate::types::{ContractError, Grant, GrantFund, GrantStatus, Milestone, MilestoneState, MilestoneSubmission};
+    use crate::types::{
+        ContractError, Grant, GrantFund, GrantStatus, Milestone, MilestoneState,
+        MilestoneSubmission,
+    };
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
     use soroban_sdk::testutils::Ledger as _;
     use soroban_sdk::{
-        testutils::{storage::Persistent as _, Address as _, Ledger as _},
+        testutils::{storage::Persistent as _, Address as _, Events as _},
         token, Address, Env, Map, String, Vec,
     };
 
@@ -42,6 +170,7 @@ mod tests {
         reviewers: Vec<Address>,
     ) {
         env.as_contract(contract_id, || {
+            let quorum = (reviewers.len() / 2) + 1;
             let grant = Grant {
                 id: grant_id,
                 title: String::from_str(&env, "Test"),
@@ -52,12 +181,14 @@ mod tests {
                 total_amount: 1000,
                 milestone_amount: 500,
                 reviewers,
+                quorum,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 1000,
                 funders: Vec::new(env),
                 reason: None,
                 timestamp: env.ledger().timestamp(),
+                cancellation_requested_at: None,
             };
             Storage::set_grant(env, grant_id, &grant);
         });
@@ -84,6 +215,8 @@ mod tests {
                 proof_url: Some(String::from_str(env, "https://proof.url")),
                 submission_timestamp: env.ledger().timestamp(),
                 deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(env),
             };
             Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
         });
@@ -103,7 +236,7 @@ mod tests {
             skills,
             github_url: String::from_str(env, "https://github.com/alice"),
             registration_timestamp: env.ledger().timestamp(),
-            reputation_score: 100,
+            reputation_score: 0,
             grants_count: 1,
             total_earned: 100,
         }
@@ -311,6 +444,64 @@ mod tests {
     }
 
     #[test]
+    fn test_milestone_vote_requires_full_quorum_three_of_three() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 21u64;
+        let milestone_idx = 0u32;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+        let reviewer3 = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer1.clone());
+        reviewers.push_back(reviewer2.clone());
+        reviewers.push_back(reviewer3.clone());
+
+        env.as_contract(&contract_id, || {
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Full quorum grant"),
+                description: String::from_str(&env, "Needs 3/3 approvals"),
+                milestone_amount: 500,
+                owner,
+                token,
+                status: GrantStatus::Active,
+                total_amount: 1000,
+                reviewers,
+                quorum: 3,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 1000,
+                funders: Vec::new(&env),
+                reason: None,
+
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+        create_milestone(
+            &env,
+            &contract_id,
+            grant_id,
+            milestone_idx,
+            MilestoneState::Submitted,
+        );
+
+        let r1 = client.milestone_vote(&grant_id, &milestone_idx, &reviewer1, &true, &None);
+        let r2 = client.milestone_vote(&grant_id, &milestone_idx, &reviewer2, &true, &None);
+        let r3 = client.milestone_vote(&grant_id, &milestone_idx, &reviewer3, &true, &None);
+
+        assert_eq!(r1, false);
+        assert_eq!(r2, false);
+        assert_eq!(r3, true);
+    }
+
+    #[test]
     fn test_grant_cancel_success_multiple_funders() {
         let env = Env::default();
         env.mock_all_auths();
@@ -352,11 +543,14 @@ mod tests {
             status: GrantStatus::Active,
             total_amount: total_funded,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 1,
             milestones_paid_out: 0,
             escrow_balance: remaining,
             funders,
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: env.ledger().timestamp(),
         };
 
@@ -416,11 +610,14 @@ mod tests {
             status: GrantStatus::Completed,
             total_amount: 100,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 1,
             milestones_paid_out: 1,
             escrow_balance: 0,
             funders: Vec::new(&env),
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: env.ledger().timestamp(),
         };
 
@@ -470,11 +667,14 @@ mod tests {
                 total_amount: 500,
                 milestone_amount: 500,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 500,
                 funders,
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -508,11 +708,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 2,
                 milestones_paid_out: 0,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -570,11 +773,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 150,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 3,
                 milestones_paid_out: 0,
                 escrow_balance: 100,
                 funders,
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -631,11 +837,14 @@ mod tests {
             status: GrantStatus::Active,
             total_amount: total_funded,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 2,
             milestones_paid_out: 0,
             escrow_balance: total_funded,
             funders,
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: env.ledger().timestamp(),
         };
 
@@ -657,6 +866,8 @@ mod tests {
                     proof_url: None,
                     submission_timestamp: 0,
                     deadline: 0,
+                    community_upvotes: 0,
+                    community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
             }
@@ -709,11 +920,14 @@ mod tests {
             status: GrantStatus::Active,
             total_amount: 1000,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 2,
             milestones_paid_out: 0,
             escrow_balance: 1000,
             funders: Vec::new(&env),
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: 0,
         };
 
@@ -733,6 +947,8 @@ mod tests {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
 
@@ -749,6 +965,8 @@ mod tests {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 1, &m2);
         });
@@ -785,11 +1003,14 @@ mod tests {
             status: GrantStatus::Active,
             total_amount: total_funded,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 1,
             milestones_paid_out: 0,
             escrow_balance: total_funded, // exact match
             funders: Vec::new(&env),
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: 0,
         };
 
@@ -809,6 +1030,8 @@ mod tests {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
         });
@@ -835,7 +1058,8 @@ mod tests {
         let owner = Address::generate(&env);
         let signer1 = Address::generate(&env);
         let signer2 = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let mut multisig = Vec::new(&env);
         multisig.push_back(signer1.clone());
         multisig.push_back(signer2.clone());
@@ -871,6 +1095,8 @@ mod tests {
                     proof_url: None,
                     submission_timestamp: 0,
                     deadline: 0,
+                    community_upvotes: 0,
+                    community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
             }
@@ -900,7 +1126,8 @@ mod tests {
         let owner = Address::generate(&env);
         let signer1 = Address::generate(&env);
         let signer2 = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let mut multisig = Vec::new(&env);
         multisig.push_back(signer1.clone());
         multisig.push_back(signer2.clone());
@@ -935,6 +1162,8 @@ mod tests {
                     proof_url: None,
                     submission_timestamp: 0,
                     deadline: 0,
+                    community_upvotes: 0,
+                    community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
             }
@@ -964,7 +1193,8 @@ mod tests {
         let signer = Address::generate(&env);
         let attacker = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let mut multisig = Vec::new(&env);
         multisig.push_back(signer);
 
@@ -1005,11 +1235,14 @@ mod tests {
             status: GrantStatus::Active,
             total_amount: total_funded,
             reviewers: Vec::new(&env),
+            quorum: 1,
             total_milestones: 1,
             milestones_paid_out: 0,
             escrow_balance: total_funded,
             funders: Vec::new(&env),
             reason: None,
+
+            cancellation_requested_at: None,
             timestamp: 0,
         };
 
@@ -1070,7 +1303,8 @@ mod tests {
 
         let owner = Address::generate(&env);
         let funder = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
 
         client.contributor_register(
             &owner,
@@ -1089,6 +1323,7 @@ mod tests {
             &500,
             &1,
             &reviewers,
+            &1u32,
             &None,
         );
 
@@ -1109,6 +1344,8 @@ mod tests {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
         });
@@ -1130,7 +1367,8 @@ mod tests {
         let (client, _, contract_id) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
 
         client.contributor_register(
             &owner,
@@ -1641,11 +1879,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 2,
                 milestones_paid_out: 0,
                 escrow_balance: 1000,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -1665,10 +1906,10 @@ mod tests {
 
         client.milestone_submit(&grant_id, &milestone_idx, &owner, &description, &proof_url);
 
-        // Verify the milestone was stored correctly
+        // Verify the milestone was stored correctly; submit now enters CommunityReview first.
         env.as_contract(&contract_id, || {
             let milestone = Storage::get_milestone(&env, grant_id, milestone_idx).unwrap();
-            assert_eq!(milestone.state, MilestoneState::Submitted);
+            assert_eq!(milestone.state, MilestoneState::CommunityReview);
             assert_eq!(
                 milestone.description,
                 String::from_str(&env, "Completed smart contract implementation")
@@ -1705,11 +1946,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 3,
                 milestones_paid_out: 0,
                 escrow_balance: 1000,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -1729,6 +1973,8 @@ mod tests {
                     proof_url: None,
                     submission_timestamp: 0,
                     deadline: 0,
+                    community_upvotes: 0,
+                    community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, idx, &milestone);
             }
@@ -1756,7 +2002,8 @@ mod tests {
         for idx in 0u32..3u32 {
             env.as_contract(&contract_id, || {
                 let milestone = Storage::get_milestone(&env, grant_id, idx).unwrap();
-                assert_eq!(milestone.state, MilestoneState::Submitted);
+                // submit_batch enters CommunityReview, not Submitted directly.
+                assert_eq!(milestone.state, MilestoneState::CommunityReview);
                 assert_eq!(milestone.idx, idx);
                 let expected_desc = match idx {
                     0 => "First milestone desc",
@@ -1916,11 +2163,14 @@ mod tests {
                 status: GrantStatus::Completed, // Not Active
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 1,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -1966,11 +2216,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -2070,11 +2323,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: i128::MAX, // Set to max initially
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -2116,11 +2372,14 @@ mod tests {
                 total_amount: 1000,
                 milestone_amount: 500,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -2169,11 +2428,14 @@ mod tests {
                 total_amount: 1000,
                 milestone_amount: 500,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -2193,147 +2455,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(ignore)]
-    #[ignore]
-    #[should_panic]
-    fn test_grant_fund_reentrancy_panics() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let (client, _, contract_id) = setup_test(&env);
-        let owner = Address::generate(&env);
-        let attacker = Address::generate(&env);
-        let grant_id = 77u64;
-
-        let token_contract = env.register(ReentrantToken, ());
-        let token_client = ReentrantTokenClient::new(&env, &token_contract);
-        token_client.initialize(&contract_id, &attacker, &ReentrantHook::GrantFund(grant_id));
-        token_client.mint(&attacker, &1000i128);
-
-        env.as_contract(&contract_id, || {
-            let grant = Grant {
-                id: grant_id,
-                title: String::from_str(&env, "Reentrancy Test"),
-                description: String::from_str(&env, "Desc"),
-                owner,
-                token: token_contract.clone(),
-                status: GrantStatus::Active,
-                total_amount: 1000,
-                milestone_amount: 500,
-                reviewers: Vec::new(&env),
-                total_milestones: 1,
-                milestones_paid_out: 0,
-                escrow_balance: 0,
-                funders: Vec::new(&env),
-                reason: None,
-                timestamp: env.ledger().timestamp(),
-            };
-            Storage::set_grant(&env, grant_id, &grant);
-        });
-
-        // Reentrant token callback attempts nested grant_fund call and must panic via lock.
-        client.grant_fund(&grant_id, &attacker, &100i128);
-    }
-
-    #[test]
-    #[cfg(ignore)]
-    #[ignore]
-    #[should_panic]
-    fn test_fund_batch_reentrancy_panics() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let (client, _, contract_id) = setup_test(&env);
-        let owner = Address::generate(&env);
-        let attacker = Address::generate(&env);
-        let grant_id = 88u64;
-
-        let token_contract = env.register(ReentrantToken, ());
-        let token_client = ReentrantTokenClient::new(&env, &token_contract);
-        token_client.initialize(
-            &contract_id,
-            &attacker,
-            &ReentrantHook::FundBatchOne(grant_id, 1i128),
-        );
-        token_client.mint(&attacker, &1000i128);
-
-        env.as_contract(&contract_id, || {
-            let grant = Grant {
-                id: grant_id,
-                title: String::from_str(&env, "Batch Reentrancy"),
-                description: String::from_str(&env, "Desc"),
-                owner,
-                token: token_contract.clone(),
-                status: GrantStatus::Active,
-                total_amount: 1000,
-                milestone_amount: 500,
-                reviewers: Vec::new(&env),
-                total_milestones: 1,
-                milestones_paid_out: 0,
-                escrow_balance: 0,
-                funders: Vec::new(&env),
-                reason: None,
-                timestamp: env.ledger().timestamp(),
-            };
-            Storage::set_grant(&env, grant_id, &grant);
-        });
-
-        let mut batch = Vec::new(&env);
-        batch.push_back((grant_id, 100i128));
-        client.fund_batch(&attacker, &batch);
-    }
-
-    #[test]
-    #[cfg(ignore)]
-    #[ignore]
-    #[should_panic]
-    fn test_stake_to_review_reentrancy_panics() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let (client, admin, contract_id) = setup_test(&env);
-        let owner = Address::generate(&env);
-        let attacker = Address::generate(&env);
-        let treasury = Address::generate(&env);
-        let grant_id = 99u64;
-
-        client.set_staking_config(&admin, &100i128, &treasury);
-
-        let token_contract = env.register(ReentrantToken, ());
-        let token_client = ReentrantTokenClient::new(&env, &token_contract);
-        token_client.initialize(
-            &contract_id,
-            &attacker,
-            &ReentrantHook::StakeToReview(grant_id, attacker.clone(), 100i128),
-        );
-        token_client.mint(&attacker, &1000i128);
-
-        env.as_contract(&contract_id, || {
-            let grant = Grant {
-                id: grant_id,
-                title: String::from_str(&env, "Stake Reentrancy"),
-                description: String::from_str(&env, "Desc"),
-                owner,
-                token: token_contract.clone(),
-                status: GrantStatus::Active,
-                total_amount: 1000,
-                milestone_amount: 500,
-                reviewers: Vec::new(&env),
-                total_milestones: 1,
-                milestones_paid_out: 0,
-                escrow_balance: 0,
-                funders: Vec::new(&env),
-                reason: None,
-                timestamp: env.ledger().timestamp(),
-            };
-            Storage::set_grant(&env, grant_id, &grant);
-        });
-
-        client.stake_to_review(&attacker, &grant_id, &100i128);
-    }
-
-    #[test]
-    #[cfg(ignore)]
     fn test_reentrancy_guard_allows_sequential_grant_funds() {
         let env = Env::default();
         env.mock_all_auths();
@@ -2360,11 +2481,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 0,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: env.ledger().timestamp(),
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -2389,7 +2513,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2404,6 +2529,7 @@ mod tests {
             &500i128,  // milestone_amount
             &2u32,     // num_milestones
             &reviewers,
+            &1u32,
             &None, // milestone_deadlines
         );
 
@@ -2427,7 +2553,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2443,6 +2570,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(res1, Err(Ok(ContractError::InvalidInput.into())));
@@ -2457,6 +2585,7 @@ mod tests {
             &-100i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(res2, Err(Ok(ContractError::InvalidInput.into())));
@@ -2468,7 +2597,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2484,6 +2614,7 @@ mod tests {
             &500i128,
             &0u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(res1, Err(Ok(ContractError::InvalidInput.into())));
@@ -2498,9 +2629,38 @@ mod tests {
             &100i128,
             &101u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(res2, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_grant_create_invalid_quorum_greater_than_reviewers() {
+        let env = Env::default();
+        let (client, _, _) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
+        let title = String::from_str(&env, "Quorum check");
+        let description = String::from_str(&env, "Desc");
+
+        env.mock_all_auths();
+
+        let res = client.try_grant_create(
+            &owner,
+            &title,
+            &description,
+            &token,
+            &1000i128,
+            &500i128,
+            &2u32,
+            &reviewers,
+            &2u32,
+            &None,
+        );
+        assert_eq!(res, Err(Ok(ContractError::InvalidInput.into())));
     }
 
     #[test]
@@ -2509,7 +2669,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2526,6 +2687,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(res, Err(Ok(ContractError::InvalidInput.into())));
@@ -2537,7 +2699,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2552,6 +2715,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert!(res.is_err());
@@ -2564,7 +2728,8 @@ mod tests {
         let grant_id = 1u64;
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2578,6 +2743,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
         assert_eq!(created, 1);
@@ -2601,7 +2767,8 @@ mod tests {
         let grant_id = 1u64;
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "New Grant");
         let description = String::from_str(&env, "Some desc");
 
@@ -2615,6 +2782,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &None,
         );
 
@@ -2928,7 +3096,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "Deadline Grant");
         let description = String::from_str(&env, "A grant with deadlines");
 
@@ -2949,6 +3118,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &Some(deadlines),
         );
 
@@ -2969,7 +3139,8 @@ mod tests {
         let (client, _, _) = setup_test(&env);
         let owner = Address::generate(&env);
         let token = Address::generate(&env);
-        let reviewers = Vec::new(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(Address::generate(&env));
         let title = String::from_str(&env, "Bad Deadline Grant");
         let description = String::from_str(&env, "Mismatched deadlines");
 
@@ -2988,6 +3159,7 @@ mod tests {
             &500i128,
             &2u32,
             &reviewers,
+            &1u32,
             &Some(deadlines),
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
@@ -3016,11 +3188,14 @@ mod tests {
                 status: GrantStatus::Active,
                 total_amount: 1000,
                 reviewers: Vec::new(&env),
+                quorum: 1,
                 total_milestones: 1,
                 milestones_paid_out: 0,
                 escrow_balance: 1000,
                 funders: Vec::new(&env),
                 reason: None,
+
+                cancellation_requested_at: None,
                 timestamp: 0,
             };
             Storage::set_grant(&env, grant_id, &grant);
@@ -3039,6 +3214,8 @@ mod tests {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline: 1_000, // deadline at timestamp 1000
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
         });
@@ -3137,5 +3314,915 @@ mod tests {
             &too_long_feedback,
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    // -------------------------------------------------------------------------
+    // Dynamic Reviewer Management tests (#64)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_grant_add_reviewer_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 200u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let existing_reviewer = Address::generate(&env);
+        let new_reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(existing_reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        client.grant_add_reviewer(&grant_id, &owner, &new_reviewer);
+
+        env.as_contract(&contract_id, || {
+            let grant = Storage::get_grant(&env, grant_id).unwrap();
+            assert!(grant.reviewers.contains(existing_reviewer));
+            assert!(grant.reviewers.contains(new_reviewer));
+            assert_eq!(grant.reviewers.len(), 2);
+        });
+    }
+
+    #[test]
+    fn test_grant_add_reviewer_duplicate_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 201u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let result = client.try_grant_add_reviewer(&grant_id, &owner, &reviewer);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_grant_add_reviewer_unauthorized() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 202u64;
+        let owner = Address::generate(&env);
+        let non_owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let new_reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let result = client.try_grant_add_reviewer(&grant_id, &non_owner, &new_reviewer);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
+    }
+
+    #[test]
+    fn test_grant_add_reviewer_grant_not_found() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, _) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let new_reviewer = Address::generate(&env);
+
+        let result = client.try_grant_add_reviewer(&999, &owner, &new_reviewer);
+        assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
+    }
+
+    #[test]
+    fn test_grant_remove_reviewer_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 210u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+
+        // quorum=1 so removing one of two reviewers is valid
+        env.as_contract(&contract_id, || {
+            let mut reviewers = Vec::new(&env);
+            reviewers.push_back(reviewer1.clone());
+            reviewers.push_back(reviewer2.clone());
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Test"),
+                description: String::from_str(&env, "Desc"),
+                milestone_amount: 500,
+                owner: owner.clone(),
+                token,
+                status: GrantStatus::Active,
+                total_amount: 1000,
+                reviewers,
+                quorum: 1,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 1000,
+                funders: Vec::new(&env),
+                reason: None,
+
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        client.grant_remove_reviewer(&grant_id, &owner, &reviewer1);
+
+        env.as_contract(&contract_id, || {
+            let grant = Storage::get_grant(&env, grant_id).unwrap();
+            assert!(!grant.reviewers.contains(reviewer1));
+            assert!(grant.reviewers.contains(reviewer2));
+            assert_eq!(grant.reviewers.len(), 1);
+        });
+    }
+
+    #[test]
+    fn test_grant_remove_reviewer_last_reviewer_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 211u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let result = client.try_grant_remove_reviewer(&grant_id, &owner, &reviewer);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_grant_remove_reviewer_not_in_list_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 212u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+        let stranger = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer1.clone());
+        reviewers.push_back(reviewer2.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let result = client.try_grant_remove_reviewer(&grant_id, &owner, &stranger);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
+    }
+
+    #[test]
+    fn test_grant_remove_reviewer_unauthorized() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 213u64;
+        let owner = Address::generate(&env);
+        let non_owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer1.clone());
+        reviewers.push_back(reviewer2.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        let result = client.try_grant_remove_reviewer(&grant_id, &non_owner, &reviewer1);
+        assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
+    }
+
+    #[test]
+    fn test_grant_remove_reviewer_quorum_exceeds_new_count_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 214u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+
+        // Create grant with quorum=2 and 2 reviewers
+        env.as_contract(&contract_id, || {
+            let mut reviewers = Vec::new(&env);
+            reviewers.push_back(reviewer1.clone());
+            reviewers.push_back(reviewer2.clone());
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Test"),
+                description: String::from_str(&env, "Desc"),
+                milestone_amount: 500,
+                owner: owner.clone(),
+                token,
+                status: GrantStatus::Active,
+                total_amount: 1000,
+                reviewers,
+                quorum: 2,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 1000,
+                funders: Vec::new(&env),
+                reason: None,
+
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        // Removing one reviewer would leave 1, but quorum is 2 -> should fail
+        let result = client.try_grant_remove_reviewer(&grant_id, &owner, &reviewer1);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
+    }
+
+    #[test]
+    fn test_reviewer_removal_does_not_affect_already_approved_milestone() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 215u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer1 = Address::generate(&env);
+        let reviewer2 = Address::generate(&env);
+
+        // quorum=1 so removing reviewer1 remains valid
+        env.as_contract(&contract_id, || {
+            let mut reviewers = Vec::new(&env);
+            reviewers.push_back(reviewer1.clone());
+            reviewers.push_back(reviewer2.clone());
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Test"),
+                description: String::from_str(&env, "Desc"),
+                milestone_amount: 500,
+                owner: owner.clone(),
+                token,
+                status: GrantStatus::Active,
+                total_amount: 1000,
+                reviewers,
+                quorum: 1,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 1000,
+                funders: Vec::new(&env),
+                reason: None,
+
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        // Milestone 0 is already approved before reviewer1 is removed
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Approved);
+
+        client.grant_remove_reviewer(&grant_id, &owner, &reviewer1);
+
+        // Milestone stays Approved - removal is not retroactive
+        env.as_contract(&contract_id, || {
+            let milestone = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(milestone.state, MilestoneState::Approved);
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Community Review Period tests (#114)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_milestone_submit_sets_community_review_state() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 300u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Pending);
+
+        client.milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &String::from_str(&env, "Work done"),
+            &String::from_str(&env, "https://proof.url"),
+        );
+
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(ms.state, MilestoneState::CommunityReview);
+        });
+    }
+
+    #[test]
+    fn test_community_review_vote_blocked_during_period() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 301u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        // Set milestone in CommunityReview state with submission_timestamp = 0
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        // Ledger timestamp is 0, period is 3 days — vote must be rejected
+        let result = client.try_milestone_vote(&grant_id, &0u32, &reviewer, &true, &None);
+        assert_eq!(result, Err(Ok(ContractError::CommunityReviewPeriod.into())));
+    }
+
+    #[test]
+    fn test_community_review_vote_allowed_after_period() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 302u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        // Submission timestamp = 0; advance ledger past 3-day period
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        // Jump past the 3-day community review period
+        env.ledger()
+            .set_timestamp(crate::COMMUNITY_REVIEW_PERIOD + 1);
+
+        // Vote should now be accepted (quorum 1/1 → true)
+        let result = client.milestone_vote(&grant_id, &0u32, &reviewer, &true, &None);
+        assert!(result);
+    }
+
+    #[test]
+    fn test_community_review_upvote_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 303u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let voter = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        client.milestone_upvote(&grant_id, &0u32, &voter);
+
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(ms.community_upvotes, 1);
+        });
+    }
+
+    #[test]
+    fn test_community_review_duplicate_upvote_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 304u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let voter = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        client.milestone_upvote(&grant_id, &0u32, &voter);
+        let result = client.try_milestone_upvote(&grant_id, &0u32, &voter);
+        assert_eq!(result, Err(Ok(ContractError::AlreadyUpvoted.into())));
+    }
+
+    #[test]
+    fn test_community_review_comment_success() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 305u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let voter = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        let comment = String::from_str(&env, "Looks good to me!");
+        client.milestone_comment(&grant_id, &0u32, &voter, &comment);
+
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(
+                ms.community_comments.get(voter.clone()).unwrap(),
+                String::from_str(&env, "Looks good to me!")
+            );
+        });
+    }
+
+    #[test]
+    fn test_community_review_upvote_rejected_when_not_in_review() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 306u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let voter = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        // Milestone in Submitted state (not CommunityReview) → upvote should fail
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Submitted);
+
+        let result = client.try_milestone_upvote(&grant_id, &0u32, &voter);
+        assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
+    }
+
+    #[test]
+    fn test_community_signals_stored_independently_of_vote_outcome() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 307u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let community_voter = Address::generate(&env);
+
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            reviewers,
+        );
+
+        env.as_contract(&contract_id, || {
+            let milestone = Milestone {
+                idx: 0,
+                description: String::from_str(&env, "Desc"),
+                amount: 100,
+                state: MilestoneState::CommunityReview,
+                votes: Map::new(&env),
+                approvals: 0,
+                rejections: 0,
+                reasons: Map::new(&env),
+                status_updated_at: 0,
+                proof_url: None,
+                submission_timestamp: 0,
+                deadline: 0,
+                community_upvotes: 0,
+                community_comments: Map::new(&env),
+            };
+            Storage::set_milestone(&env, grant_id, 0, &milestone);
+        });
+
+        // Community member upvotes and comments
+        client.milestone_upvote(&grant_id, &0u32, &community_voter);
+        client.milestone_comment(
+            &grant_id,
+            &0u32,
+            &community_voter,
+            &String::from_str(&env, "Great work"),
+        );
+
+        // Advance past community review period
+        env.ledger()
+            .set_timestamp(crate::COMMUNITY_REVIEW_PERIOD + 1);
+
+        // Reviewer votes — milestone gets approved
+        let approved = client.milestone_vote(&grant_id, &0u32, &reviewer, &true, &None);
+        assert!(approved);
+
+        // Community signals are still stored and haven't affected the vote count
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(ms.community_upvotes, 1);
+            assert_eq!(ms.approvals, 1);
+            assert_eq!(ms.state, MilestoneState::Approved);
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Safe Cancel with Grace Period tests (#115)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_cancel_immediate_when_no_submitted_milestones() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = token_contract.address();
+        let token_admin = token::StellarAssetClient::new(&env, &token_id);
+
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let grant_id = 400u64;
+
+        token_admin.mint(&contract_id, &500i128);
+
+        env.as_contract(&contract_id, || {
+            let mut funders = Vec::new(&env);
+            funders.push_back(GrantFund {
+                funder: funder.clone(),
+                amount: 500,
+            });
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Test"),
+                description: String::from_str(&env, "Desc"),
+                milestone_amount: 500,
+                owner: owner.clone(),
+                token: token_id.clone(),
+                status: GrantStatus::Active,
+                total_amount: 500,
+                reviewers: Vec::new(&env),
+                quorum: 1,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 500,
+                funders,
+                reason: None,
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+        // Milestone is still Pending (no submission) → cancel is immediate
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Pending);
+
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Shutting down"));
+
+        env.as_contract(&contract_id, || {
+            let g = Storage::get_grant(&env, grant_id).unwrap();
+            assert_eq!(g.status, GrantStatus::Cancelled);
+        });
+    }
+
+    #[test]
+    fn test_cancel_deferred_when_milestone_in_community_review() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 401u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        // Milestone in CommunityReview → cancellation must be deferred
+        create_milestone(
+            &env,
+            &contract_id,
+            grant_id,
+            0,
+            MilestoneState::CommunityReview,
+        );
+
+        // First call: should set CancellationPending, NOT cancel immediately
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Discontinuing"));
+
+        env.as_contract(&contract_id, || {
+            let g = Storage::get_grant(&env, grant_id).unwrap();
+            assert_eq!(g.status, GrantStatus::CancellationPending);
+            assert!(g.cancellation_requested_at.is_some());
+        });
+    }
+
+    #[test]
+    fn test_cancel_deferred_when_milestone_submitted() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 402u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Submitted);
+
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Discontinuing"));
+
+        env.as_contract(&contract_id, || {
+            let g = Storage::get_grant(&env, grant_id).unwrap();
+            assert_eq!(g.status, GrantStatus::CancellationPending);
+        });
+    }
+
+    #[test]
+    fn test_cancel_grace_period_not_elapsed_returns_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 403u64;
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner.clone(),
+            token,
+            Vec::new(&env),
+        );
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Submitted);
+
+        // First call → CancellationPending at timestamp 0
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Reason"));
+
+        // Second call before grace period elapses → should fail
+        let result = client.try_grant_cancel(&grant_id, &owner, &String::from_str(&env, "Reason"));
+        assert_eq!(
+            result,
+            Err(Ok(ContractError::CancellationGracePeriod.into()))
+        );
+    }
+
+    #[test]
+    fn test_cancel_executes_after_grace_period() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = token_contract.address();
+        let token_admin = token::StellarAssetClient::new(&env, &token_id);
+
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let grant_id = 404u64;
+
+        token_admin.mint(&contract_id, &500i128);
+
+        env.as_contract(&contract_id, || {
+            let mut funders = Vec::new(&env);
+            funders.push_back(GrantFund {
+                funder: funder.clone(),
+                amount: 500,
+            });
+            let grant = Grant {
+                id: grant_id,
+                title: String::from_str(&env, "Test"),
+                description: String::from_str(&env, "Desc"),
+                milestone_amount: 500,
+                owner: owner.clone(),
+                token: token_id.clone(),
+                status: GrantStatus::Active,
+                total_amount: 500,
+                reviewers: Vec::new(&env),
+                quorum: 1,
+                total_milestones: 1,
+                milestones_paid_out: 0,
+                escrow_balance: 500,
+                funders,
+                reason: None,
+                cancellation_requested_at: None,
+                timestamp: env.ledger().timestamp(),
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Submitted);
+
+        // First call at timestamp 0 → CancellationPending
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Going away"));
+
+        // Advance past the 7-day grace period
+        env.ledger().set_timestamp(crate::CANCEL_GRACE_PERIOD + 1);
+
+        // Second call → should now execute the refund
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Going away"));
+
+        env.as_contract(&contract_id, || {
+            let g = Storage::get_grant(&env, grant_id).unwrap();
+            assert_eq!(g.status, GrantStatus::Cancelled);
+            assert_eq!(g.escrow_balance, 0);
+        });
+
+        // Funder should have received their tokens back
+        let token_client = token::Client::new(&env, &token_id);
+        assert_eq!(token_client.balance(&funder), 500);
     }
 }

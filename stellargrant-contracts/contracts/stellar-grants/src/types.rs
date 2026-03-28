@@ -30,6 +30,12 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
+    /// Reviewer vote rejected because the community review period has not elapsed yet.
+    CommunityReviewPeriod = 26,
+    /// The voter has already upvoted this milestone.
+    AlreadyUpvoted = 27,
+    /// Grant cancellation is pending; grace period has not elapsed yet.
+    CancellationGracePeriod = 28,
 }
 
 #[contracttype]
@@ -68,6 +74,8 @@ pub enum MilestoneState {
     Paid = 3,
     Rejected = 4,
     Disputed = 5,
+    /// Open for community upvotes / comments before reviewer voting begins.
+    CommunityReview = 6,
 }
 
 #[contracttype]
@@ -85,6 +93,10 @@ pub struct Milestone {
     pub proof_url: Option<String>,
     pub submission_timestamp: u64,
     pub deadline: u64,
+    /// Number of community upvotes received during the CommunityReview period.
+    pub community_upvotes: u32,
+    /// One comment per address recorded during the CommunityReview period.
+    pub community_comments: Map<Address, String>,
 }
 
 #[contracttype]
@@ -100,9 +112,10 @@ pub struct MilestoneSubmission {
 #[repr(u32)]
 pub enum GrantStatus {
     Active = 1,
-    Paused = 2,
-    Cancelled = 3,
-    Completed = 4,
+    Cancelled = 2,
+    Completed = 3,
+    /// Cancellation requested but grace period has not elapsed yet.
+    CancellationPending = 4,
 }
 
 #[contracttype]
@@ -124,12 +137,15 @@ pub struct Grant {
     pub total_amount: i128,
     pub milestone_amount: i128,
     pub reviewers: Vec<Address>,
+    pub quorum: u32,
     pub total_milestones: u32,
     pub milestones_paid_out: u32,
     pub escrow_balance: i128,
     pub funders: Vec<GrantFund>,
     pub reason: Option<String>,
     pub timestamp: u64,
+    /// Timestamp when a cancellation was first requested (grace-period cancellation).
+    pub cancellation_requested_at: Option<u64>,
 }
 
 #[contracttype]
