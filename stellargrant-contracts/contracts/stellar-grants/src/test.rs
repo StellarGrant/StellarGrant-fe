@@ -141,12 +141,34 @@ mod tests {
     use crate::StellarGrantsContract;
     use crate::StellarGrantsContractClient;
     use soroban_sdk::testutils::Ledger as _;
+    use soroban_sdk::{contract, contracterror, contractimpl, panic_with_error};
     use soroban_sdk::{
-        testutils::{storage::Persistent as _, Address as _, Events as _},
+        testutils::{storage::Persistent as _, Address as _},
         token, Address, Env, Map, String, Vec,
     };
 
     const EXTENDED_PERSISTENT_TTL: u32 = 1_000_000;
+
+    #[contracterror]
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[repr(u32)]
+    enum MaliciousTokenError {
+        TransferBlocked = 1,
+    }
+
+    #[contract]
+    struct MaliciousTokenContract;
+
+    #[contractimpl]
+    impl MaliciousTokenContract {
+        pub fn balance(_env: Env, _account: Address) -> i128 {
+            i128::MAX
+        }
+
+        pub fn transfer(env: Env, _from: Address, _to: Address, _amount: i128) {
+            panic_with_error!(&env, MaliciousTokenError::TransferBlocked);
+        }
+    }
 
     fn setup_test(
         env: &Env,
@@ -1863,6 +1885,102 @@ mod tests {
 
         let result = client.try_grant_fund(&999u64, &funder, &100i128);
         assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
+    }
+
+    #[test]
+    fn test_grant_fund_handles_failing_token_safely() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 501u64;
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let token_id = env.register(MaliciousTokenContract, ());
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer);
+
+        env.as_contract(&contract_id, || {
+            let grant = Grant {
+                id: grant_id,
+                owner: owner.clone(),
+                title: String::from_str(&env, "Safe Transfer"),
+                description: String::from_str(&env, "Funding should fail safely"),
+                token: token_id.clone(),
+                status: GrantStatus::Active,
+                total_amount: 1000,
+                milestone_amount: 500,
+                reviewers: reviewers.clone(),
+                quorum: 1,
+                total_milestones: 2,
+                milestones_paid_out: 0,
+                escrow_balance: 0,
+                funders: Vec::new(&env),
+                reason: None,
+                timestamp: env.ledger().timestamp(),
+                cancellation_requested_at: None,
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        let result = client.try_grant_fund(&grant_id, &funder, &250i128);
+        assert_eq!(result, Err(Ok(ContractError::TokenTransferFailed.into())));
+
+        let grant = client.get_grant(&grant_id);
+        assert_eq!(grant.escrow_balance, 0);
+        assert_eq!(grant.funders.len(), 0);
+    }
+
+    #[test]
+    fn test_grant_cancel_handles_failing_token_safely() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let grant_id = 502u64;
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let token_id = env.register(MaliciousTokenContract, ());
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer);
+        let mut funders = Vec::new(&env);
+        funders.push_back(GrantFund {
+            funder: funder.clone(),
+            amount: 500,
+        });
+
+        env.as_contract(&contract_id, || {
+            let grant = Grant {
+                id: grant_id,
+                owner: owner.clone(),
+                title: String::from_str(&env, "Cancel Safe"),
+                description: String::from_str(&env, "Refund should fail safely"),
+                token: token_id.clone(),
+                status: GrantStatus::Active,
+                total_amount: 500,
+                milestone_amount: 250,
+                reviewers: reviewers.clone(),
+                quorum: 1,
+                total_milestones: 2,
+                milestones_paid_out: 0,
+                escrow_balance: 500,
+                funders: funders.clone(),
+                reason: None,
+                timestamp: env.ledger().timestamp(),
+                cancellation_requested_at: None,
+            };
+            Storage::set_grant(&env, grant_id, &grant);
+        });
+
+        let result = client.try_grant_cancel(&grant_id, &owner, &String::from_str(&env, "Stop"));
+        assert_eq!(result, Err(Ok(ContractError::TokenTransferFailed.into())));
+
+        let grant = client.get_grant(&grant_id);
+        assert_eq!(grant.status, GrantStatus::Active);
+        assert_eq!(grant.escrow_balance, 500);
+        assert_eq!(grant.funders.len(), 1);
     }
 
     #[test]
