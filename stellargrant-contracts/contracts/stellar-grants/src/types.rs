@@ -36,6 +36,12 @@ pub enum ContractError {
     AlreadyUpvoted = 27,
     /// Grant cancellation is pending; grace period has not elapsed yet.
     CancellationGracePeriod = 28,
+    /// Token transfer preflight checks failed.
+    TokenTransferNotPossible = 29,
+    /// Token contract balance query failed.
+    TokenBalanceQueryFailed = 30,
+    /// Token transfer call failed.
+    TokenTransferFailed = 31,
 }
 
 #[contracttype]

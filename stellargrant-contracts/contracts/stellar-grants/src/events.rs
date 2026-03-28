@@ -526,6 +526,28 @@ impl Events {
         };
         event.publish(env);
     }
+
+    pub fn emit_transfer_failed(
+        env: &Env,
+        grant_id: u64,
+        token: Address,
+        from: Address,
+        to: Address,
+        amount: i128,
+        reason: String,
+    ) {
+        let event = TransferFailed {
+            event_version: EVENT_VERSION,
+            grant_id,
+            token,
+            from,
+            to,
+            amount,
+            reason,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
 }
 
 #[contractevent]
@@ -587,5 +609,18 @@ pub struct ReviewerRemoved {
     pub grant_id: u64,
     pub owner: Address,
     pub old_reviewer: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TransferFailed {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub token: Address,
+    pub from: Address,
+    pub to: Address,
+    pub amount: i128,
+    pub reason: String,
     pub timestamp: u64,
 }
