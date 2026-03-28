@@ -2,7 +2,7 @@ use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Env, String, Vec,
 };
-use stellar_grants::{MilestoneState, StellarGrantsContractClient};
+use stellar_grants::{MilestoneState, StellarGrantsContractClient, COMMUNITY_REVIEW_PERIOD};
 
 #[test]
 fn test_dispute_and_resolve_flow() {
@@ -19,7 +19,7 @@ fn test_dispute_and_resolve_flow() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&council);
+    client.initialize(&admin, &council);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(
@@ -36,7 +36,7 @@ fn test_dispute_and_resolve_flow() {
     );
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000);
+    client.grant_fund(&grant_id, &funder, &1000, &None);
     client.milestone_submit(
         &grant_id,
         &0,
@@ -44,8 +44,6 @@ fn test_dispute_and_resolve_flow() {
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
     );
-    // Advance ledger timestamp by COMMUNITY_REVIEW_PERIOD to allow voting
-    const COMMUNITY_REVIEW_PERIOD: u64 = 3 * 24 * 60 * 60;
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
@@ -61,6 +59,7 @@ fn test_dispute_and_resolve_flow() {
 fn test_vote_blocked_during_dispute() {
     let env = Env::default();
     env.mock_all_auths();
+    let admin = Address::generate(&env);
     let council = Address::generate(&env);
     let owner = Address::generate(&env);
     let reviewer = Address::generate(&env);
@@ -71,7 +70,7 @@ fn test_vote_blocked_during_dispute() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&council);
+    client.initialize(&admin, &council);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(
@@ -88,7 +87,7 @@ fn test_vote_blocked_during_dispute() {
     );
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000);
+    client.grant_fund(&grant_id, &funder, &1000, &None);
     client.milestone_submit(
         &grant_id,
         &0,
@@ -96,6 +95,9 @@ fn test_vote_blocked_during_dispute() {
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
     );
+    let now = env.ledger().timestamp();
+    env.ledger()
+        .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
     client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     // This should panic
@@ -107,6 +109,7 @@ fn test_vote_blocked_during_dispute() {
 fn test_only_council_can_resolve_dispute() {
     let env = Env::default();
     env.mock_all_auths();
+    let admin = Address::generate(&env);
     let council = Address::generate(&env);
     let owner = Address::generate(&env);
     let reviewer = Address::generate(&env);
@@ -117,7 +120,7 @@ fn test_only_council_can_resolve_dispute() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&council);
+    client.initialize(&admin, &council);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(
@@ -134,7 +137,7 @@ fn test_only_council_can_resolve_dispute() {
     );
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000);
+    client.grant_fund(&grant_id, &funder, &1000, &None);
     client.milestone_submit(
         &grant_id,
         &0,
@@ -142,6 +145,9 @@ fn test_only_council_can_resolve_dispute() {
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
     );
+    let now = env.ledger().timestamp();
+    env.ledger()
+        .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
     client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     // This should panic (not council)

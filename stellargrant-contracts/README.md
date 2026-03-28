@@ -269,8 +269,14 @@ After deployment, initialize the contract:
 stellar contract invoke \
   --id CONTRACT_ID \
   --network testnet \
-  -- initialize
+  --source-account YOUR_SECRET_KEY \
+  -- \
+  initialize \
+  --admin GLOBAL_ADMIN_ADDRESS \
+  --council COUNCIL_ADDRESS
 ```
+
+The **global admin** is the contract-wide role used for council rotation, WASM upgrades, staking configuration, and other administrative entrypoints. The **council** resolves milestone disputes.
 
 ## 💡 Usage Examples
 

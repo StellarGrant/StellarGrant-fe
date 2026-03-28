@@ -14,13 +14,13 @@ Every event payload includes:
 ## Contract Lifecycle Events
 
 - `ContractInitialized`
-  - Emitted when `initialize` sets the initial council address.
-  - Fields: `event_version`, `grant_id`, `council`, `timestamp`.
+  - Emitted once when `initialize` completes (after global admin and council are stored).
+  - Fields: `event_version`, `grant_id` (always `0` for contract-level events), `council`, `timestamp`.
 
 - `ContractUpgraded`
-  - Emitted when base contract configuration is changed.
+  - Emitted when contract-wide configuration changes without swapping WASM.
   - Current emit points:
-    - `set_global_admin` with `component = "global_admin_updated"`.
+    - `admin_change` with `component = "admin_changed"`.
     - `set_council` with `component = "council_updated"`.
   - Fields: `event_version`, `grant_id`, `actor`, `component`, `timestamp`.
 

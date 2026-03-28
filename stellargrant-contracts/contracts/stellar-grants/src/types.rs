@@ -38,6 +38,8 @@ pub enum ContractError {
     CancellationGracePeriod = 28,
     HeartbeatMissed = 29,
     Blacklisted = 30,
+    /// Caller is not the contract global admin for this operation.
+    NotContractAdmin = 31,
 }
 
 #[contracttype]

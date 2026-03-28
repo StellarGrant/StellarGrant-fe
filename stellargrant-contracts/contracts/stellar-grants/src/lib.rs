@@ -149,50 +149,48 @@ impl StellarGrantsContract {
         }
         Ok(())
     }
-    /// Initialize the contract with a council address for dispute resolution.
+
+    /// Initialize the contract with a global admin and council for dispute resolution.
     ///
     /// # Arguments
+    /// * `admin` - Contract-wide administrator (upgrades, council rotation, staking config, etc.).
     /// * `council` - Address of DAO Council or arbitration authority.
     ///
-    /// # Returns
-    /// * `Ok(())` on success.
-    ///
     /// # Errors
-    /// * None.
-    pub fn initialize(env: Env, council: Address) -> Result<(), ContractError> {
+    /// * [`ContractError::InvalidInput`] if already initialized.
+    pub fn initialize(env: Env, admin: Address, council: Address) -> Result<(), ContractError> {
+        if Storage::get_global_admin(&env).is_some() {
+            return Err(ContractError::InvalidInput);
+        }
+        admin.require_auth();
+        Storage::set_global_admin(&env, &admin);
         Storage::set_council(&env, &council);
         Events::emit_contract_initialized(&env, council);
         Ok(())
     }
 
-    /// Configure or rotate a single global admin address.
-    pub fn set_global_admin(
+    /// Rotate the contract admin. Only `old_admin` may call; must match stored admin.
+    pub fn admin_change(
         env: Env,
-        caller: Address,
+        old_admin: Address,
         new_admin: Address,
     ) -> Result<(), ContractError> {
-        caller.require_auth();
-        if let Some(current_admin) = Storage::get_global_admin(&env) {
-            if current_admin != caller {
-                return Err(ContractError::Unauthorized);
-            }
+        old_admin.require_auth();
+        let current = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if current != old_admin {
+            return Err(ContractError::NotContractAdmin);
         }
         Storage::set_global_admin(&env, &new_admin);
-        Events::emit_contract_upgraded(
-            &env,
-            caller,
-            String::from_str(&env, "global_admin_updated"),
-        );
+        Events::emit_contract_upgraded(&env, old_admin, String::from_str(&env, "admin_changed"));
         Ok(())
     }
 
     /// Set or rotate the DAO Council address for milestone disputes.
     pub fn set_council(env: Env, caller: Address, council: Address) -> Result<(), ContractError> {
         caller.require_auth();
-        if let Some(current_admin) = Storage::get_global_admin(&env) {
-            if current_admin != caller {
-                return Err(ContractError::Unauthorized);
-            }
+        let admin = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if admin != caller {
+            return Err(ContractError::NotContractAdmin);
         }
         Storage::set_council(&env, &council);
         Events::emit_contract_upgraded(&env, caller, String::from_str(&env, "council_updated"));
@@ -1556,6 +1554,10 @@ impl StellarGrantsContract {
         treasury: Address,
     ) -> Result<(), ContractError> {
         admin.require_auth();
+        let global = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if global != admin {
+            return Err(ContractError::NotContractAdmin);
+        }
         if min_stake <= 0 {
             return Err(ContractError::InvalidInput);
         }
@@ -1610,6 +1612,10 @@ impl StellarGrantsContract {
         reviewer: Address,
     ) -> Result<(), ContractError> {
         admin.require_auth();
+        let global = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if global != admin {
+            return Err(ContractError::NotContractAdmin);
+        }
 
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -1661,6 +1667,10 @@ impl StellarGrantsContract {
         oracle: Address,
     ) -> Result<(), ContractError> {
         admin.require_auth();
+        let global = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if global != admin {
+            return Err(ContractError::NotContractAdmin);
+        }
         env.storage()
             .persistent()
             .set(&storage::DataKey::IdentityOracle, &oracle);
