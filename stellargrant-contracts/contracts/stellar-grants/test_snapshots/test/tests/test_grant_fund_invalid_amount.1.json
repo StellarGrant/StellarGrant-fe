@@ -102,6 +102,12 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "cancellation_requested_at"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "description"
                     },
                     "val": {
@@ -130,6 +136,14 @@
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "last_heartbeat"
+                    },
+                    "val": {
+                      "u64": "0"
                     }
                   },
                   {

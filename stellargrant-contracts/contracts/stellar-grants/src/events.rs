@@ -183,7 +183,35 @@ pub struct ContractUpgraded {
 
 pub struct Events;
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuorumReached {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub approvals: u32,
+    pub quorum: u32,
+    pub timestamp: u64,
+}
+
 impl Events {
+    pub fn emit_quorum_reached(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        approvals: u32,
+        quorum: u32,
+    ) {
+        let event = QuorumReached {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            approvals,
+            quorum,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
     pub fn emit_contract_initialized(env: &Env, council: Address) {
         let event = ContractInitialized {
             event_version: EVENT_VERSION,
@@ -450,6 +478,168 @@ impl Events {
         };
         event.publish(env);
     }
+
+    pub fn emit_reviewer_added(env: &Env, grant_id: u64, owner: Address, new_reviewer: Address) {
+        let event = ReviewerAdded {
+            event_version: EVENT_VERSION,
+            grant_id,
+            owner,
+            new_reviewer,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_reviewer_removed(env: &Env, grant_id: u64, owner: Address, old_reviewer: Address) {
+        let event = ReviewerRemoved {
+            event_version: EVENT_VERSION,
+            grant_id,
+            owner,
+            old_reviewer,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_upvoted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+        total_upvotes: u32,
+    ) {
+        let event = MilestoneUpvoted {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            voter,
+            total_upvotes,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_commented(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+        comment: String,
+    ) {
+        let event = MilestoneCommented {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            voter,
+            comment,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_cancellation_requested(
+        env: &Env,
+        grant_id: u64,
+        owner: Address,
+        reason: String,
+        executable_after: u64,
+    ) {
+        let event = GrantCancellationRequested {
+            event_version: EVENT_VERSION,
+            grant_id,
+            owner,
+            reason,
+            executable_after,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_heartbeat_updated(env: &Env, grant_id: u64, last_heartbeat: u64) {
+        let event = HeartbeatUpdated {
+            event_version: EVENT_VERSION,
+            grant_id,
+            last_heartbeat,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_gone_inactive(env: &Env, grant_id: u64, timestamp: u64) {
+        let event = GrantGoneInactive {
+            event_version: EVENT_VERSION,
+            grant_id,
+            timestamp,
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_payer_receipt(
+        env: &Env,
+        grant_id: u64,
+        funder: Address,
+        amount: i128,
+        memo: Option<String>,
+    ) {
+        let event = PayerReceipt {
+            event_version: EVENT_VERSION,
+            grant_id,
+            funder,
+            amount,
+            memo,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_payee_receipt(env: &Env, grant_id: u64, payee: Address, amount: i128) {
+        let event = PayeeReceipt {
+            event_version: EVENT_VERSION,
+            grant_id,
+            payee,
+            amount,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeartbeatUpdated {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub last_heartbeat: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantGoneInactive {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayerReceipt {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub funder: Address,
+    pub amount: i128,
+    pub memo: Option<String>,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayeeReceipt {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub payee: Address,
+    pub amount: i128,
+    pub timestamp: u64,
 }
 
 #[contractevent]
@@ -458,5 +648,58 @@ pub struct MilestoneExpired {
     pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneUpvoted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub voter: Address,
+    pub total_upvotes: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneCommented {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub voter: Address,
+    pub comment: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantCancellationRequested {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub owner: Address,
+    pub reason: String,
+    pub executable_after: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewerAdded {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub owner: Address,
+    pub new_reviewer: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReviewerRemoved {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub owner: Address,
+    pub old_reviewer: Address,
     pub timestamp: u64,
 }

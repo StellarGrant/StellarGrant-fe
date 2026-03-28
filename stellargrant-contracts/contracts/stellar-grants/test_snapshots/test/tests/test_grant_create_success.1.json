@@ -148,6 +148,12 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "cancellation_requested_at"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "description"
                     },
                     "val": {
@@ -176,6 +182,14 @@
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "last_heartbeat"
+                    },
+                    "val": {
+                      "u64": "0"
                     }
                   },
                   {
@@ -376,6 +390,22 @@
                   },
                   {
                     "key": {
+                      "symbol": "community_comments"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_upvotes"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "deadline"
                     },
                     "val": {
@@ -502,6 +532,22 @@
                   {
                     "key": {
                       "symbol": "approvals"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_comments"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_upvotes"
                     },
                     "val": {
                       "u32": 0

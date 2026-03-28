@@ -30,8 +30,14 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
-    /// Vesting period has not yet elapsed; payout is still time-locked.
-    VestingPeriodNotElapsed = 26,
+    /// Reviewer vote rejected because the community review period has not elapsed yet.
+    CommunityReviewPeriod = 26,
+    /// The voter has already upvoted this milestone.
+    AlreadyUpvoted = 27,
+    /// Grant cancellation is pending; grace period has not elapsed yet.
+    CancellationGracePeriod = 28,
+    HeartbeatMissed = 29,
+    Blacklisted = 30,
 }
 
 #[contracttype]
@@ -70,8 +76,9 @@ pub enum MilestoneState {
     Paid = 3,
     Rejected = 4,
     Disputed = 5,
-    /// Approved and committed but waiting for vesting_period to elapse before payout.
-    VestingPending = 6,
+    Resolved = 6,
+    /// Open for community upvotes / comments before reviewer voting begins.
+    CommunityReview = 7,
 }
 
 #[contracttype]
@@ -89,10 +96,10 @@ pub struct Milestone {
     pub proof_url: Option<String>,
     pub submission_timestamp: u64,
     pub deadline: u64,
-    /// Time-lock (seconds) after approval before the payout can be claimed.
-    /// `0` = pay immediately (no vesting). Non-zero amounts are held in escrow
-    /// until `env.ledger().timestamp() >= status_updated_at + vesting_period`.
-    pub vesting_period: u64,
+    /// Number of community upvotes received during the CommunityReview period.
+    pub community_upvotes: u32,
+    /// One comment per address recorded during the CommunityReview period.
+    pub community_comments: Map<Address, String>,
 }
 
 #[contracttype]
@@ -110,6 +117,9 @@ pub enum GrantStatus {
     Active = 1,
     Cancelled = 2,
     Completed = 3,
+    /// Cancellation requested but grace period has not elapsed yet.
+    CancellationPending = 4,
+    Inactive = 5,
 }
 
 #[contracttype]
@@ -138,6 +148,9 @@ pub struct Grant {
     pub funders: Vec<GrantFund>,
     pub reason: Option<String>,
     pub timestamp: u64,
+    /// Timestamp when a cancellation was first requested (grace-period cancellation).
+    pub cancellation_requested_at: Option<u64>,
+    pub last_heartbeat: u64,
 }
 
 #[contracttype]
