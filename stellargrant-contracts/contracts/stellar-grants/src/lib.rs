@@ -427,11 +427,7 @@ impl StellarGrantsContract {
     /// * [`ContractError::GrantNotFound`] – grant does not exist.
     /// * [`ContractError::Unauthorized`] – caller is not the grant owner.
     /// * [`ContractError::InvalidState`] – grant is not in `PendingAcceptance`.
-    pub fn grant_accept(
-        env: Env,
-        grant_id: u64,
-        recipient: Address,
-    ) -> Result<(), ContractError> {
+    pub fn grant_accept(env: Env, grant_id: u64, recipient: Address) -> Result<(), ContractError> {
         recipient.require_auth();
 
         let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
