@@ -55,6 +55,66 @@
               "key": {
                 "vec": [
                   {
+                    "symbol": "EscrowState"
+                  },
+                  {
+                    "u64": "402"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "approvals_count"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "lifecycle"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "mode"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "quorum_ready"
+                    },
+                    "val": {
+                      "bool": false
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
                     "symbol": "Grant"
                   },
                   {
@@ -343,7 +403,7 @@
                       "symbol": "deadline"
                     },
                     "val": {
-                      "u64": "0"
+                      "u64": "2592000"
                     }
                   },
                   {
@@ -405,6 +465,14 @@
                   {
                     "key": {
                       "symbol": "submission_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "vesting_period"
                     },
                     "val": {
                       "u64": "0"

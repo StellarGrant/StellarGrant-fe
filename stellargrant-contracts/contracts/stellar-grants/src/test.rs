@@ -193,6 +193,16 @@ mod tests {
                 cancellation_requested_at: None,
             };
             Storage::set_grant(env, grant_id, &grant);
+            Storage::set_escrow_state(
+                env,
+                grant_id,
+                &crate::types::EscrowState {
+                    mode: crate::types::EscrowMode::Standard,
+                    lifecycle: crate::types::EscrowLifecycleState::Funding,
+                    quorum_ready: false,
+                    approvals_count: 0,
+                },
+            );
         });
     }
 
@@ -204,6 +214,7 @@ mod tests {
         state: MilestoneState,
     ) {
         env.as_contract(contract_id, || {
+            let now = env.ledger().timestamp();
             let milestone = Milestone {
                 idx: milestone_idx,
                 description: String::from_str(env, "Description"),
@@ -215,8 +226,9 @@ mod tests {
                 reasons: Map::new(env),
                 status_updated_at: 0,
                 proof_url: Some(String::from_str(env, "https://proof.url")),
-                submission_timestamp: env.ledger().timestamp(),
-                deadline: 0,
+                submission_timestamp: now,
+                deadline: now + 30 * 24 * 60 * 60,
+                vesting_period: 0,
                 community_upvotes: 0,
                 community_comments: Map::new(env),
             };
@@ -884,6 +896,7 @@ mod tests {
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
+                    vesting_period: 0,
                     community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -967,6 +980,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -985,6 +999,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 1, &m2);
@@ -1052,6 +1067,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -1095,6 +1111,8 @@ mod tests {
             &2,
             &reviewers,
             &multisig,
+            &None,
+            &None,
         );
 
         let funder = Address::generate(&env);
@@ -1117,6 +1135,7 @@ mod tests {
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
+                    vesting_period: 0,
                     community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1163,6 +1182,8 @@ mod tests {
             &2,
             &reviewers,
             &multisig,
+            &None,
+            &None,
         );
 
         let funder = Address::generate(&env);
@@ -1184,6 +1205,7 @@ mod tests {
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
+                    vesting_period: 0,
                     community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1229,6 +1251,8 @@ mod tests {
             &1,
             &reviewers,
             &multisig,
+            &None,
+            &None,
         );
 
         let result = client.try_sign_release(&grant_id, &attacker);
@@ -1369,6 +1393,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -1412,6 +1437,7 @@ mod tests {
             &2,
             &reviewers,
             &2u64,
+            &None,
         );
 
         let result = client.try_milestone_submit(
@@ -1610,6 +1636,7 @@ mod tests {
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
+                    vesting_period: 0,
                     community_comments: Map::new(&env),
                 };
                 Storage::set_milestone(&env, grant_id, idx, &milestone);
@@ -2178,6 +2205,7 @@ mod tests {
             &2u32,     // num_milestones
             &reviewers,
             &1u32,
+            &None,
             &None, // milestone_deadlines
             &0i128,
         );
@@ -2865,6 +2893,7 @@ mod tests {
             Storage::set_grant(&env, grant_id, &grant);
 
             // Seed milestone with deadline of 1000 (will be in the past when we advance timestamp)
+            let now = env.ledger().timestamp();
             let milestone = Milestone {
                 idx: milestone_idx,
                 description: String::from_str(&env, "Description"),
@@ -2879,6 +2908,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 1_000, // deadline at timestamp 1000
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
@@ -3400,6 +3430,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3447,6 +3478,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3495,6 +3527,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3541,6 +3574,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3584,6 +3618,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3663,6 +3698,7 @@ mod tests {
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
+                vesting_period: 0,
                 community_comments: Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);

@@ -945,6 +945,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "vesting_period"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "votes"
                     },
                     "val": {
