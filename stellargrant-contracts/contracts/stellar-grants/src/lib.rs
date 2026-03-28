@@ -53,6 +53,7 @@ impl StellarGrantsContract {
         }
         if milestone.state != MilestoneState::Submitted
             && milestone.state != MilestoneState::Approved
+            && milestone.state != MilestoneState::Paid
         {
             return Err(ContractError::InvalidState);
         }
@@ -141,22 +142,28 @@ impl StellarGrantsContract {
         Events::milestone_status_changed(&env, grant_id, milestone_idx, MilestoneState::Resolved);
         // Enhanced event emission: include all relevant data, standardize topics
 
-        // Fetch grant for payout/refund
+        // Was the milestone already paid out before being disputed?
+        // Track this from milestone dispute state transition tracking (use a storage key or inline check).
+        // For simplicity, if approve=true and escrow_balance < milestone_amount,
+        // we assume it was auto-paid at quorum, so no additional transfer is needed.
         let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let milestone_already_paid = grant.escrow_balance < grant.milestone_amount;
+
+        // Fetch grant for payout/refund
         let token_client = token::Client::new(&env, &grant.token);
         if approve {
-            // Approve: payout milestone amount to grant owner (contributor)
-            if grant.escrow_balance < grant.milestone_amount {
-                return Err(ContractError::InvalidInput);
+            if !milestone_already_paid {
+                // Approve: payout milestone amount to grant owner (contributor)
+                // Only do this if it wasn't already auto-paid at quorum.
+                token_client.transfer(
+                    &env.current_contract_address(),
+                    &grant.owner,
+                    &grant.milestone_amount,
+                );
+                grant.escrow_balance -= grant.milestone_amount;
+                grant.milestones_paid_out += 1;
+                Storage::set_grant(&env, grant_id, &grant);
             }
-            token_client.transfer(
-                &env.current_contract_address(),
-                &grant.owner,
-                &grant.milestone_amount,
-            );
-            grant.escrow_balance -= grant.milestone_amount;
-            grant.milestones_paid_out += 1;
-            Storage::set_grant(&env, grant_id, &grant);
             Events::emit_milestone_paid(&env, grant_id, milestone_idx, grant.milestone_amount);
         // Enhanced event emission: include all relevant data, standardize topics
         } else {
@@ -1106,7 +1113,7 @@ impl StellarGrantsContract {
             return Err(ContractError::Blacklisted);
         }
 
-        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotSubmitted)?;
 
@@ -1154,12 +1161,8 @@ impl StellarGrantsContract {
 
         let quorum_reached = milestone.approvals >= grant.quorum;
         if quorum_reached {
-            milestone.state = MilestoneState::Approved;
-            milestone.status_updated_at = env.ledger().timestamp();
-
             // Emit QuorumReached event
             Events::emit_quorum_reached(
-                // Enhanced event emission: include all relevant data, standardize topics
                 &env,
                 grant_id,
                 milestone_idx,
@@ -1176,12 +1179,36 @@ impl StellarGrantsContract {
                 }
             }
 
-            Events::milestone_status_changed(
-                &env,
-                grant_id,
-                milestone_idx,
-                MilestoneState::Approved,
+            // ----- Automatic payout on quorum -----
+            let payout_amount = milestone.amount;
+
+            // Transfer milestone amount from contract escrow to grant owner
+            let token_client = token::Client::new(&env, &grant.token);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &grant.owner,
+                &payout_amount,
             );
+
+            // Update escrow accounting
+            grant.escrow_balance = grant
+                .escrow_balance
+                .checked_sub(payout_amount)
+                .ok_or(ContractError::InvalidInput)?;
+            grant.milestones_paid_out = grant
+                .milestones_paid_out
+                .checked_add(1)
+                .ok_or(ContractError::InvalidInput)?;
+            Storage::set_grant(&env, grant_id, &grant);
+
+            // Transition milestone directly to Paid
+            milestone.state = MilestoneState::Paid;
+            milestone.status_updated_at = env.ledger().timestamp();
+
+            Events::milestone_status_changed(&env, grant_id, milestone_idx, MilestoneState::Paid);
+
+            // Emit dedicated MilestonePaid event for off-chain indexers
+            Events::emit_milestone_paid(&env, grant_id, milestone_idx, payout_amount);
         }
 
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
