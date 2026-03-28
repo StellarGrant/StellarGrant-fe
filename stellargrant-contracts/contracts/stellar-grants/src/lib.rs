@@ -18,7 +18,7 @@ pub use types::{
     Milestone, MilestoneState, MilestoneSubmission,
 };
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, String, Vec};
 
 /// Community review window (3 days in seconds) that must elapse after milestone
 /// submission before official reviewer voting is allowed.
@@ -169,6 +169,7 @@ impl StellarGrantsContract {
         admin.require_auth();
         Storage::set_global_admin(&env, &admin);
         Storage::set_council(&env, &council);
+        Storage::set_storage_version(&env, 1);
         Events::emit_contract_initialized(&env, council);
         // Enhanced event emission: include all relevant data, standardize topics
         Ok(())
@@ -188,6 +189,33 @@ impl StellarGrantsContract {
         Storage::set_global_admin(&env, &new_admin);
         Events::emit_contract_upgraded(&env, old_admin, String::from_str(&env, "admin_changed"));
         Ok(())
+    }
+
+    /// Upgrade contract WASM. Only the stored global admin may call.
+    ///
+    /// Increments [`Storage::get_storage_version`] before swapping code so post-upgrade logic can
+    /// branch on version for migrations.
+    pub fn admin_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        let current_admin =
+            Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if current_admin != admin {
+            return Err(ContractError::NotContractAdmin);
+        }
+        let next = Storage::get_storage_version(&env).saturating_add(1);
+        Storage::set_storage_version(&env, next);
+        Events::emit_contract_wasm_upgraded(&env, admin.clone(), new_wasm_hash.clone(), next);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        Ok(())
+    }
+
+    /// Read persisted storage schema / upgrade generation (default `1` if unset).
+    pub fn get_contract_storage_version(env: Env) -> u32 {
+        Storage::get_storage_version(&env)
     }
 
     /// Set or rotate the DAO Council address for milestone disputes.

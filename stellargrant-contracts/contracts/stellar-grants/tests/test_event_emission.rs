@@ -3,7 +3,7 @@ use soroban_sdk::{
     testutils::{Address as TestAddress, Ledger},
     token, Address, Env, String, Vec,
 };
-use stellar_grants::{MilestoneState, StellarGrantsContractClient};
+use stellar_grants::StellarGrantsContractClient;
 
 #[test]
 fn test_event_emission_on_grant_create_and_fund() {
@@ -31,10 +31,11 @@ fn test_event_emission_on_grant_create_and_fund() {
         &reviewers,
         &quorum,
         &None,
+        &0i128,
     );
     let funder = <Address as TestAddress>::generate(&env);
     token_admin.mint(&funder, &100);
-    client.grant_fund(&grant_id, &funder, &100);
+    client.grant_fund(&grant_id, &funder, &100, &None);
     let events = env.events().all();
     // Debug print all events
     println!("All events:");
@@ -79,10 +80,11 @@ fn test_event_emission_on_milestone_vote() {
         &reviewers,
         &quorum,
         &None,
+        &0i128,
     );
     let funder = <Address as TestAddress>::generate(&env);
     token_admin.mint(&funder, &100);
-    client.grant_fund(&grant_id, &funder, &100);
+    client.grant_fund(&grant_id, &funder, &100, &None);
     client.milestone_submit(
         &grant_id,
         &0,
