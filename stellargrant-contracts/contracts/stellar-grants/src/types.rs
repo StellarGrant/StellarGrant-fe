@@ -30,6 +30,8 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
+    GrantNotCancelled = 26,
+    RefundAlreadyClaimed = 27,
     /// Reviewer vote rejected because the community review period has not elapsed yet.
     CommunityReviewPeriod = 26,
     /// The voter has already upvoted this milestone.

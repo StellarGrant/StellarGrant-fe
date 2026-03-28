@@ -22,6 +22,8 @@ pub enum DataKey {
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
     GrantMinReputation(u64),
+    /// Tracks whether a funder has claimed their refund for a specific grant
+    RefundClaimed(u64, soroban_sdk::Address),
     /// Tracks whether a voter has already upvoted a specific milestone.
     MilestoneUpvoter(u64, u32, soroban_sdk::Address),
 }
@@ -243,6 +245,40 @@ impl Storage {
             .set(&DataKey::GrantMinReputation(grant_id), &min_reputation);
     }
 
+    /// Check if a funder has already claimed their refund for a specific grant.
+    ///
+    /// # Arguments
+    /// * `env` - Soroban environment
+    /// * `grant_id` - Grant identifier
+    /// * `funder` - Funder address to check
+    ///
+    /// # Returns
+    /// * `true` if the funder has already claimed their refund
+    /// * `false` otherwise
+    pub fn has_refund_claimed(env: &Env, grant_id: u64, funder: &soroban_sdk::Address) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::RefundClaimed(grant_id, funder.clone()))
+            .unwrap_or(false)
+    }
+
+    /// Mark a funder as having claimed (or not claimed) their refund for a specific grant.
+    /// Uses persistent storage with TTL extension to ensure long-term tracking.
+    ///
+    /// # Arguments
+    /// * `env` - Soroban environment
+    /// * `grant_id` - Grant identifier
+    /// * `funder` - Funder address
+    /// * `claimed` - Whether the refund has been claimed (true) or not (false)
+    pub fn set_refund_claimed(
+        env: &Env,
+        grant_id: u64,
+        funder: &soroban_sdk::Address,
+        claimed: bool,
+    ) {
+        let key = DataKey::RefundClaimed(grant_id, funder.clone());
+        env.storage().persistent().set(&key, &claimed);
+        Self::bump_persistent_ttl(env, &key);
     pub fn has_milestone_upvote(
         env: &Env,
         grant_id: u64,
