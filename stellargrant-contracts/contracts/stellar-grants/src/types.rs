@@ -41,6 +41,8 @@ pub enum ContractError {
     /// Caller is not the contract global admin for this operation.
     NotContractAdmin = 31,
     InsufficientBalance = 32,
+    /// Contract is globally paused; all state-modifying operations are blocked.
+    ContractPaused = 33,
 }
 
 #[contracttype]

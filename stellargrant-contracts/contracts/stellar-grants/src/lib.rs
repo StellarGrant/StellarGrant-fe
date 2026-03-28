@@ -284,6 +284,39 @@ impl StellarGrantsContract {
         Ok(())
     }
 
+    // ── Pausable module ──────────────────────────────────────────────
+
+    /// Pause all state-modifying operations on the contract.
+    /// Only callable by the global admin.
+    pub fn pause(env: Env, caller: Address) -> Result<(), ContractError> {
+        caller.require_auth();
+        let admin = Storage::get_global_admin(&env).ok_or(ContractError::Unauthorized)?;
+        if admin != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        Storage::set_paused(&env, true);
+        Events::emit_contract_upgraded(&env, caller, String::from_str(&env, "paused"));
+        Ok(())
+    }
+
+    /// Resume all state-modifying operations on the contract.
+    /// Only callable by the global admin.
+    pub fn unpause(env: Env, caller: Address) -> Result<(), ContractError> {
+        caller.require_auth();
+        let admin = Storage::get_global_admin(&env).ok_or(ContractError::Unauthorized)?;
+        if admin != caller {
+            return Err(ContractError::Unauthorized);
+        }
+        Storage::set_paused(&env, false);
+        Events::emit_contract_upgraded(&env, caller, String::from_str(&env, "unpaused"));
+        Ok(())
+    }
+
+    /// Returns `true` when the contract is globally paused.
+    pub fn is_paused(env: Env) -> bool {
+        Storage::is_paused(&env)
+    }
+
     /// Allows a grant developer/owner to create a new milestone-based grant.
     ///
     /// # Arguments
@@ -360,6 +393,7 @@ impl StellarGrantsContract {
         min_funding: i128,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
+        assert_not_paused(&env)?;
 
         if Storage::is_blacklisted(&env, &owner) {
             return Err(ContractError::Blacklisted);
@@ -1101,6 +1135,7 @@ impl StellarGrantsContract {
         feedback: Option<String>,
     ) -> Result<bool, ContractError> {
         reviewer.require_auth();
+        assert_not_paused(&env)?;
 
         if Storage::is_blacklisted(&env, &reviewer) {
             return Err(ContractError::Blacklisted);
@@ -1358,6 +1393,7 @@ impl StellarGrantsContract {
         proof_url: String,
     ) -> Result<(), ContractError> {
         recipient.require_auth();
+        assert_not_paused(&env)?;
 
         let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
@@ -1456,6 +1492,7 @@ impl StellarGrantsContract {
         memo: Option<String>,
     ) -> Result<(), ContractError> {
         funder.require_auth();
+        assert_not_paused(&env)?;
         reentrancy::with_non_reentrant(&env, || {
             if amount <= 0 {
                 return Err(ContractError::InvalidInput);
@@ -2113,6 +2150,13 @@ impl StellarGrantsContract {
         Storage::remove_blacklisted(&env, &target);
         Ok(())
     }
+}
+
+fn assert_not_paused(env: &Env) -> Result<(), ContractError> {
+    if Storage::is_paused(env) {
+        return Err(ContractError::ContractPaused);
+    }
+    Ok(())
 }
 
 fn check_heartbeat(env: &Env, grant: &mut Grant) {

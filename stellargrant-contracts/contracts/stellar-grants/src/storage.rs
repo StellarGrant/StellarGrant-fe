@@ -29,6 +29,8 @@ pub enum DataKey {
     GrantStatusIndex(u32),
     /// Monotonic schema / upgrade generation for migrations (see `UPGRADE_GUIDE.md`).
     StorageVersion,
+    /// Global contract pause flag stored in instance storage.
+    IsPaused,
 }
 
 pub struct Storage;
@@ -359,5 +361,18 @@ impl Storage {
     pub fn index_transition(env: &Env, from: u32, to: u32, grant_id: u64) {
         Self::index_remove(env, from, grant_id);
         Self::index_add(env, to, grant_id);
+    }
+
+    // --- Global pause flag (instance storage) ---
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::IsPaused)
+            .unwrap_or(false)
+    }
+
+    pub fn set_paused(env: &Env, paused: bool) {
+        env.storage().instance().set(&DataKey::IsPaused, &paused);
     }
 }

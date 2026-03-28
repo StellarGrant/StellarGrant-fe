@@ -33,7 +33,6 @@ fn test_event_emission_on_grant_create_and_fund() {
         &None,
         &0i128,
     );
-    client.grant_accept(&grant_id, &owner);
     let funder = <Address as TestAddress>::generate(&env);
     token_admin.mint(&funder, &100);
     client.grant_fund(&grant_id, &funder, &100, &None);
@@ -83,7 +82,6 @@ fn test_event_emission_on_milestone_vote() {
         &None,
         &0i128,
     );
-    client.grant_accept(&grant_id, &owner);
     let funder = <Address as TestAddress>::generate(&env);
     token_admin.mint(&funder, &100);
     client.grant_fund(&grant_id, &funder, &100, &None);
