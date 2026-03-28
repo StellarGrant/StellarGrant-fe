@@ -1,4 +1,7 @@
-use soroban_sdk::{testutils::{Address as _, Ledger}, token, Address, Env, String, Vec};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    token, Address, Env, String, Vec,
+};
 use stellar_grants::{MilestoneState, StellarGrantsContractClient};
 
 #[test]
@@ -44,7 +47,8 @@ fn test_dispute_and_resolve_flow() {
     // Advance ledger timestamp by COMMUNITY_REVIEW_PERIOD to allow voting
     const COMMUNITY_REVIEW_PERIOD: u64 = 3 * 24 * 60 * 60;
     let now = env.ledger().timestamp();
-    env.ledger().set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
     client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     client.resolve_dispute(&council, &grant_id, &0, &true);
