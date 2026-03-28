@@ -30,6 +30,8 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
+    GrantNotCancelled = 26,
+    RefundAlreadyClaimed = 27,
 }
 
 #[contracttype]

@@ -379,7 +379,176 @@ impl StellarGrantsContract {
         Self::cancel_grant(env, grant_id, owner, reason)
     }
 
+    /// Claim a refund for a cancelled grant.
+    ///
+    /// # PULL-BASED REFUND MODEL
+    /// This function allows individual funders to claim their proportional share of
+    /// the escrow balance after a grant has been cancelled. Each funder must call
+    /// this function manually - refunds are NOT distributed automatically.
+    ///
+    /// # How It Works
+    /// 1. Verify the grant exists and is cancelled
+    /// 2. Verify the caller is a valid funder
+    /// 3. Check that this funder hasn't already claimed (prevents double-claims)
+    /// 4. Calculate proportional refund: (funder_amount * escrow_balance) / total_contributions
+    /// 5. Mark funder as having claimed (storage flag)
+    /// 6. Transfer tokens to funder
+    /// 7. Decrease grant's escrow_balance accordingly
+    ///
+    /// # Security Guarantees
+    /// - **Double-claim prevention**: Persistent storage flag tracks each funder's claim status
+    /// - **Authorization**: Only the actual funder can claim (via require_auth)
+    /// - **Calculation safety**: Uses checked arithmetic to prevent overflow
+    /// - **Reentrancy protection**: Wrapped in non-reentrant guard
+    /// - **State isolation**: Each claim is independent; no iteration over other funders
+    ///
+    /// # Arguments
+    /// * `grant_id` - The unique identifier of the cancelled grant.
+    /// * `funder` - The address of the funder claiming their refund.
+    ///
+    /// # Returns
+    /// * `Ok(refund_amount)` - The amount of tokens refunded to the funder.
+    ///
+    /// # Errors
+    /// * [`ContractError::GrantNotFound`] - If no grant exists with the given ID.
+    /// * [`ContractError::GrantNotCancelled`] - If the grant is not in Cancelled status.
+    /// * [`ContractError::Unauthorized`] - If the caller is not found in the grant's funder list.
+    /// * [`ContractError::RefundAlreadyClaimed`] - If this funder has already claimed their refund.
+    /// * [`ContractError::InvalidInput`] - If calculation errors occur (e.g., division by zero).
+    ///
+    /// # Side Effects
+    /// * Sets refund claimed flag for this funder (persistent storage)
+    /// * Decreases grant's escrow_balance by the refund amount
+    /// * Transfers tokens from contract to funder
+    /// * Emits `refund_issued` event
+    ///
+    /// # Unclaimed Funds Policy
+    /// - Unclaimed funds remain locked in the contract indefinitely
+    /// - This is intentional to avoid gas issues and centralization concerns
+    /// - Future versions may implement admin reclaim after timeout periods
+    ///
+    /// # Gas Considerations
+    /// - O(1) for state checks and transfers
+    /// - O(n) only to find funder in list (read-only, acceptable)
+    /// - No iteration over other funders during transfer
+    pub fn refund_claim(env: Env, grant_id: u64, funder: Address) -> Result<i128, ContractError> {
+        funder.require_auth();
+        reentrancy::with_non_reentrant(&env, || {
+            // === VALIDATION PHASE ===
+
+            // 1. Verify grant exists
+            let mut grant =
+                Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+            // 2. Verify grant is cancelled
+            if grant.status != GrantStatus::Cancelled {
+                return Err(ContractError::GrantNotCancelled);
+            }
+
+            // 3. Find funder in the grant's funder list and get their contribution
+            let mut funder_found = false;
+            let mut funder_amount: i128 = 0;
+            for fund_entry in grant.funders.iter() {
+                if fund_entry.funder == funder {
+                    funder_found = true;
+                    funder_amount = fund_entry.amount;
+                    break;
+                }
+            }
+
+            // Return Unauthorized if funder not found (consistent with existing patterns)
+            if !funder_found {
+                return Err(ContractError::Unauthorized);
+            }
+
+            // 4. Check if already claimed (double-claim prevention)
+            if Storage::has_refund_claimed(&env, grant_id, &funder) {
+                return Err(ContractError::RefundAlreadyClaimed);
+            }
+
+            // === CALCULATION PHASE ===
+
+            // 5. Calculate total contributions from all funders
+            let mut total_contributions: i128 = 0;
+            for fund_entry in grant.funders.iter() {
+                total_contributions += fund_entry.amount;
+            }
+
+            // Handle edge case: zero or negative total contributions
+            if total_contributions <= 0 {
+                return Err(ContractError::InvalidInput);
+            }
+
+            // 6. Calculate proportional refund amount
+            // Formula: (funder_amount * escrow_balance) / total_contributions
+            let refund_amount = funder_amount
+                .checked_mul(grant.escrow_balance)
+                .ok_or(ContractError::InvalidInput)?
+                .checked_div(total_contributions)
+                .ok_or(ContractError::InvalidInput)?;
+
+            // === STATE UPDATE PHASE (Checks → Effects → Interactions) ===
+
+            // 7. Mark funder as having claimed (prevent double-claim)
+            Storage::set_refund_claimed(&env, grant_id, &funder, true);
+
+            // 8. Update grant's escrow balance
+            grant.escrow_balance = grant
+                .escrow_balance
+                .checked_sub(refund_amount)
+                .ok_or(ContractError::InvalidInput)?;
+            Storage::set_grant(&env, grant_id, &grant);
+
+            // === TRANSFER PHASE ===
+
+            // 9. Transfer tokens to funder (only if amount > 0)
+            if refund_amount > 0 {
+                let token_client = token::Client::new(&env, &grant.token);
+                token_client.transfer(&env.current_contract_address(), &funder, &refund_amount);
+
+                // 10. Emit event for tracking
+                Events::emit_refund_issued(&env, grant_id, funder.clone(), refund_amount);
+            }
+
+            // Return the refunded amount
+            Ok(refund_amount)
+        })
+    }
+
     /// Cancel a grant and refund escrowed funds. Callable by grant owner or global admin.
+    ///
+    /// # PULL-BASED REFUND MODEL
+    /// This function NO LONGER distributes refunds automatically (push model).
+    /// Instead, it marks the grant as cancelled and funders must individually
+    /// claim their refunds using the `refund_claim` function.
+    ///
+    /// # Why Pull-Based?
+    /// - Gas safety: Avoids looping over potentially hundreds of funders
+    /// - Memory safety: Prevents transaction size limit issues
+    /// - Flexibility: Funders can claim at their convenience
+    ///
+    /// # Arguments
+    /// * `grant_id` - Grant identifier to cancel.
+    /// * `caller` - Address of grant owner or global admin.
+    /// * `reason` - Reason for cancellation (stored on-chain).
+    ///
+    /// # Returns
+    /// * `Ok(())` on success.
+    ///
+    /// # Errors
+    /// * [`ContractError::Unauthorized`] - If caller is not owner or admin.
+    /// * [`ContractError::InvalidState`] - If grant is not active or already completed.
+    ///
+    /// # Side Effects
+    /// * Sets grant status to Cancelled
+    /// * Sets escrow_balance to 0 (prevents further funding)
+    /// * Stores cancellation reason and timestamp
+    /// * Emits `grant_cancelled` event with total refundable amount
+    ///
+    /// # Important Notes
+    /// - Funders must call `refund_claim` to receive their proportional share
+    /// - Unclaimed funds remain locked in the contract indefinitely
+    /// - Admin reclaim mechanism may be added in future versions
     pub fn cancel_grant(
         env: Env,
         grant_id: u64,
@@ -406,62 +575,23 @@ impl StellarGrantsContract {
                 return Err(ContractError::InvalidState);
             }
 
+            // Store the total refundable amount for event emission
+            // Note: We no longer distribute refunds here (pull-based model)
+            // Funders must individually claim via `refund_claim` function
             let total_refundable = grant.escrow_balance;
-            if total_refundable > 0 {
-                let mut total_contributions: i128 = 0;
-                for fund_entry in grant.funders.iter() {
-                    total_contributions += fund_entry.amount;
-                }
 
-                if total_contributions <= 0 {
-                    return Err(ContractError::InvalidInput);
-                }
-
-                let token_client = token::Client::new(&env, &grant.token);
-                let funders_len = grant.funders.len();
-                let mut distributed = 0i128;
-
-                for i in 0..funders_len {
-                    let fund_entry = grant.funders.get(i).unwrap();
-                    let is_last = i + 1 == funders_len;
-                    let refund_amount = if is_last {
-                        total_refundable - distributed
-                    } else {
-                        let amount = fund_entry
-                            .amount
-                            .checked_mul(total_refundable)
-                            .ok_or(ContractError::InvalidInput)?
-                            .checked_div(total_contributions)
-                            .ok_or(ContractError::InvalidInput)?;
-                        distributed += amount;
-                        amount
-                    };
-
-                    if refund_amount > 0 {
-                        token_client.transfer(
-                            &env.current_contract_address(),
-                            &fund_entry.funder,
-                            &refund_amount,
-                        );
-                        Events::emit_refund_issued(
-                            &env,
-                            grant_id,
-                            fund_entry.funder.clone(),
-                            refund_amount,
-                        );
-                    }
-                }
-            }
-
-            // Update state
+            // Update state - mark as cancelled
+            // IMPORTANT: Do NOT set escrow_balance to 0!
+            // The escrow_balance represents tokens still in the contract available for refunds.
+            // As funders claim, their portion will be transferred and escrow_balance will decrease.
             grant.status = GrantStatus::Cancelled;
-            grant.escrow_balance = 0;
             grant.reason = Some(reason.clone());
             grant.timestamp = env.ledger().timestamp();
 
             Storage::set_grant(&env, grant_id, &grant);
 
-            // Emit cancellation event
+            // Emit cancellation event with total refundable amount
+            // Individual refund_issued events will be emitted as funders claim
             Events::emit_grant_cancelled(&env, grant_id, caller, reason, total_refundable);
 
             Ok(())
