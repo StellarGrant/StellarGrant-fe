@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 6,
+    "address": 5,
     "nonce": 0,
     "mux_id": 0
   },
@@ -15,16 +15,22 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "grant_remove_reviewer",
+              "function_name": "milestone_submit",
               "args": [
                 {
-                  "u64": "215"
+                  "u64": "300"
+                },
+                {
+                  "u32": 0
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                  "string": "Work done"
+                },
+                {
+                  "string": "https://proof.url"
                 }
               ]
             }
@@ -58,7 +64,7 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "215"
+                    "u64": "300"
                   }
                 ]
               },
@@ -100,7 +106,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "215"
+                      "u64": "300"
                     }
                   },
                   {
@@ -148,7 +154,7 @@
                     "val": {
                       "vec": [
                         {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                         }
                       ]
                     }
@@ -222,7 +228,7 @@
                     "symbol": "Milestone"
                   },
                   {
-                    "u64": "215"
+                    "u64": "300"
                   },
                   {
                     "u32": 0
@@ -277,7 +283,7 @@
                       "symbol": "description"
                     },
                     "val": {
-                      "string": "Description"
+                      "string": "Work done"
                     }
                   },
                   {
@@ -317,7 +323,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 2
+                      "u32": 6
                     }
                   },
                   {

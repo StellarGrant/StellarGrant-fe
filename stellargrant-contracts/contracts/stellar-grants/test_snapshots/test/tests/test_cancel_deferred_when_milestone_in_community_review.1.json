@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 6,
+    "address": 4,
     "nonce": 0,
     "mux_id": 0
   },
@@ -15,16 +15,16 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "grant_remove_reviewer",
+              "function_name": "grant_cancel",
               "args": [
                 {
-                  "u64": "215"
+                  "u64": "401"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                  "string": "Discontinuing"
                 }
               ]
             }
@@ -58,7 +58,7 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "215"
+                    "u64": "401"
                   }
                 ]
               },
@@ -69,7 +69,9 @@
                     "key": {
                       "symbol": "cancellation_requested_at"
                     },
-                    "val": "void"
+                    "val": {
+                      "u64": "0"
+                    }
                   },
                   {
                     "key": {
@@ -100,7 +102,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "215"
+                      "u64": "401"
                     }
                   },
                   {
@@ -139,18 +141,16 @@
                     "key": {
                       "symbol": "reason"
                     },
-                    "val": "void"
+                    "val": {
+                      "string": "Discontinuing"
+                    }
                   },
                   {
                     "key": {
                       "symbol": "reviewers"
                     },
                     "val": {
-                      "vec": [
-                        {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                        }
-                      ]
+                      "vec": []
                     }
                   },
                   {
@@ -158,7 +158,7 @@
                       "symbol": "status"
                     },
                     "val": {
-                      "u32": 1
+                      "u32": 4
                     }
                   },
                   {
@@ -222,7 +222,7 @@
                     "symbol": "Milestone"
                   },
                   {
-                    "u64": "215"
+                    "u64": "401"
                   },
                   {
                     "u32": 0
@@ -317,7 +317,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 2
+                      "u32": 6
                     }
                   },
                   {

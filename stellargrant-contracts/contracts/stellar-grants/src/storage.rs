@@ -22,6 +22,8 @@ pub enum DataKey {
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
     GrantMinReputation(u64),
+    /// Tracks whether a voter has already upvoted a specific milestone.
+    MilestoneUpvoter(u64, u32, soroban_sdk::Address),
 }
 
 pub struct Storage;
@@ -239,5 +241,33 @@ impl Storage {
         env.storage()
             .persistent()
             .set(&DataKey::GrantMinReputation(grant_id), &min_reputation);
+    }
+
+    pub fn has_milestone_upvote(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: &soroban_sdk::Address,
+    ) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::MilestoneUpvoter(
+                grant_id,
+                milestone_idx,
+                voter.clone(),
+            ))
+            .unwrap_or(false)
+    }
+
+    pub fn set_milestone_upvote(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: &soroban_sdk::Address,
+    ) {
+        env.storage().persistent().set(
+            &DataKey::MilestoneUpvoter(grant_id, milestone_idx, voter.clone()),
+            &true,
+        );
     }
 }

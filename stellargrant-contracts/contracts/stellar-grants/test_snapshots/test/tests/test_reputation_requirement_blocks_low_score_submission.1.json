@@ -310,6 +310,12 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "cancellation_requested_at"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
                       "symbol": "description"
                     },
                     "val": {
@@ -538,6 +544,22 @@
                   },
                   {
                     "key": {
+                      "symbol": "community_comments"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_upvotes"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "deadline"
                     },
                     "val": {
@@ -589,7 +611,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 1
+                      "u32": 6
                     }
                   },
                   {
@@ -658,6 +680,22 @@
                   {
                     "key": {
                       "symbol": "approvals"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_comments"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_upvotes"
                     },
                     "val": {
                       "u32": 0

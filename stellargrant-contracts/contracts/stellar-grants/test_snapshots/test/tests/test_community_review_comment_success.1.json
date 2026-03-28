@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 6,
+    "address": 5,
     "nonce": 0,
     "mux_id": 0
   },
@@ -10,21 +10,24 @@
     [],
     [
       [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
         {
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "grant_remove_reviewer",
+              "function_name": "milestone_comment",
               "args": [
                 {
-                  "u64": "215"
+                  "u64": "305"
                 },
                 {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  "u32": 0
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                },
+                {
+                  "string": "Looks good to me!"
                 }
               ]
             }
@@ -58,7 +61,7 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "215"
+                    "u64": "305"
                   }
                 ]
               },
@@ -100,7 +103,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "215"
+                      "u64": "305"
                     }
                   },
                   {
@@ -146,11 +149,7 @@
                       "symbol": "reviewers"
                     },
                     "val": {
-                      "vec": [
-                        {
-                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                        }
-                      ]
+                      "vec": []
                     }
                   },
                   {
@@ -222,7 +221,7 @@
                     "symbol": "Milestone"
                   },
                   {
-                    "u64": "215"
+                    "u64": "305"
                   },
                   {
                     "u32": 0
@@ -253,7 +252,16 @@
                       "symbol": "community_comments"
                     },
                     "val": {
-                      "map": []
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                          },
+                          "val": {
+                            "string": "Looks good to me!"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -277,7 +285,7 @@
                       "symbol": "description"
                     },
                     "val": {
-                      "string": "Description"
+                      "string": "Desc"
                     }
                   },
                   {
@@ -292,9 +300,7 @@
                     "key": {
                       "symbol": "proof_url"
                     },
-                    "val": {
-                      "string": "https://proof.url"
-                    }
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -317,7 +323,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 2
+                      "u32": 6
                     }
                   },
                   {
@@ -381,7 +387,7 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
               "key": {
                 "ledger_key_nonce": {
                   "nonce": "801925984706572462"

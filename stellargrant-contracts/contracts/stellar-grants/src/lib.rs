@@ -20,6 +20,14 @@ pub use types::{
 
 use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Vec};
 
+/// Community review window (3 days in seconds) that must elapse after milestone
+/// submission before official reviewer voting is allowed.
+pub const COMMUNITY_REVIEW_PERIOD: u64 = 3 * 24 * 60 * 60;
+
+/// Grace period (7 days in seconds) applied when a cancellation is requested
+/// while one or more milestones are still in a submitted/review state.
+pub const CANCEL_GRACE_PERIOD: u64 = 7 * 24 * 60 * 60;
+
 #[contract]
 pub struct StellarGrantsContract;
 
@@ -311,6 +319,7 @@ impl StellarGrantsContract {
             funders: soroban_sdk::Vec::new(&env),
             reason: None,
             timestamp: env.ledger().timestamp(),
+            cancellation_requested_at: None,
         };
 
         Storage::set_grant(&env, grant_id, &grant);
@@ -347,6 +356,8 @@ impl StellarGrantsContract {
                 proof_url: None,
                 submission_timestamp: 0,
                 deadline,
+                community_upvotes: 0,
+                community_comments: soroban_sdk::Map::new(&env),
             };
             Storage::set_milestone(&env, grant_id, i, &milestone);
         }
@@ -504,6 +515,12 @@ impl StellarGrantsContract {
     }
 
     /// Cancel a grant and refund escrowed funds. Callable by grant owner or global admin.
+    ///
+    /// If any milestone is currently in [`MilestoneState::CommunityReview`] or
+    /// [`MilestoneState::Submitted`] the first call transitions the grant to
+    /// [`GrantStatus::CancellationPending`] and starts a 7-day grace period so
+    /// reviewers can finish their work. Call again after the grace period to
+    /// execute the actual refund.
     pub fn cancel_grant(
         env: Env,
         grant_id: u64,
@@ -521,8 +538,50 @@ impl StellarGrantsContract {
                 return Err(ContractError::Unauthorized);
             }
 
-            if grant.status != GrantStatus::Active {
-                return Err(ContractError::InvalidState);
+            match grant.status {
+                GrantStatus::Active => {
+                    // Check whether any milestone is still actively under review.
+                    let mut has_active_submission = false;
+                    for milestone_idx in 0..grant.total_milestones {
+                        if let Some(m) = Storage::get_milestone(&env, grant_id, milestone_idx) {
+                            if m.state == MilestoneState::Submitted
+                                || m.state == MilestoneState::CommunityReview
+                            {
+                                has_active_submission = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if has_active_submission {
+                        // Deferred cancellation — start grace period.
+                        let executable_after = env.ledger().timestamp() + CANCEL_GRACE_PERIOD;
+                        grant.status = GrantStatus::CancellationPending;
+                        grant.cancellation_requested_at = Some(env.ledger().timestamp());
+                        grant.reason = Some(reason.clone());
+                        Storage::set_grant(&env, grant_id, &grant);
+                        Events::emit_grant_cancellation_requested(
+                            &env,
+                            grant_id,
+                            caller,
+                            reason,
+                            executable_after,
+                        );
+                        return Ok(());
+                    }
+                    // No submitted milestones — fall through to immediate cancellation.
+                }
+                GrantStatus::CancellationPending => {
+                    // Second call: check that the grace period has elapsed.
+                    let requested_at = grant
+                        .cancellation_requested_at
+                        .unwrap_or(env.ledger().timestamp());
+                    if env.ledger().timestamp() < requested_at + CANCEL_GRACE_PERIOD {
+                        return Err(ContractError::CancellationGracePeriod);
+                    }
+                    // Grace period has elapsed — fall through to execute the refund.
+                }
+                _ => return Err(ContractError::InvalidState),
             }
 
             // Cannot cancel if all milestones are approved/paid out
@@ -822,6 +881,9 @@ impl StellarGrantsContract {
     }
 
     /// Allows authorized reviewers to vote on submitted milestones.
+    /// Voting is gated behind the community review period: if the milestone is
+    /// still in [`MilestoneState::CommunityReview`] and the period has not yet
+    /// elapsed, this returns [`ContractError::CommunityReviewPeriod`].
     pub fn milestone_vote(
         env: Env,
         grant_id: u64,
@@ -836,7 +898,13 @@ impl StellarGrantsContract {
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotSubmitted)?;
 
-        if milestone.state != MilestoneState::Submitted {
+        if milestone.state == MilestoneState::CommunityReview {
+            if env.ledger().timestamp() < milestone.submission_timestamp + COMMUNITY_REVIEW_PERIOD {
+                return Err(ContractError::CommunityReviewPeriod);
+            }
+            // Community period has elapsed — transition to Submitted so voting proceeds.
+            milestone.state = MilestoneState::Submitted;
+        } else if milestone.state != MilestoneState::Submitted {
             return Err(ContractError::MilestoneNotSubmitted);
         }
         if milestone.state == MilestoneState::Disputed {
@@ -906,6 +974,7 @@ impl StellarGrantsContract {
     }
 
     /// Allows authorized reviewers to reject milestones with a reason.
+    /// Subject to the same community review period gate as [`Self::milestone_vote`].
     pub fn milestone_reject(
         env: Env,
         grant_id: u64,
@@ -923,7 +992,12 @@ impl StellarGrantsContract {
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotSubmitted)?;
 
-        if milestone.state != MilestoneState::Submitted {
+        if milestone.state == MilestoneState::CommunityReview {
+            if env.ledger().timestamp() < milestone.submission_timestamp + COMMUNITY_REVIEW_PERIOD {
+                return Err(ContractError::CommunityReviewPeriod);
+            }
+            milestone.state = MilestoneState::Submitted;
+        } else if milestone.state != MilestoneState::Submitted {
             return Err(ContractError::MilestoneNotSubmitted);
         }
 
@@ -1199,6 +1273,86 @@ impl StellarGrantsContract {
 
             Ok(())
         })
+    }
+
+    /// Record a community upvote on a milestone in [`MilestoneState::CommunityReview`].
+    /// Each address may upvote at most once per milestone.
+    ///
+    /// # Errors
+    /// * [`ContractError::GrantNotFound`] – grant does not exist.
+    /// * [`ContractError::MilestoneNotFound`] – milestone does not exist.
+    /// * [`ContractError::InvalidState`] – milestone is not in `CommunityReview`.
+    /// * [`ContractError::AlreadyUpvoted`] – voter has already upvoted.
+    pub fn milestone_upvote(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+    ) -> Result<(), ContractError> {
+        voter.require_auth();
+
+        Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::MilestoneNotFound)?;
+
+        if milestone.state != MilestoneState::CommunityReview {
+            return Err(ContractError::InvalidState);
+        }
+        if Storage::has_milestone_upvote(&env, grant_id, milestone_idx, &voter) {
+            return Err(ContractError::AlreadyUpvoted);
+        }
+
+        Storage::set_milestone_upvote(&env, grant_id, milestone_idx, &voter);
+        milestone.community_upvotes += 1;
+        Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+
+        Events::emit_milestone_upvoted(
+            &env,
+            grant_id,
+            milestone_idx,
+            voter,
+            milestone.community_upvotes,
+        );
+        Ok(())
+    }
+
+    /// Record a community comment on a milestone in [`MilestoneState::CommunityReview`].
+    /// Each address may post one comment; posting again overwrites the previous one.
+    /// Comments are informational signals only — they do not affect the voting outcome.
+    ///
+    /// # Errors
+    /// * [`ContractError::GrantNotFound`] – grant does not exist.
+    /// * [`ContractError::MilestoneNotFound`] – milestone does not exist.
+    /// * [`ContractError::InvalidState`] – milestone is not in `CommunityReview`.
+    /// * [`ContractError::InvalidInput`] – comment exceeds 512 characters.
+    pub fn milestone_comment(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+        comment: String,
+    ) -> Result<(), ContractError> {
+        voter.require_auth();
+
+        if comment.len() > 512 {
+            return Err(ContractError::InvalidInput);
+        }
+
+        Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::MilestoneNotFound)?;
+
+        if milestone.state != MilestoneState::CommunityReview {
+            return Err(ContractError::InvalidState);
+        }
+
+        milestone
+            .community_comments
+            .set(voter.clone(), comment.clone());
+        Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+
+        Events::emit_milestone_commented(&env, grant_id, milestone_idx, voter, comment);
+        Ok(())
     }
 
     /// Add a new reviewer to an active grant. Only callable by the grant owner.
@@ -1547,7 +1701,8 @@ fn apply_milestone_submission(
     let mut milestone = Storage::get_milestone(env, grant_id, milestone_idx)
         .ok_or(ContractError::MilestoneNotFound)?;
 
-    if milestone.state == MilestoneState::Submitted
+    if milestone.state == MilestoneState::CommunityReview
+        || milestone.state == MilestoneState::Submitted
         || milestone.state == MilestoneState::Approved
         || milestone.state == MilestoneState::Paid
     {
@@ -1560,7 +1715,8 @@ fn apply_milestone_submission(
     }
 
     milestone.description = description.clone();
-    milestone.state = MilestoneState::Submitted;
+    // Milestone enters the community review window before official voting opens.
+    milestone.state = MilestoneState::CommunityReview;
     milestone.proof_url = Some(proof_url);
     milestone.submission_timestamp = env.ledger().timestamp();
 

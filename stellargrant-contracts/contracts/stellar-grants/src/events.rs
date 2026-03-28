@@ -500,6 +500,60 @@ impl Events {
         };
         event.publish(env);
     }
+
+    pub fn emit_milestone_upvoted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+        total_upvotes: u32,
+    ) {
+        let event = MilestoneUpvoted {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            voter,
+            total_upvotes,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_commented(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        voter: Address,
+        comment: String,
+    ) {
+        let event = MilestoneCommented {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            voter,
+            comment,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_grant_cancellation_requested(
+        env: &Env,
+        grant_id: u64,
+        owner: Address,
+        reason: String,
+        executable_after: u64,
+    ) {
+        let event = GrantCancellationRequested {
+            event_version: EVENT_VERSION,
+            grant_id,
+            owner,
+            reason,
+            executable_after,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
 }
 
 #[contractevent]
@@ -508,6 +562,39 @@ pub struct MilestoneExpired {
     pub event_version: u32,
     pub grant_id: u64,
     pub milestone_idx: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneUpvoted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub voter: Address,
+    pub total_upvotes: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneCommented {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub voter: Address,
+    pub comment: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantCancellationRequested {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub owner: Address,
+    pub reason: String,
+    pub executable_after: u64,
     pub timestamp: u64,
 }
 
