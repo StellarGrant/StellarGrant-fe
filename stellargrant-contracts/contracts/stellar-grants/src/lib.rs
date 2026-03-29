@@ -309,6 +309,7 @@ impl StellarGrantsContract {
         reviewers: soroban_sdk::Vec<Address>,
         quorum: u32,
         milestone_deadlines: Option<soroban_sdk::Vec<u64>>,
+        milestone_vesting_periods: Option<soroban_sdk::Vec<u64>>,
         min_funding: i128,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
@@ -396,7 +397,7 @@ impl StellarGrantsContract {
             };
 
             let vesting_period = if let Some(ref vesting) = milestone_vesting_periods {
-                vesting.get(i).unwrap_or(0)
+                vesting.get(i).unwrap_or(0u64)
             } else {
                 0
             };
@@ -454,6 +455,7 @@ impl StellarGrantsContract {
             reviewers,
             quorum,
             None,
+            milestone_vesting_periods,
             0,
         )?;
         Storage::set_grant_min_reputation(&env, grant_id, min_reputation_score);
@@ -509,7 +511,8 @@ impl StellarGrantsContract {
             num_milestones,
             reviewers,
             quorum,
-            None,
+            milestone_deadlines,
+            milestone_vesting_periods,
             0,
         )?;
 
@@ -1055,7 +1058,7 @@ impl StellarGrantsContract {
         Storage::set_escrow_state(env, grant_id, &escrow_state);
 
         // Enhanced event emission: include all relevant data, standardize topics
-        Events::emit_payee_receipt(env, grant_id, grant.owner.clone(), total_paid);
+        Events::emit_payee_receipt(env, grant_id, grant.owner.clone(), immediate_paid);
 
         Events::emit_grant_completed(env, grant_id, total_payout_committed, remaining_balance);
         Ok(())

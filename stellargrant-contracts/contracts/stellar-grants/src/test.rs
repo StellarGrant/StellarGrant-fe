@@ -1372,6 +1372,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &0i128,
         );
 
@@ -2249,6 +2250,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &0i128,
         );
         assert_eq!(res1, Err(Ok(ContractError::InvalidInput.into())));
@@ -2264,6 +2266,7 @@ mod tests {
             &2u32,
             &reviewers,
             &1u32,
+            &None,
             &None,
             &0i128,
         );
@@ -2295,6 +2298,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &0i128,
         );
         assert_eq!(res1, Err(Ok(ContractError::InvalidInput.into())));
@@ -2310,6 +2314,7 @@ mod tests {
             &101u32,
             &reviewers,
             &1u32,
+            &None,
             &None,
             &0i128,
         );
@@ -2339,6 +2344,7 @@ mod tests {
             &2u32,
             &reviewers,
             &2u32,
+            &None,
             &None,
             &0i128,
         );
@@ -2371,6 +2377,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &0i128,
         );
         assert_eq!(res, Err(Ok(ContractError::InvalidInput.into())));
@@ -2400,6 +2407,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &0i128,
         );
         assert!(res.is_err());
@@ -2428,6 +2436,7 @@ mod tests {
             &2u32,
             &reviewers,
             &1u32,
+            &None,
             &None,
             &0i128,
         );
@@ -2468,6 +2477,7 @@ mod tests {
             &2u32,
             &reviewers,
             &1u32,
+            &None,
             &None,
             &0i128,
         );
@@ -2808,6 +2818,7 @@ mod tests {
             &reviewers,
             &1u32,
             &Some(deadlines),
+            &None,
             &0i128,
         );
 
@@ -2850,6 +2861,7 @@ mod tests {
             &reviewers,
             &1u32,
             &Some(deadlines),
+            &None,
             &0i128,
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
@@ -3987,6 +3999,7 @@ mod tests {
             &Vec::new(&env),
             &0,
             &None,
+            &None,
             &0i128,
         );
         assert_eq!(result, Err(Ok(ContractError::Blacklisted.into())));
@@ -4012,6 +4025,7 @@ mod tests {
             &2,
             &reviewers,
             &1,
+            &None,
             &None,
             &0i128,
         );
@@ -4334,6 +4348,7 @@ mod tests {
             &reviewers,
             &1u32,
             &None,
+            &None,
             &500i128, // min_funding = 500
         );
 
@@ -4364,6 +4379,7 @@ mod tests {
             &2u32,
             &reviewers,
             &1u32,
+            &None,
             &None,
             &0i128, // no min_funding
         );

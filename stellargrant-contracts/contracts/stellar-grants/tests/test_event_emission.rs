@@ -31,6 +31,7 @@ fn test_event_emission_on_grant_create_and_fund() {
         &reviewers,
         &quorum,
         &None,
+        &None,
         &0i128,
     );
     let funder = <Address as TestAddress>::generate(&env);
@@ -79,6 +80,7 @@ fn test_event_emission_on_milestone_vote() {
         &1,
         &reviewers,
         &quorum,
+        &None,
         &None,
         &0i128,
     );

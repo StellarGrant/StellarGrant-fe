@@ -40,6 +40,8 @@ pub enum ContractError {
     Blacklisted = 30,
     /// Caller is not the contract global admin for this operation.
     NotContractAdmin = 31,
+    /// The vesting period has not elapsed yet.
+    VestingPeriodNotElapsed = 32,
 }
 
 #[contracttype]

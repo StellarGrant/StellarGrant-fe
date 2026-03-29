@@ -33,6 +33,7 @@ fn test_dispute_and_resolve_flow() {
         &reviewers,
         &1,
         &None,
+        &None,
         &0i128,
     );
     let funder = Address::generate(&env);
@@ -85,6 +86,7 @@ fn test_vote_blocked_during_dispute() {
         &reviewers,
         &1,
         &None,
+        &None,
         &0i128,
     );
     let funder = Address::generate(&env);
@@ -135,6 +137,7 @@ fn test_only_council_can_resolve_dispute() {
         &1,
         &reviewers,
         &1,
+        &None,
         &None,
         &0i128,
     );
