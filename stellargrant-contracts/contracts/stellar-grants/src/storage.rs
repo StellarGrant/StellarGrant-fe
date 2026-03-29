@@ -197,12 +197,12 @@ impl Storage {
         env.storage()
             .persistent()
             .get(&DataKey::EscrowState(grant_id))
-            .unwrap_or(EscrowState {
-                mode: EscrowMode::Standard,
-                lifecycle: EscrowLifecycleState::Funding,
-                quorum_ready: false,
-                approvals_count: 0,
-            })
+            .unwrap_or(EscrowState::new(
+                EscrowMode::Standard,
+                EscrowLifecycleState::Funding,
+                false,
+                0,
+            ))
     }
 
     pub fn set_escrow_state(env: &Env, grant_id: u64, state: &EscrowState) {
