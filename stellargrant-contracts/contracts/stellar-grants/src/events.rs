@@ -576,6 +576,17 @@ impl Events {
         event.publish(env);
     }
 
+    pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
+        let event = MilestonePaid {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            amount,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
     pub fn emit_extension_voted(
         env: &Env,
         grant_id: u64,
