@@ -4933,7 +4933,14 @@ mod tests {
         let token = Address::generate(&env);
         let grant_id = 500u64;
 
-        create_grant(&env, &contract_id, grant_id, owner, token.clone(), Vec::new(&env));
+        create_grant(
+            &env,
+            &contract_id,
+            grant_id,
+            owner,
+            token.clone(),
+            Vec::new(&env),
+        );
 
         let result = client.try_grant_fund(&grant_id, &funder, &100, &token, &None);
         assert_eq!(result, Err(Ok(ContractError::ContractPaused.into())));
@@ -5014,7 +5021,11 @@ mod tests {
                 quorum: 1,
                 total_milestones: 2,
                 milestones_paid_out: 0,
-                escrow_balances: { let mut map = Map::new(&env); map.set(token.clone(), 0); map },
+                escrow_balances: {
+                    let mut map = Map::new(&env);
+                    map.set(token.clone(), 0);
+                    map
+                },
                 funders: Vec::new(&env),
                 reason: None,
                 cancellation_requested_at: None,
@@ -5125,7 +5136,10 @@ mod tests {
         env.as_contract(&contract_id, || {
             let grant = crate::Storage::get_grant(&env, grant_id).unwrap();
             // create_grant seeds escrow_balance=1000, then grant_fund adds 1000 more => 2000
-            assert_eq!(grant.escrow_balances.get(token_id.clone()).unwrap_or(0), 2000);
+            assert_eq!(
+                grant.escrow_balances.get(token_id.clone()).unwrap_or(0),
+                2000
+            );
             assert_eq!(grant.milestones_paid_out, 0);
         });
 
@@ -5134,7 +5148,10 @@ mod tests {
 
         env.as_contract(&contract_id, || {
             let grant = crate::Storage::get_grant(&env, grant_id).unwrap();
-            assert_eq!(grant.escrow_balances.get(token_id.clone()).unwrap_or(0), 1900); // 2000 - 100 (milestone amount)
+            assert_eq!(
+                grant.escrow_balances.get(token_id.clone()).unwrap_or(0),
+                1900
+            ); // 2000 - 100 (milestone amount)
             assert_eq!(grant.milestones_paid_out, 1);
         });
     }

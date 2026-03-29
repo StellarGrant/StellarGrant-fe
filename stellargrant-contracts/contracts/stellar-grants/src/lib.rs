@@ -281,7 +281,9 @@ impl StellarGrantsContract {
             &milestone.amount,
         );
 
-        grant.escrow_balances.set(payout_token.clone(), current_balance - milestone.amount);
+        grant
+            .escrow_balances
+            .set(payout_token.clone(), current_balance - milestone.amount);
         grant.milestones_paid_out += 1;
         milestone.state = MilestoneState::Paid;
         milestone.status_updated_at = env.ledger().timestamp();
@@ -1329,7 +1331,9 @@ impl StellarGrantsContract {
 
             // Update escrow accounting
             let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-            grant.escrow_balances.set(payout_token.clone(), current_balance - payout_amount);
+            grant
+                .escrow_balances
+                .set(payout_token.clone(), current_balance - payout_amount);
 
             grant.milestones_paid_out = grant
                 .milestones_paid_out
