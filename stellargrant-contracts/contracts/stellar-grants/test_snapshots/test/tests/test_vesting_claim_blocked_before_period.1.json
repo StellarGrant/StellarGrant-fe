@@ -33,7 +33,7 @@
                     "symbol": "EscrowState"
                   },
                   {
-                    "u64": "301"
+                    "u64": "1"
                   }
                 ]
               },
@@ -93,19 +93,13 @@
                     "symbol": "Grant"
                   },
                   {
-                    "u64": "301"
+                    "u64": "1"
                   }
                 ]
               },
               "durability": "persistent",
               "val": {
                 "map": [
-                  {
-                    "key": {
-                      "symbol": "cancellation_requested_at"
-                    },
-                    "val": "void"
-                  },
                   {
                     "key": {
                       "symbol": "description"
@@ -116,19 +110,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balances"
+                      "symbol": "escrow_balance"
                     },
                     "val": {
-                      "map": [
-                        {
-                          "key": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                          },
-                          "val": {
-                            "i128": "1000"
-                          }
-                        }
-                      ]
+                      "i128": "1000"
                     }
                   },
                   {
@@ -144,15 +129,7 @@
                       "symbol": "id"
                     },
                     "val": {
-                      "u64": "301"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "last_heartbeat"
-                    },
-                    "val": {
-                      "u64": "0"
+                      "u64": "1"
                     }
                   },
                   {
@@ -173,26 +150,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "min_funding"
-                    },
-                    "val": {
-                      "i128": "0"
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "primary_token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -247,6 +208,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "total_amount"
                     },
                     "val": {
@@ -282,7 +251,7 @@
                     "symbol": "Milestone"
                   },
                   {
-                    "u64": "301"
+                    "u64": "1"
                   },
                   {
                     "u32": 0
@@ -310,22 +279,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_comments"
-                    },
-                    "val": {
-                      "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "deadline"
                     },
                     "val": {
@@ -337,7 +290,7 @@
                       "symbol": "description"
                     },
                     "val": {
-                      "string": "Desc"
+                      "string": "D"
                     }
                   },
                   {
@@ -346,14 +299,6 @@
                     },
                     "val": {
                       "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "payout_token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -383,7 +328,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 7
+                      "u32": 6
                     }
                   },
                   {
@@ -407,7 +352,7 @@
                       "symbol": "vesting_period"
                     },
                     "val": {
-                      "u64": "0"
+                      "u64": "86400"
                     }
                   },
                   {

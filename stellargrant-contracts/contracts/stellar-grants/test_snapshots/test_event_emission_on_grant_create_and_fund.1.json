@@ -66,6 +66,7 @@
                   "u32": 1
                 },
                 "void",
+                "void",
                 {
                   "i128": "0"
                 }
@@ -737,6 +738,14 @@
                   {
                     "key": {
                       "symbol": "submission_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "vesting_period"
                     },
                     "val": {
                       "u64": "0"

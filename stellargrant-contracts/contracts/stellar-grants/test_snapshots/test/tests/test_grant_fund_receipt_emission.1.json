@@ -65,6 +65,7 @@
                 {
                   "u32": 1
                 },
+                "void",
                 "void"
               ]
             }
@@ -627,6 +628,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "vesting_period"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "votes"
                     },
                     "val": {
@@ -761,6 +770,14 @@
                   {
                     "key": {
                       "symbol": "submission_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "vesting_period"
                     },
                     "val": {
                       "u64": "0"
