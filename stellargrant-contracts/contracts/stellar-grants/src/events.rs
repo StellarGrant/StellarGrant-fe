@@ -174,12 +174,31 @@ pub struct GrantCreated {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionRequested {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub new_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantMetadataUpdated {
     pub event_version: u32,
     pub grant_id: u64,
     pub owner: Address,
     pub title: String,
     pub description: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionVoted {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub reviewer: Address,
+    pub approve: bool,
     pub timestamp: u64,
 }
 
@@ -194,11 +213,28 @@ pub struct ContractInitialized {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionApproved {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub new_deadline: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContractUpgraded {
     pub event_version: u32,
     pub grant_id: u64,
     pub actor: Address,
     pub component: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionDenied {
+    pub grant_id: u64,
+    pub milestone_idx: u32,
     pub timestamp: u64,
 }
 
@@ -507,12 +543,16 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
-        let event = MilestonePaid {
-            event_version: EVENT_VERSION,
+    pub fn emit_extension_requested(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        new_deadline: u64,
+    ) {
+        let event = ExtensionRequested {
             grant_id,
             milestone_idx,
-            amount,
+            new_deadline,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -531,6 +571,34 @@ impl Events {
             milestone_idx,
             payout_amount,
             recipient,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
+        let event = MilestonePaid {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            amount,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_voted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        reviewer: Address,
+        approve: bool,
+    ) {
+        let event = ExtensionVoted {
+            grant_id,
+            milestone_idx,
+            reviewer,
+            approve,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -597,6 +665,16 @@ impl Events {
         event.publish(env);
     }
 
+    pub fn emit_extension_approved(env: &Env, grant_id: u64, milestone_idx: u32, new_deadline: u64) {
+        let event = ExtensionApproved {
+            grant_id,
+            milestone_idx,
+            new_deadline,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
     pub fn emit_milestone_commented(
         env: &Env,
         grant_id: u64,
@@ -610,6 +688,15 @@ impl Events {
             milestone_idx,
             voter,
             comment,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_extension_denied(env: &Env, grant_id: u64, milestone_idx: u32) {
+        let event = ExtensionDenied {
+            grant_id,
+            milestone_idx,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -632,6 +719,7 @@ impl Events {
         };
         event.publish(env);
     }
+
 
     pub fn emit_grant_paused(env: &Env, grant_id: u64, actor: Address) {
         let event = GrantPaused {
