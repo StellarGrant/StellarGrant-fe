@@ -28,7 +28,8 @@
                 },
                 {
                   "bool": true
-                }
+                },
+                "void"
               ]
             }
           },
@@ -70,6 +71,20 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "cancellation_requested_at"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
+                      "symbol": "description"
+                    },
+                    "val": {
+                      "string": "Desc"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "escrow_balance"
                     },
                     "val": {
@@ -94,6 +109,22 @@
                   },
                   {
                     "key": {
+                      "symbol": "last_heartbeat"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "milestone_amount"
+                    },
+                    "val": {
+                      "i128": "500"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "milestones_paid_out"
                     },
                     "val": {
@@ -102,10 +133,26 @@
                   },
                   {
                     "key": {
+                      "symbol": "min_funding"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "quorum"
+                    },
+                    "val": {
+                      "u32": 1
                     }
                   },
                   {
@@ -144,6 +191,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "title"
+                    },
+                    "val": {
+                      "string": "Test"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "token"
                     },
                     "val": {
@@ -172,7 +227,7 @@
           },
           "ext": "v0"
         },
-        "live_until": 4095
+        "live_until": 1000000
       },
       {
         "entry": {
@@ -211,6 +266,30 @@
                     },
                     "val": {
                       "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_comments"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "community_upvotes"
+                    },
+                    "val": {
+                      "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "deadline"
+                    },
+                    "val": {
+                      "u64": "0"
                     }
                   },
                   {
@@ -295,6 +374,33 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "ReviewerReputation"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 2
               }
             }
           },
