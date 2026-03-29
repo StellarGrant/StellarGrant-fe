@@ -929,5 +929,4 @@ pub struct GrantAccepted {
     pub grant_id: u64,
     pub recipient: Address,
     pub timestamp: u64,
-
 }
