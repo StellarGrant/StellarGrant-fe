@@ -80,10 +80,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": []
                     }
                   },
                   {
@@ -144,6 +144,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -188,14 +196,6 @@
                     },
                     "val": {
                       "string": "No funds"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {

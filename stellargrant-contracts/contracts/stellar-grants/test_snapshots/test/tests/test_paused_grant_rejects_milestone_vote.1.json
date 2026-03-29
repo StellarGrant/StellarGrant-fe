@@ -56,10 +56,19 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                          },
+                          "val": {
+                            "i128": "0"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -120,6 +129,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -166,14 +183,6 @@
                     },
                     "val": {
                       "string": "Paused"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                     }
                   },
                   {
@@ -277,6 +286,14 @@
                     },
                     "val": {
                       "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                     }
                   },
                   {

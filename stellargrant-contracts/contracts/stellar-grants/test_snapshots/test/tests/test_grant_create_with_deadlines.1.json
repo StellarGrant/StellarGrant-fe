@@ -174,10 +174,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": []
                     }
                   },
                   {
@@ -238,6 +238,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -267,7 +275,7 @@
                       "symbol": "status"
                     },
                     "val": {
-                      "u32": 1
+                      "u32": 8
                     }
                   },
                   {
@@ -284,14 +292,6 @@
                     },
                     "val": {
                       "string": "Deadline Grant"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -382,7 +382,7 @@
                     "symbol": "GrantStatusIndex"
                   },
                   {
-                    "u32": 1
+                    "u32": 8
                   }
                 ]
               },
@@ -477,6 +477,14 @@
                     },
                     "val": {
                       "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -626,6 +634,14 @@
                     },
                     "val": {
                       "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {

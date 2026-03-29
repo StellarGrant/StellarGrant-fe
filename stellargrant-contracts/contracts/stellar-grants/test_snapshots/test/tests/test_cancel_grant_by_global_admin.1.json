@@ -232,10 +232,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": []
                     }
                   },
                   {
@@ -260,6 +260,14 @@
                               },
                               "val": {
                                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "token"
+                              },
+                              "val": {
+                                "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                               }
                             }
                           ]
@@ -317,6 +325,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -361,14 +377,6 @@
                     },
                     "val": {
                       "string": "Admin Cancel"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                     }
                   },
                   {

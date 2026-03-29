@@ -164,10 +164,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": []
                     }
                   },
                   {
@@ -193,6 +193,14 @@
                               "val": {
                                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                               }
+                            },
+                            {
+                              "key": {
+                                "symbol": "token"
+                              },
+                              "val": {
+                                "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                              }
                             }
                           ]
                         },
@@ -212,6 +220,14 @@
                               },
                               "val": {
                                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "token"
+                              },
+                              "val": {
+                                "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                               }
                             }
                           ]
@@ -269,6 +285,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -313,14 +337,6 @@
                     },
                     "val": {
                       "string": "Test"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                     }
                   },
                   {

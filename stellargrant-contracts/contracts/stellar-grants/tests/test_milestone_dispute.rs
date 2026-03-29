@@ -36,15 +36,17 @@ fn test_dispute_and_resolve_flow() {
         &None,
         &0i128,
     );
+    client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000, &None);
+    client.grant_fund(&grant_id, &funder, &1000, &token, &None);
     client.milestone_submit(
         &grant_id,
         &0,
         &owner,
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
+        &None,
     );
     let now = env.ledger().timestamp();
     env.ledger()
@@ -89,15 +91,17 @@ fn test_vote_blocked_during_dispute() {
         &None,
         &0i128,
     );
+    client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000, &None);
+    client.grant_fund(&grant_id, &funder, &1000, &token, &None);
     client.milestone_submit(
         &grant_id,
         &0,
         &owner,
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
+        &None,
     );
     let now = env.ledger().timestamp();
     env.ledger()
@@ -141,15 +145,17 @@ fn test_only_council_can_resolve_dispute() {
         &None,
         &0i128,
     );
+    client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
     token_admin.mint(&funder, &1000);
-    client.grant_fund(&grant_id, &funder, &1000, &None);
+    client.grant_fund(&grant_id, &funder, &1000, &token, &None);
     client.milestone_submit(
         &grant_id,
         &0,
         &owner,
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
+        &None,
     );
     let now = env.ledger().timestamp();
     env.ledger()

@@ -44,6 +44,12 @@
                         },
                         {
                           "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
+                        },
+                        {
+                          "key": {
                             "symbol": "proof"
                           },
                           "val": {
@@ -72,6 +78,12 @@
                         },
                         {
                           "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
+                        },
+                        {
+                          "key": {
                             "symbol": "proof"
                           },
                           "val": {
@@ -97,6 +109,12 @@
                           "val": {
                             "u32": 2
                           }
+                        },
+                        {
+                          "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
                         },
                         {
                           "key": {
@@ -167,10 +185,19 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "1000"
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                          },
+                          "val": {
+                            "i128": "1000"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -231,6 +258,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "quorum"
                     },
                     "val": {
@@ -273,14 +308,6 @@
                     },
                     "val": {
                       "string": "Test"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -384,6 +411,14 @@
                     },
                     "val": {
                       "u32": 0
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -539,6 +574,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "proof_url"
                     },
                     "val": {
@@ -686,6 +729,14 @@
                     },
                     "val": {
                       "u32": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
