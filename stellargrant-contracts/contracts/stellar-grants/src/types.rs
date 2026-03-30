@@ -36,19 +36,12 @@ pub enum ContractError {
     AlreadyUpvoted = 27,
     /// Grant cancellation is pending; grace period has not elapsed yet.
     CancellationGracePeriod = 28,
-    HeartbeatMissed = 29,
-    Blacklisted = 30,
-    /// Caller is not the contract global admin for this operation.
-    NotContractAdmin = 31,
-    InsufficientBalance = 32,
-    /// Contract is globally paused; all state-modifying operations are blocked.
-    ContractPaused = 33,
-    /// Donation would exceed the grant's hard cap.
-    CapReached = 34,
-    /// Grant has more than 5 tags.
-    TooManyTags = 35,
-    /// A tag exceeds 20 characters.
-    TagTooLong = 36,
+    /// Token transfer preflight checks failed.
+    TokenTransferNotPossible = 29,
+    /// Token contract balance query failed.
+    TokenBalanceQueryFailed = 30,
+    /// Token transfer call failed.
+    TokenTransferFailed = 31,
 }
 
 #[contracttype]

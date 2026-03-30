@@ -695,87 +695,23 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_grant_paused(env: &Env, grant_id: u64, actor: Address) {
-        let event = GrantPaused {
-            event_version: EVENT_VERSION,
-            grant_id,
-            actor,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_grant_resumed(env: &Env, grant_id: u64, actor: Address) {
-        let event = GrantResumed {
-            event_version: EVENT_VERSION,
-            grant_id,
-            actor,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_payee_receipt(env: &Env, grant_id: u64, payee: Address, amount: i128) {
-        let event = PayeeReceipt {
-            event_version: EVENT_VERSION,
-            grant_id,
-            payee,
-            amount,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_payer_receipt(
+    pub fn emit_transfer_failed(
         env: &Env,
         grant_id: u64,
-        payer: Address,
+        token: Address,
+        from: Address,
+        to: Address,
         amount: i128,
-        memo: Option<String>,
+        reason: String,
     ) {
-        let event = PayerReceipt {
+        let event = TransferFailed {
             event_version: EVENT_VERSION,
             grant_id,
-            payer,
+            token,
+            from,
+            to,
             amount,
-            memo,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_heartbeat_updated(env: &Env, grant_id: u64, timestamp: u64) {
-        let event = HeartbeatUpdated {
-            event_version: EVENT_VERSION,
-            grant_id,
-            timestamp,
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_grant_gone_inactive(env: &Env, grant_id: u64, timestamp: u64) {
-        let event = GrantGoneInactive {
-            event_version: EVENT_VERSION,
-            grant_id,
-            timestamp,
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_grant_activated(env: &Env, grant_id: u64) {
-        let event = GrantActivated {
-            event_version: EVENT_VERSION,
-            grant_id,
-            timestamp: env.ledger().timestamp(),
-        };
-        event.publish(env);
-    }
-
-    pub fn emit_grant_accepted(env: &Env, grant_id: u64, recipient: Address) {
-        let event = GrantAccepted {
-            event_version: EVENT_VERSION,
-            grant_id,
-            recipient,
+            reason,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -846,72 +782,13 @@ pub struct ReviewerRemoved {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantPaused {
+pub struct TransferFailed {
     pub event_version: u32,
     pub grant_id: u64,
-    pub actor: Address,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantResumed {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub actor: Address,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PayeeReceipt {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub payee: Address,
+    pub token: Address,
+    pub from: Address,
+    pub to: Address,
     pub amount: i128,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PayerReceipt {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub payer: Address,
-    pub amount: i128,
-    pub memo: Option<String>,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HeartbeatUpdated {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantGoneInactive {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantActivated {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrantAccepted {
-    pub event_version: u32,
-    pub grant_id: u64,
-    pub recipient: Address,
+    pub reason: String,
     pub timestamp: u64,
 }
