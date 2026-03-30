@@ -44,6 +44,12 @@
                         },
                         {
                           "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
+                        },
+                        {
+                          "key": {
                             "symbol": "proof"
                           },
                           "val": {
@@ -72,6 +78,12 @@
                         },
                         {
                           "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
+                        },
+                        {
+                          "key": {
                             "symbol": "proof"
                           },
                           "val": {
@@ -97,6 +109,12 @@
                           "val": {
                             "u32": 2
                           }
+                        },
+                        {
+                          "key": {
+                            "symbol": "payout_token"
+                          },
+                          "val": "void"
                         },
                         {
                           "key": {
@@ -167,10 +185,19 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "1000"
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                          },
+                          "val": {
+                            "i128": "1000"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -183,10 +210,26 @@
                   },
                   {
                     "key": {
+                      "symbol": "hard_cap"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "id"
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "last_heartbeat"
+                    },
+                    "val": {
+                      "u64": "0"
                     }
                   },
                   {
@@ -207,10 +250,26 @@
                   },
                   {
                     "key": {
+                      "symbol": "min_funding"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "owner"
                     },
                     "val": {
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "primary_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -245,6 +304,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "tags"
+                    },
+                    "val": {
+                      "vec": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "timestamp"
                     },
                     "val": {
@@ -257,14 +324,6 @@
                     },
                     "val": {
                       "string": "Test"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "token"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -372,6 +431,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "proof_url"
                     },
                     "val": {
@@ -399,7 +466,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 6
+                      "u32": 7
                     }
                   },
                   {
@@ -515,6 +582,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "proof_url"
                     },
                     "val": {
@@ -542,7 +617,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 6
+                      "u32": 7
                     }
                   },
                   {
@@ -658,6 +733,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "payout_token"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "proof_url"
                     },
                     "val": {
@@ -685,7 +768,7 @@
                       "symbol": "state"
                     },
                     "val": {
-                      "u32": 6
+                      "u32": 7
                     }
                   },
                   {

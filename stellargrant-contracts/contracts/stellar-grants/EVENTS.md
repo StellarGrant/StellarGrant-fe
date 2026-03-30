@@ -1,52 +1,86 @@
+
 # Stellar Grants Event Schema
 
-This contract emits typed Soroban `#[contractevent]` events with a consistent schema for indexers.
+This contract emits typed Soroban `#[contractevent]` events with a consistent schema for off-chain indexers and subgraphs.
 
-## Standard Fields
+## Event Structure
 
-Every event payload includes:
+**Topics:**
+- `[contract_id, EventName, grant_id, ...]` (for grant/milestone events)
+- `[contract_id, EventName]` (for contract-level events)
 
-- `event_version: u32` - Schema version for event consumers. Current value: `1`.
-- `grant_id: u64` - Grant identifier for filtering and joins.
-  - For contract-level events not tied to a specific grant, `grant_id = 0`.
-- `timestamp: u64` - Ledger timestamp when the event was emitted.
+**Payload:**
+- All business fields (e.g., funder, amount, reviewer, feedback, etc.)
+- Standard metadata: `event_version`, `grant_id`, `timestamp`
 
-## Contract Lifecycle Events
+## Event Types
 
-- `ContractInitialized`
-  - Emitted when `initialize` sets the initial council address.
-  - Fields: `event_version`, `grant_id`, `council`, `timestamp`.
+### Contract Lifecycle Events
+- **ContractInitialized**: Emitted when `initialize` completes (global admin and council stored, storage version set to `1`).
+  - Topics: `[contract_id, "ContractInitialized", 0]`
+  - Payload: `event_version`, `grant_id`, `council`, `timestamp`
+- **ContractUpgraded**: Emitted when contract config changes without swapping WASM (e.g. `admin_change`, `set_council`).
+  - Topics: `[contract_id, "ContractUpgraded", 0]`
+  - Payload: `event_version`, `grant_id`, `actor`, `component`, `timestamp`
+  - Current `component` values include `"admin_changed"` and `"council_updated"`.
+- **ContractWasmUpgraded**: Emitted immediately before `env.deployer().update_current_contract_wasm` in `admin_upgrade` (after storage version is incremented).
+  - Topics: `[contract_id, "ContractWasmUpgraded", 0]`
+  - Payload: `event_version`, `grant_id`, `admin`, `new_wasm_hash` (32 bytes), `new_storage_version`, `timestamp`
 
-- `ContractUpgraded`
-  - Emitted when base contract configuration is changed.
-  - Current emit points:
-    - `set_global_admin` with `component = "global_admin_updated"`.
-    - `set_council` with `component = "council_updated"`.
-  - Fields: `event_version`, `grant_id`, `actor`, `component`, `timestamp`.
+### Grant Events
+- **GrantCreated**: Grant created.
+  - Topics: `[contract_id, "GrantCreated", grant_id]`
+  - Payload: `event_version`, `grant_id`, `owner`, `title`, `total_amount`, `timestamp`
+- **GrantFunded**: Grant funded.
+  - Topics: `[contract_id, "GrantFunded", grant_id]`
+  - Payload: `event_version`, `grant_id`, `funder`, `amount`, `new_balance`, `timestamp`
+- **GrantMetadataUpdated**: Grant metadata updated.
+  - Topics: `[contract_id, "GrantMetadataUpdated", grant_id]`
+  - Payload: `event_version`, `grant_id`, `owner`, `title`, `description`, `timestamp`
+- **GrantCancelled**: Grant cancelled.
+  - Topics: `[contract_id, "GrantCancelled", grant_id]`
+  - Payload: `event_version`, `grant_id`, `owner`, `reason`, `refund_amount`, `timestamp`
+- **GrantCompleted**: Grant completed.
+  - Topics: `[contract_id, "GrantCompleted", grant_id]`
+  - Payload: `event_version`, `grant_id`, `total_paid`, `remaining_balance`, `timestamp`
 
-## Grant and Milestone Events
+### Milestone Events
+- **MilestoneSubmitted**: Milestone submitted.
+  - Topics: `[contract_id, "MilestoneSubmitted", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `description`, `timestamp`
+- **MilestoneVoted**: Reviewer voted on milestone.
+  - Topics: `[contract_id, "MilestoneVoted", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `reviewer`, `approve`, `feedback`, `timestamp`
+- **MilestoneRejected**: Milestone rejected.
+  - Topics: `[contract_id, "MilestoneRejected", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `reviewer`, `reason`, `timestamp`
+- **MilestoneStatusChanged**: Milestone state changed.
+  - Topics: `[contract_id, "MilestoneStatusChanged", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `new_state`, `timestamp`
+- **MilestonePaid**: Milestone payout executed.
+  - Topics: `[contract_id, "MilestonePaid", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `amount`, `timestamp`
+- **QuorumReached**: Milestone voting quorum reached.
+  - Topics: `[contract_id, "QuorumReached", grant_id, milestone_idx]`
+  - Payload: `event_version`, `grant_id`, `milestone_idx`, `approvals`, `quorum`, `timestamp`
 
-Grant and milestone events keep business fields minimal and include the standard metadata fields to improve off-chain indexing:
-
-- `GrantCreated`
-- `GrantFunded`
-- `GrantMetadataUpdated`
-- `GrantCancelled`
-- `GrantCompleted`
-- `MilestoneSubmitted`
-- `MilestoneVoted`
-- `MilestoneRejected`
-- `MilestoneStatusChanged`
-- `MilestonePaid`
-- `MilestoneExpired`
-- `RefundIssued`
-- `RefundExecuted`
-- `FinalRefund`
-- `ContributorRegistered`
-- `ReputationIncreased`
+### Refund and Contributor Events
+- **RefundIssued**: Refund issued to funder.
+  - Topics: `[contract_id, "RefundIssued", grant_id]`
+  - Payload: `event_version`, `grant_id`, `funder`, `amount`, `timestamp`
+- **FinalRefund**: Final refund issued.
+  - Topics: `[contract_id, "FinalRefund", grant_id]`
+  - Payload: `event_version`, `grant_id`, `funder`, `amount`, `timestamp`
+- **ContributorRegistered**: Contributor registered.
+  - Topics: `[contract_id, "ContributorRegistered", 0]`
+  - Payload: `event_version`, `grant_id`, `contributor`, `name`, `timestamp`
+- **ReputationIncreased**: Contributor reputation increased.
+  - Topics: `[contract_id, "ReputationIncreased", grant_id]`
+  - Payload: `event_version`, `grant_id`, `contributor`, `new_reputation_score`, `total_earned`, `timestamp`
 
 ## Indexing Guidance
 
-- Filter first by event type and `grant_id`.
-- Use `event_version` to support future schema changes without breaking old parsers.
-- Prefer lightweight event payloads and read full state from storage only when necessary.
+- Filter by event type and `grant_id` in topics.
+- Use `event_version` for schema migration support.
+- All state-modifying functions emit a unique, well-documented event.
+- See contract code for full event struct definitions.

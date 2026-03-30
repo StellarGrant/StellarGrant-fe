@@ -1,5 +1,5 @@
 use crate::types::MilestoneState;
-use soroban_sdk::{contractevent, Address, Env, String};
+use soroban_sdk::{contractevent, Address, BytesN, Env, String, Vec};
 
 const EVENT_VERSION: u32 = 1;
 const GLOBAL_EVENT_GRANT_ID: u64 = 0;
@@ -29,6 +29,17 @@ pub struct MilestoneRejected {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneChallenged {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub funder: Address,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MilestoneStatusChanged {
     pub event_version: u32,
     pub grant_id: u64,
@@ -44,6 +55,30 @@ pub struct MilestonePaid {
     pub grant_id: u64,
     pub milestone_idx: u32,
     pub amount: i128,
+    pub token: Address, // New: Specify the token paid
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneApproved {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub payout_amount: i128,
+    pub payout_token: Address, // New: Specify the token approved
+    pub recipient: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayoutExecuted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub recipient: Address,
+    pub amount: i128,
+    pub token: Address, // New: Specify the token paid
     pub timestamp: u64,
 }
 
@@ -75,6 +110,7 @@ pub struct RefundIssued {
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
+    pub token: Address, // New: Specify which token was refunded
     pub timestamp: u64,
 }
 
@@ -136,6 +172,7 @@ pub struct GrantFunded {
     pub grant_id: u64,
     pub funder: Address,
     pub amount: i128,
+    pub token: Address, // New: Specify which token was funded
     pub new_balance: i128,
     pub timestamp: u64,
 }
@@ -148,6 +185,7 @@ pub struct GrantCreated {
     pub owner: Address,
     pub title: String,
     pub total_amount: i128,
+    pub tags: Vec<String>,
     pub timestamp: u64,
 }
 
@@ -181,9 +219,48 @@ pub struct ContractUpgraded {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContractWasmUpgraded {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub admin: Address,
+    pub new_wasm_hash: BytesN<32>,
+    pub new_storage_version: u32,
+    pub timestamp: u64,
+}
+
 pub struct Events;
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuorumReached {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub approvals: u32,
+    pub quorum: u32,
+    pub timestamp: u64,
+}
+
 impl Events {
+    pub fn emit_quorum_reached(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        approvals: u32,
+        quorum: u32,
+    ) {
+        let event = QuorumReached {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            approvals,
+            quorum,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
     pub fn emit_contract_initialized(env: &Env, council: Address) {
         let event = ContractInitialized {
             event_version: EVENT_VERSION,
@@ -200,6 +277,23 @@ impl Events {
             grant_id: GLOBAL_EVENT_GRANT_ID,
             actor,
             component,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_contract_wasm_upgraded(
+        env: &Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+        new_storage_version: u32,
+    ) {
+        let event = ContractWasmUpgraded {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            admin,
+            new_wasm_hash,
+            new_storage_version,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -234,12 +328,19 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_refund_issued(env: &Env, grant_id: u64, funder: Address, amount: i128) {
+    pub fn emit_refund_issued(
+        env: &Env,
+        grant_id: u64,
+        funder: Address,
+        amount: i128,
+        token: Address,
+    ) {
         let event = RefundIssued {
             event_version: EVENT_VERSION,
             grant_id,
             funder,
             amount,
+            token,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -293,6 +394,7 @@ impl Events {
         grant_id: u64,
         funder: Address,
         amount: i128,
+        token: Address,
         new_balance: i128,
     ) {
         let event = GrantFunded {
@@ -300,6 +402,7 @@ impl Events {
             grant_id,
             funder,
             amount,
+            token,
             new_balance,
             timestamp: env.ledger().timestamp(),
         };
@@ -312,6 +415,7 @@ impl Events {
         owner: Address,
         title: String,
         total_amount: i128,
+        tags: Vec<String>,
     ) {
         let event = GrantCreated {
             event_version: EVENT_VERSION,
@@ -319,6 +423,7 @@ impl Events {
             owner,
             title,
             total_amount,
+            tags,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -414,6 +519,24 @@ impl Events {
         event.publish(env);
     }
 
+    pub fn milestone_challenged(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        funder: Address,
+        reason: String,
+    ) {
+        let event = MilestoneChallenged {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            funder,
+            reason,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
     pub fn milestone_status_changed(
         env: &Env,
         grant_id: u64,
@@ -430,12 +553,57 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_milestone_paid(env: &Env, grant_id: u64, milestone_idx: u32, amount: i128) {
+    pub fn emit_milestone_paid(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        amount: i128,
+        token: Address,
+    ) {
         let event = MilestonePaid {
             event_version: EVENT_VERSION,
             grant_id,
             milestone_idx,
             amount,
+            token,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_approved(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        payout_amount: i128,
+        payout_token: Address,
+        recipient: Address,
+    ) {
+        let event = MilestoneApproved {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            payout_amount,
+            payout_token,
+            recipient,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_payout_executed(
+        env: &Env,
+        grant_id: u64,
+        recipient: Address,
+        amount: i128,
+        token: Address,
+    ) {
+        let event = PayoutExecuted {
+            event_version: EVENT_VERSION,
+            grant_id,
+            recipient,
+            amount,
+            token,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

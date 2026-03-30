@@ -16,12 +16,16 @@
 - **Decentralized Voting**: DAO-based governance for grant and milestone approvals
 - **Multi-Token Support**: Support for XLM, USDC, and custom tokens
 - **Time-Based Deadlines**: Optional deadline tracking for grants and milestones
+- **Heartbeat Mechanism**: Automatic inactivity tracking (30-day inactive, 60-day cancellation trigger)
+- **Machine-Readable Receipts**: Standardized `PayerReceipt` and `PayeeReceipt` events for automated accounting
 - **Transparent Events**: All state changes emit events for off-chain indexing
 
 ### Security & Reliability
 - **Reentrancy Protection**: Industry-standard security patterns
 - **Overflow Protection**: Checked arithmetic for all operations
 - **Access Control**: Role-based permissions and authentication
+- **Global Blacklist**: Administrative power to block malicious addresses from contract interaction
+- **Heartbeat Enforcement**: Ensuring grant recipients maintain active communication with the protocol
 - **Audit-Ready**: Comprehensive security best practices
 
 ### Developer Experience
@@ -192,6 +196,44 @@ cargo clippy -- -D warnings
 cargo fmt --all -- --check
 ```
 
+## 🧪 Fuzz Testing
+
+### Running Fuzzers
+
+Fuzz testing is used to catch edge cases, arithmetic overflows, and unpredictable states in the core grant lifecycle. We use [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz).
+
+#### Prerequisites
+- Install cargo-fuzz:
+  ```bash
+  cargo install cargo-fuzz
+  ```
+
+#### How to Run Fuzzers
+
+From the `stellargrant-contracts` directory:
+
+```bash
+cd fuzz
+# Run grant lifecycle fuzz target
+cargo fuzz run grant_lifecycle
+# Run milestone submit fuzz target
+cargo fuzz run milestone_submit
+# Run milestone vote fuzz target
+cargo fuzz run milestone_vote
+```
+
+Let each fuzzer run for at least 1 hour to ensure no panics or crashes are found.
+
+#### Adding New Fuzz Targets
+- Add a new file in `fuzz/fuzz_targets/` and register it in `fuzz/Cargo.toml` as a new `[[bin]]` entry.
+
+#### Invariants Checked
+- Total funds escrowed should always equal the sum of unapproved milestone amounts.
+- A reviewer shouldn't be able to vote twice.
+- State should not enter panic conditions under valid but extreme i128 values.
+
+See also: [ContributionGuide.md](ContributionGuide.md) for more details.
+
 ## 🚢 Deployment
 
 ### Deploy to Testnet
@@ -227,8 +269,14 @@ After deployment, initialize the contract:
 stellar contract invoke \
   --id CONTRACT_ID \
   --network testnet \
-  -- initialize
+  --source-account YOUR_SECRET_KEY \
+  -- \
+  initialize \
+  --admin GLOBAL_ADMIN_ADDRESS \
+  --council COUNCIL_ADDRESS
 ```
+
+The **global admin** is the contract-wide role used for council rotation, WASM upgrades, staking configuration, and other administrative entrypoints. The **council** resolves milestone disputes.
 
 ## 💡 Usage Examples
 
@@ -362,11 +410,10 @@ Security is a top priority. Before deployment:
 - Basic contract framework
 - Module organization (types, events, storage)
 - Issue tracking system
-
-### 🚧 In Progress
-- Core contract implementation
-- Test suite development
-- CI/CD pipeline setup
+- Heartbeat Mechanism implementation
+- Blacklist System for security enforcement
+- Machine-Readable Receipt System
+- Comprehensive test suite (64 tests)
 
 ### 📋 Planned
 - TypeScript SDK
