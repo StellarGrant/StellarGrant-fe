@@ -35,7 +35,7 @@ fuzz_target!(|data: &[u8]| {
         let recipient = owner;
         let desc = String::from_str(&env, "desc");
         let proof = String::from_str(&env, "proof");
-        let _ = StellarGrantsContract::milestone_submit(env, 0, 0, recipient, desc, proof);
+        let _ = StellarGrantsContract::milestone_submit(env, 0, 0, recipient, desc, proof, None, None);
     });
     // If a panic occurred, treat as a fuzz failure only if input was not obviously invalid
     if result.is_err() && !data.is_empty() {

@@ -50,6 +50,7 @@ fn test_milestone_voting_quorum_and_events() {
         &String::from_str(&env, "desc"),
         &String::from_str(&env, "proof"),
         &None,
+        &None,
     );
 
     // Advance past the community review period so reviewer voting is allowed
@@ -121,6 +122,7 @@ fn test_milestone_vote_after_quorum_panics() {
         &String::from_str(&env, "desc"),
         &String::from_str(&env, "proof"),
         &None,
+        &None,
     );
     let ts = env.ledger().timestamp();
     env.ledger()
@@ -172,6 +174,7 @@ fn test_milestone_double_voting_panics() {
         &owner,
         &String::from_str(&env, "desc"),
         &String::from_str(&env, "proof"),
+        &None,
         &None,
     );
 

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map, String, Vec};
 
 /// Contract error types
 #[contracterror]
@@ -49,6 +49,8 @@ pub enum ContractError {
     TooManyTags = 35,
     /// A tag exceeds 20 characters.
     TagTooLong = 36,
+    /// The submitted proof hash is malformed (must be exactly 32 bytes).
+    InvalidProofHash = 37,
 }
 
 #[contracttype]
@@ -110,6 +112,7 @@ pub struct Milestone {
     pub reasons: Map<Address, String>,
     pub status_updated_at: u64,
     pub proof_url: Option<String>,
+    pub proof_hash: Option<BytesN<32>>,
     pub submission_timestamp: u64,
     pub deadline: u64,
     /// Number of community upvotes received during the CommunityReview period.
@@ -124,6 +127,7 @@ pub struct MilestoneSubmission {
     pub idx: u32,
     pub description: String,
     pub proof: String,
+    pub proof_hash: Option<BytesN<32>>,
     pub payout_token: Option<Address>, // New: Optional override for the payout token
 }
 
