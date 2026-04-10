@@ -48,6 +48,7 @@ fn test_dispute_and_resolve_flow() {
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
         &None,
+        &None,
     );
     let now = env.ledger().timestamp();
     env.ledger()
@@ -104,6 +105,7 @@ fn test_vote_blocked_during_dispute() {
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
         &None,
+        &None,
     );
     let now = env.ledger().timestamp();
     env.ledger()
@@ -158,6 +160,7 @@ fn test_only_council_can_resolve_dispute() {
         &owner,
         &String::from_str(&env, "Milestone 1"),
         &String::from_str(&env, "proof"),
+        &None,
         &None,
     );
     let now = env.ledger().timestamp();

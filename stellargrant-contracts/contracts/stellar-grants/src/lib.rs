@@ -603,6 +603,7 @@ impl StellarGrantsContract {
                 reasons: soroban_sdk::Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                proof_hash: None,
                 submission_timestamp: 0,
                 deadline,
                 community_upvotes: 0,
@@ -1550,6 +1551,7 @@ impl StellarGrantsContract {
         recipient: Address,
         description: String,
         proof_url: String,
+        proof_hash: Option<BytesN<32>>,
         payout_token: Option<Address>, // New parameter
     ) -> Result<(), ContractError> {
         recipient.require_auth();
@@ -1579,6 +1581,7 @@ impl StellarGrantsContract {
             milestone_idx,
             description,
             proof_url,
+            proof_hash,
             payout_token,
         )
     }
@@ -1628,6 +1631,7 @@ impl StellarGrantsContract {
                 sub.idx,
                 sub.description.clone(),
                 sub.proof.clone(),
+                sub.proof_hash.clone(),
                 sub.payout_token.clone(),
             )?;
         }
@@ -2531,6 +2535,7 @@ fn apply_milestone_submission(
     milestone_idx: u32,
     description: String,
     proof_url: String,
+    proof_hash: Option<BytesN<32>>,
     payout_token: Option<Address>,
 ) -> Result<(), ContractError> {
     if milestone_idx >= grant.total_milestones {
@@ -2553,10 +2558,20 @@ fn apply_milestone_submission(
         return Err(ContractError::DeadlinePassed);
     }
 
+    // Validate proof_hash: if provided, it must be exactly 32 non-zero bytes.
+    // An all-zero hash is rejected as it indicates an unset/malformed value.
+    if let Some(ref hash) = proof_hash {
+        let zero: BytesN<32> = BytesN::from_array(env, &[0u8; 32]);
+        if *hash == zero {
+            return Err(ContractError::InvalidProofHash);
+        }
+    }
+
     milestone.description = description.clone();
     // Milestone enters the community review window before official voting opens.
     milestone.state = MilestoneState::CommunityReview;
     milestone.proof_url = Some(proof_url);
+    milestone.proof_hash = proof_hash.clone();
     if let Some(token) = payout_token {
         milestone.payout_token = token;
     }
@@ -2564,6 +2579,11 @@ fn apply_milestone_submission(
 
     Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
     Events::emit_milestone_submitted(env, grant_id, milestone_idx, description);
+
+    // Emit dedicated proof hash event when a hash is provided.
+    if let Some(hash) = proof_hash {
+        Events::emit_milestone_proof_hash_submitted(env, grant_id, milestone_idx, hash);
+    }
 
     Ok(())
 }

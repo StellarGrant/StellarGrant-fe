@@ -780,6 +780,22 @@ impl Events {
         };
         event.publish(env);
     }
+
+    pub fn emit_milestone_proof_hash_submitted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        proof_hash: BytesN<32>,
+    ) {
+        let event = MilestoneProofHashSubmitted {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            proof_hash,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
 }
 
 #[contractevent]
@@ -913,5 +929,15 @@ pub struct GrantAccepted {
     pub event_version: u32,
     pub grant_id: u64,
     pub recipient: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneProofHashSubmitted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub proof_hash: BytesN<32>,
     pub timestamp: u64,
 }

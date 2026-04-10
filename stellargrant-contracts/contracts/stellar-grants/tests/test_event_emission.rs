@@ -98,6 +98,7 @@ fn test_event_emission_on_milestone_vote() {
         &String::from_str(&env, "desc"),
         &String::from_str(&env, "proof"),
         &None,
+        &None,
     );
     // Advance ledger timestamp by COMMUNITY_REVIEW_PERIOD to allow voting
     const COMMUNITY_REVIEW_PERIOD: u64 = 3 * 24 * 60 * 60;

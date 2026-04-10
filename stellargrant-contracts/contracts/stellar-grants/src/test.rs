@@ -1,4 +1,4 @@
-#![allow(
+﻿#![allow(
     unused_variables,
     clippy::needless_borrow,
     clippy::bool_assert_comparison,
@@ -221,6 +221,7 @@ mod tests {
                 reasons: Map::new(env),
                 status_updated_at: 0,
                 proof_url: Some(String::from_str(env, "https://proof.url")),
+                    proof_hash: None,
                 submission_timestamp: env.ledger().timestamp(),
                 deadline: 0,
                 community_upvotes: 0,
@@ -953,6 +954,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                    proof_hash: None,
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
@@ -1040,6 +1042,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -1059,6 +1062,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -1130,6 +1134,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -1198,6 +1203,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                    proof_hash: None,
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
@@ -1268,6 +1274,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                    proof_hash: None,
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
@@ -1463,6 +1470,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -1520,6 +1528,7 @@ mod tests {
             &String::from_str(&env, "Work done"),
             &String::from_str(&env, "https://proof.url"),
             &None,
+            &None,
         );
         assert_eq!(
             result,
@@ -1538,6 +1547,7 @@ mod tests {
             &owner,
             &String::from_str(&env, "Work done"),
             &String::from_str(&env, "https://proof.url"),
+            &None,
             &None,
         );
     }
@@ -1649,6 +1659,7 @@ mod tests {
             &description,
             &proof_url,
             &None,
+            &None,
         );
 
         // Verify the milestone was stored correctly; submit now enters CommunityReview first.
@@ -1722,6 +1733,7 @@ mod tests {
                     reasons: Map::new(&env),
                     status_updated_at: 0,
                     proof_url: None,
+                    proof_hash: None,
                     submission_timestamp: 0,
                     deadline: 0,
                     community_upvotes: 0,
@@ -1736,18 +1748,21 @@ mod tests {
             idx: 0,
             description: String::from_str(&env, "First milestone desc"),
             proof: String::from_str(&env, "https://proof.example/a"),
+            proof_hash: None,
             payout_token: None,
         });
         submissions.push_back(MilestoneSubmission {
             idx: 1,
             description: String::from_str(&env, "Second milestone desc"),
             proof: String::from_str(&env, "https://proof.example/b"),
+            proof_hash: None,
             payout_token: None,
         });
         submissions.push_back(MilestoneSubmission {
             idx: 2,
             description: String::from_str(&env, "Third milestone desc"),
             proof: String::from_str(&env, "https://proof.example/c"),
+            proof_hash: None,
             payout_token: None,
         });
 
@@ -1795,6 +1810,7 @@ mod tests {
             &description,
             &proof_url,
             &None,
+            &None,
         );
         assert_eq!(result, Err(Ok(ContractError::GrantNotFound.into())));
     }
@@ -1823,7 +1839,7 @@ mod tests {
 
         // The grant has total_milestones = 1, so index 1 is out of bounds
         let result =
-            client.try_milestone_submit(&grant_id, &1u32, &owner, &description, &proof_url, &None);
+            client.try_milestone_submit(&grant_id, &1u32, &owner, &description, &proof_url, &None, &None);
         assert_eq!(result, Err(Ok(ContractError::InvalidInput.into())));
     }
 
@@ -1865,6 +1881,7 @@ mod tests {
             &description,
             &proof_url,
             &None,
+            &None,
         );
         assert_eq!(
             result,
@@ -1904,6 +1921,7 @@ mod tests {
             &attacker,
             &description,
             &proof_url,
+            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::Unauthorized.into())));
@@ -1952,8 +1970,112 @@ mod tests {
         let proof_url = String::from_str(&env, "https://proof.url");
 
         let result =
-            client.try_milestone_submit(&grant_id, &0u32, &owner, &description, &proof_url, &None);
+            client.try_milestone_submit(&grant_id, &0u32, &owner, &description, &proof_url, &None, &None);
         assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
+    }
+
+    // -------------------------------------------------------------------------
+    // proof_hash tests (issue #78)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_milestone_submit_with_valid_proof_hash() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 1u64;
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Pending);
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        // A valid non-zero 32-byte hash (simulates an IPFS CID or commit hash)
+        let hash_bytes = [1u8; 32];
+        let proof_hash: BytesN<32> = BytesN::from_array(&env, &hash_bytes);
+
+        client.milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &description,
+            &proof_url,
+            &Some(proof_hash.clone()),
+            &None,
+        );
+
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(ms.state, MilestoneState::CommunityReview);
+            assert_eq!(ms.proof_hash, Some(proof_hash));
+        });
+    }
+
+    #[test]
+    fn test_milestone_submit_all_zero_proof_hash_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 2u64;
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Pending);
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+        // All-zero hash is invalid (unset/malformed)
+        let zero_hash: BytesN<32> = BytesN::from_array(&env, &[0u8; 32]);
+
+        let result = client.try_milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &description,
+            &proof_url,
+            &Some(zero_hash),
+            &None,
+        );
+        assert_eq!(result, Err(Ok(ContractError::InvalidProofHash.into())));
+    }
+
+    #[test]
+    fn test_milestone_submit_without_proof_hash_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, _, contract_id) = setup_test(&env);
+        let owner = Address::generate(&env);
+        let token = Address::generate(&env);
+        let grant_id = 3u64;
+
+        create_grant(&env, &contract_id, grant_id, owner.clone(), token, Vec::new(&env));
+        create_milestone(&env, &contract_id, grant_id, 0, MilestoneState::Pending);
+
+        let description = String::from_str(&env, "Work done");
+        let proof_url = String::from_str(&env, "https://proof.url");
+
+        // proof_hash is optional — None should succeed and store None
+        client.milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &description,
+            &proof_url,
+            &None,
+            &None,
+        );
+
+        env.as_contract(&contract_id, || {
+            let ms = Storage::get_milestone(&env, grant_id, 0).unwrap();
+            assert_eq!(ms.state, MilestoneState::CommunityReview);
+            assert_eq!(ms.proof_hash, None);
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -3113,6 +3235,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 1_000, // deadline at timestamp 1000
                 community_upvotes: 0,
@@ -3134,6 +3257,7 @@ mod tests {
             &owner,
             &description,
             &proof_url,
+            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::DeadlinePassed.into())));
@@ -3615,6 +3739,7 @@ mod tests {
             &String::from_str(&env, "Work done"),
             &String::from_str(&env, "https://proof.url"),
             &None,
+            &None,
         );
 
         env.as_contract(&contract_id, || {
@@ -3658,6 +3783,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -3710,6 +3836,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -3759,6 +3886,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -3806,6 +3934,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -3850,6 +3979,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -3934,6 +4064,7 @@ mod tests {
                 reasons: Map::new(&env),
                 status_updated_at: 0,
                 proof_url: None,
+                    proof_hash: None,
                 submission_timestamp: 0,
                 deadline: 0,
                 community_upvotes: 0,
@@ -4430,6 +4561,7 @@ mod tests {
             &String::from_str(&env, "Work done"),
             &String::from_str(&env, "https://proof.url"),
             &None,
+            &None,
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
     }
@@ -4678,6 +4810,7 @@ mod tests {
             &owner,
             &String::from_str(&env, "Work done"),
             &String::from_str(&env, "https://proof.url"),
+            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
@@ -5088,6 +5221,7 @@ mod tests {
             &owner,
             &String::from_str(&env, "work"),
             &String::from_str(&env, "https://proof.url"),
+            &None,
             &None,
         );
         assert_eq!(result, Err(Ok(ContractError::ContractPaused.into())));

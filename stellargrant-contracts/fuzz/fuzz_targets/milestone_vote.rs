@@ -46,6 +46,8 @@ fuzz_target!(|data: &[u8]| {
         owner.clone(),
         SorobanString::from_str(&env, "desc"),
         SorobanString::from_str(&env, "proof"),
+        None,
+        None,
     );
 
     // Step 3: vote — this must never panic, only return Err
