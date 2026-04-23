@@ -1369,8 +1369,15 @@ impl StellarGrantsContract {
         escrow_state.set_quorum_ready(true);
         Storage::set_escrow_state(env, grant_id, &escrow_state);
 
-        // Enhanced event emission: include all relevant data, standardize topics
-        Events::emit_payee_receipt(env, grant_id, grant.owner.clone(), total_paid);
+        // Emit a completion receipt snapshot for indexers.
+        Events::emit_payee_receipt(
+            env,
+            grant_id,
+            grant.owner.clone(),
+            grant.primary_token.clone(),
+            total_paid,
+            None,
+        );
 
         Events::emit_grant_completed(env, grant_id, total_paid, remaining_balance);
         Ok(())
@@ -1835,8 +1842,15 @@ impl StellarGrantsContract {
             Storage::set_grant(&env, grant_id, &grant);
 
             // Enhanced event emission: include all relevant data, standardize topics
-            Events::emit_grant_funded(&env, grant_id, funder.clone(), amount, token, new_balance);
-            Events::emit_payer_receipt(&env, grant_id, funder, amount, memo);
+            Events::emit_grant_funded(
+                &env,
+                grant_id,
+                funder.clone(),
+                amount,
+                token.clone(),
+                new_balance,
+            );
+            Events::emit_payer_receipt(&env, grant_id, funder, amount, token, None, memo);
 
             Ok(())
         })
@@ -2374,10 +2388,18 @@ impl StellarGrantsContract {
                     grant_id,
                     funder.clone(),
                     amount,
-                    token,
+                    token.clone(),
                     new_balance,
                 );
-                Events::emit_payer_receipt(&env, grant_id, funder.clone(), amount, None);
+                Events::emit_payer_receipt(
+                    &env,
+                    grant_id,
+                    funder.clone(),
+                    amount,
+                    token,
+                    None,
+                    None,
+                );
             }
 
             Ok(())
@@ -2530,6 +2552,14 @@ impl StellarGrantsContract {
                 grant.owner.clone(),
                 payout_amount,
                 payout_token.clone(),
+            );
+            Events::emit_payee_receipt(
+                &env,
+                grant_id,
+                grant.owner.clone(),
+                payout_token.clone(),
+                payout_amount,
+                Some(milestone_idx),
             );
 
             // Update contributor reputation when paid

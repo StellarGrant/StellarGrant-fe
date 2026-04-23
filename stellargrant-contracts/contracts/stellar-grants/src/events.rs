@@ -715,12 +715,21 @@ impl Events {
         event.publish(env);
     }
 
-    pub fn emit_payee_receipt(env: &Env, grant_id: u64, payee: Address, amount: i128) {
+    pub fn emit_payee_receipt(
+        env: &Env,
+        grant_id: u64,
+        recipient: Address,
+        token: Address,
+        amount: i128,
+        milestone_index: Option<u32>,
+    ) {
         let event = PayeeReceipt {
             event_version: EVENT_VERSION,
             grant_id,
-            payee,
+            recipient,
+            token,
             amount,
+            milestone_index,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -729,15 +738,19 @@ impl Events {
     pub fn emit_payer_receipt(
         env: &Env,
         grant_id: u64,
-        payer: Address,
+        recipient: Address,
         amount: i128,
+        token: Address,
+        milestone_index: Option<u32>,
         memo: Option<String>,
     ) {
         let event = PayerReceipt {
             event_version: EVENT_VERSION,
             grant_id,
-            payer,
+            recipient,
+            token,
             amount,
+            milestone_index,
             memo,
             timestamp: env.ledger().timestamp(),
         };
@@ -945,8 +958,10 @@ pub struct GrantResumed {
 pub struct PayeeReceipt {
     pub event_version: u32,
     pub grant_id: u64,
-    pub payee: Address,
+    pub recipient: Address,
+    pub token: Address,
     pub amount: i128,
+    pub milestone_index: Option<u32>,
     pub timestamp: u64,
 }
 
@@ -955,8 +970,10 @@ pub struct PayeeReceipt {
 pub struct PayerReceipt {
     pub event_version: u32,
     pub grant_id: u64,
-    pub payer: Address,
+    pub recipient: Address,
+    pub token: Address,
     pub amount: i128,
+    pub milestone_index: Option<u32>,
     pub memo: Option<String>,
     pub timestamp: u64,
 }

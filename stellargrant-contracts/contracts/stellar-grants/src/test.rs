@@ -1998,6 +1998,70 @@ mod tests {
     }
 
     #[test]
+    fn test_grant_fund_emits_payer_receipt_with_metadata() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (client, admin, _) = setup_test(&env);
+        let token_contract = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_id = token_contract.address();
+        let token_admin = token::StellarAssetClient::new(&env, &token_id);
+
+        let owner = Address::generate(&env);
+        let funder = Address::generate(&env);
+        let grant_id = 1u64;
+        let fund_amount = 500i128;
+        let memo = Some(String::from_str(&env, "seed funding"));
+
+        token_admin.mint(&funder, &1000i128);
+
+        let mut grant = Grant::new(
+            grant_id,
+            owner.clone(),
+            String::from_str(&env, "Test"),
+            String::from_str(&env, "Desc"),
+            token_id.clone(),
+            1000,
+            500,
+            Vec::new(&env),
+            0,
+            env.ledger().timestamp(),
+            GrantStatus::Active,
+            1,
+            1,
+            &env,
+        );
+        let mut escrow_balances = Map::new(&env);
+        escrow_balances.set(token_id.clone(), 0);
+        grant.escrow_balances = escrow_balances;
+        Storage::set_grant(&env, grant_id, &grant);
+
+        client.grant_fund(&grant_id, &funder, &fund_amount, &token_id, &memo);
+
+        use soroban_sdk::testutils::Events;
+        let events = env.events().all();
+        let mut found_receipt = false;
+
+        extern crate std;
+        let token_marker = std::format!("{:?}", token_id);
+        let amount_marker = std::format!("amount: {}", fund_amount);
+
+        for e in events.events() {
+            let s = std::format!("{:?}", e);
+            if s.contains("payer_receipt") {
+                found_receipt = true;
+                assert!(s.contains("grant_id: 1"));
+                assert!(s.contains(&amount_marker));
+                assert!(s.contains(&token_marker));
+                assert!(s.contains("milestone_index: None"));
+                assert!(s.contains("seed funding"));
+            }
+        }
+
+        assert!(found_receipt, "PayerReceipt event was not emitted");
+    }
+
+    #[test]
     fn test_grant_fund_non_existent() {
         let env = Env::default();
         env.mock_all_auths();
@@ -5130,8 +5194,10 @@ mod tests {
         use soroban_sdk::testutils::Events;
         let events = env.events().all();
         let mut found_paid_event = false;
+        let mut found_payee_receipt = false;
 
         extern crate std;
+        let token_marker = std::format!("{:?}", token_id);
         for e in events.events() {
             let s = std::format!("{:?}", e);
             if s.contains("milestone_paid") {
@@ -5141,9 +5207,17 @@ mod tests {
                 assert!(s.contains("0")); // milestone_idx
                 assert!(s.contains("100")); // amount (create_milestone seeds amount=100)
             }
+            if s.contains("payee_receipt") {
+                found_payee_receipt = true;
+                assert!(s.contains("grant_id: 1"));
+                assert!(s.contains("amount: 100"));
+                assert!(s.contains(&token_marker));
+                assert!(s.contains("milestone_index: Some(0)"));
+            }
         }
 
         assert!(found_paid_event, "MilestonePaid event was not emitted");
+        assert!(found_payee_receipt, "PayeeReceipt event was not emitted");
     }
 
     #[test]
