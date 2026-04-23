@@ -14,8 +14,8 @@ mod types;
 pub use events::Events;
 pub use storage::Storage;
 pub use types::{
-    ContractError, EscrowLifecycleState, EscrowMode, EscrowState, Grant, GrantFund, GrantStatus,
-    Milestone, MilestoneState, MilestoneSubmission,
+    ContractError, DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState, Grant, GrantFund,
+    GrantStatus, Milestone, MilestoneState, MilestoneSubmission,
 };
 
 use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, String, Vec};
@@ -36,7 +36,11 @@ pub struct StellarGrantsContract;
 
 #[contractimpl]
 impl StellarGrantsContract {
-    /// Initiate a dispute on a milestone. Callable by grant owner, reviewers, or contributor.
+    /// Initiate a dispute on a milestone. Callable by grant owner or reviewers.
+    ///
+    /// Issue #152: if a global `dispute_fee_amount` is set, the caller must transfer
+    /// that fee (in the milestone's payout token) to the contract. The fee is refunded
+    /// if the dispute is upheld, or sent to the treasury if dismissed.
     pub fn dispute_milestone(
         env: Env,
         grant_id: u64,
@@ -47,25 +51,47 @@ impl StellarGrantsContract {
         let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
         let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
             .ok_or(ContractError::MilestoneNotFound)?;
-        // Only grant owner, reviewers, or contributor can dispute
+
         let is_reviewer = grant.reviewers.contains(caller.clone());
         let is_owner = grant.owner == caller;
-        // For now, assume contributor is grant.owner (can be extended)
         if !(is_owner || is_reviewer) {
             return Err(ContractError::Unauthorized);
         }
-        if milestone.state != MilestoneState::Submitted
-            && milestone.state != MilestoneState::Approved
-            && milestone.state != MilestoneState::Paid
-            && milestone.state != MilestoneState::AwaitingPayout
+        if milestone.state() != MilestoneState::Submitted
+            && milestone.state() != MilestoneState::Approved
+            && milestone.state() != MilestoneState::Paid
+            && milestone.state() != MilestoneState::AwaitingPayout
         {
             return Err(ContractError::InvalidState);
         }
+
+        // Issue #152: collect dispute fee if configured
+        let fee_amount = Storage::get_dispute_fee_amount(&env);
+        if fee_amount > 0 {
+            if Storage::get_milestone_dispute_info(&env, grant_id, milestone_idx).is_some() {
+                return Err(ContractError::DisputeAlreadyCharged);
+            }
+            let fee_token = milestone.payout_token.clone();
+            let token_client = token::Client::new(&env, &fee_token);
+            token_client.transfer(&caller, &env.current_contract_address(), &fee_amount);
+
+            Storage::set_milestone_dispute_info(
+                &env,
+                grant_id,
+                milestone_idx,
+                &DisputeInfo {
+                    payer: caller.clone(),
+                    fee_amount,
+                    fee_token: fee_token.clone(),
+                },
+            );
+            Events::emit_dispute_fee_charged(&env, grant_id, milestone_idx, caller.clone(), fee_amount);
+        }
+
         milestone.set_state(MilestoneState::Disputed);
         milestone.status_updated_at = env.ledger().timestamp();
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
         Events::milestone_status_changed(&env, grant_id, milestone_idx, MilestoneState::Disputed);
-        // Enhanced event emission: include all relevant data, standardize topics
         Ok(())
     }
 
@@ -117,6 +143,9 @@ impl StellarGrantsContract {
 
         let token_client = token::Client::new(&env, &payout_token);
         token_client.transfer(&env.current_contract_address(), &recipient, &amount);
+
+        // Issue #151: credit reputation after payout
+        Self::update_contributor_reputation(&env, grant_id, milestone_idx, &recipient, amount);
 
         // Events
         Events::emit_milestone_approved(
@@ -185,8 +214,16 @@ impl StellarGrantsContract {
                     .set(payout_token.clone(), current_balance - milestone.amount);
                 grant.set_milestones_paid_out(grant.milestones_paid_out() + 1);
                 Storage::set_grant(&env, grant_id, &grant);
+
+                // Issue #151: credit reputation for the payout
+                Self::update_contributor_reputation(
+                    &env,
+                    grant_id,
+                    milestone_idx,
+                    &grant.owner,
+                    milestone.amount,
+                );
             }
-            // Enhanced event emission: include all relevant data, standardize topics
             Events::emit_milestone_paid(
                 &env,
                 grant_id,
@@ -194,6 +231,28 @@ impl StellarGrantsContract {
                 milestone.amount,
                 payout_token.clone(),
             );
+
+            // Issue #152: refund dispute fee to caller (dispute was upheld)
+            if let Some(dispute_info) =
+                Storage::get_milestone_dispute_info(&env, grant_id, milestone_idx)
+            {
+                if dispute_info.fee_amount > 0 {
+                    let fee_token_client = token::Client::new(&env, &dispute_info.fee_token);
+                    fee_token_client.transfer(
+                        &env.current_contract_address(),
+                        &dispute_info.payer,
+                        &dispute_info.fee_amount,
+                    );
+                    Events::emit_dispute_fee_refunded(
+                        &env,
+                        grant_id,
+                        milestone_idx,
+                        dispute_info.payer.clone(),
+                        dispute_info.fee_amount,
+                    );
+                }
+                Storage::remove_milestone_dispute_info(&env, grant_id, milestone_idx);
+            }
         } else {
             // Reject: refund milestone amount to funders (pro-rata)
             let total_refundable = milestone.amount;
@@ -249,8 +308,32 @@ impl StellarGrantsContract {
             }
             grant
                 .escrow_balances
-                .set(payout_token, current_balance - total_refundable);
+                .set(payout_token.clone(), current_balance - total_refundable);
             Storage::set_grant(&env, grant_id, &grant);
+
+            // Issue #152: slash dispute fee → treasury (dispute dismissed)
+            if let Some(dispute_info) =
+                Storage::get_milestone_dispute_info(&env, grant_id, milestone_idx)
+            {
+                if dispute_info.fee_amount > 0 {
+                    let fee_token_client = token::Client::new(&env, &dispute_info.fee_token);
+                    if let Some(treasury) = Storage::get_treasury(&env) {
+                        fee_token_client.transfer(
+                            &env.current_contract_address(),
+                            &treasury,
+                            &dispute_info.fee_amount,
+                        );
+                        Events::emit_dispute_fee_slashed(
+                            &env,
+                            grant_id,
+                            milestone_idx,
+                            treasury,
+                            dispute_info.fee_amount,
+                        );
+                    }
+                }
+                Storage::remove_milestone_dispute_info(&env, grant_id, milestone_idx);
+            }
         }
         Ok(())
     }
@@ -295,6 +378,17 @@ impl StellarGrantsContract {
         Storage::set_grant(&env, grant_id, &grant);
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
 
+        // Issue #151: credit reputation after manual withdrawal payout
+        let owner_clone = grant.owner.clone();
+        let amount_clone = milestone.amount;
+        Self::update_contributor_reputation(
+            &env,
+            grant_id,
+            milestone_idx,
+            &owner_clone,
+            amount_clone,
+        );
+
         Events::emit_milestone_paid(
             &env,
             grant_id,
@@ -305,6 +399,22 @@ impl StellarGrantsContract {
         Events::milestone_status_changed(&env, grant_id, milestone_idx, MilestoneState::Paid);
 
         Ok(())
+    }
+
+    /// Set the global dispute fee amount (admin-only). Issue #152.
+    pub fn set_dispute_fee(env: Env, admin: Address, fee_amount: i128) -> Result<(), ContractError> {
+        admin.require_auth();
+        let stored_admin = Storage::get_global_admin(&env).ok_or(ContractError::NotContractAdmin)?;
+        if stored_admin != admin {
+            return Err(ContractError::NotContractAdmin);
+        }
+        Storage::set_dispute_fee_amount(&env, fee_amount);
+        Ok(())
+    }
+
+    /// Get the current dispute fee amount. Issue #152.
+    pub fn get_dispute_fee(env: Env) -> i128 {
+        Storage::get_dispute_fee_amount(&env)
     }
 
     /// Initialize the contract with a global admin and council for dispute resolution.
@@ -1963,6 +2073,14 @@ impl StellarGrantsContract {
         Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)
     }
 
+    /// Return the contributor profile for `contributor`, or `None` if not registered.
+    pub fn get_contributor_profile(
+        env: Env,
+        contributor: Address,
+    ) -> Option<crate::types::ContributorProfile> {
+        Storage::get_contributor(&env, contributor)
+    }
+
     /// Return a paginated list of grant IDs that currently hold `status`.
     ///
     /// `page` is zero-based; `page_size` is capped at 50 to bound gas costs.
@@ -2460,6 +2578,50 @@ impl StellarGrantsContract {
         Events::milestone_challenged(&env, grant_id, milestone_idx, funder, reason);
 
         Ok(())
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// Issue #151: Increment a contributor's `reputation_score` and `total_earned`
+    /// after a successful milestone payout.  Idempotent per milestone — repeated calls
+    /// on the same (grant_id, milestone_idx) pair are silently ignored.
+    fn update_contributor_reputation(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        contributor: &Address,
+        payout_amount: i128,
+    ) {
+        // Guard: apply at most once per milestone
+        if Storage::has_milestone_reputation_applied(env, grant_id, milestone_idx) {
+            return;
+        }
+        Storage::mark_milestone_reputation_applied(env, grant_id, milestone_idx);
+
+        let reputation_gain: u64 = 10;
+
+        let mut profile = match Storage::get_contributor(env, contributor.clone()) {
+            Some(p) => p,
+            None => {
+                // Contributor has not registered a profile — skip silently as
+                // the issue specifies this as an acceptable fallback.
+                return;
+            }
+        };
+
+        profile.reputation_score = profile.reputation_score.saturating_add(reputation_gain);
+        profile.total_earned = profile.total_earned.saturating_add(payout_amount);
+
+        Storage::set_contributor(env, contributor.clone(), &profile);
+
+        Events::emit_reputation_updated(
+            env,
+            grant_id,
+            milestone_idx,
+            contributor.clone(),
+            profile.reputation_score,
+            profile.total_earned,
+        );
     }
 }
 

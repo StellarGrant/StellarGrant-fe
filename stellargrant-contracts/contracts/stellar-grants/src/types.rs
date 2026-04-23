@@ -49,6 +49,10 @@ pub enum ContractError {
     TooManyTags = 35,
     /// A tag exceeds 20 characters.
     TagTooLong = 36,
+    /// Caller has insufficient balance to pay the dispute fee.
+    DisputeFeeInsufficient = 37,
+    /// Dispute fee has already been charged for this milestone.
+    DisputeAlreadyCharged = 38,
 }
 
 #[contracttype]
@@ -385,4 +389,14 @@ pub struct ContributorProfile {
     pub reputation_score: u64,
     pub grants_count: u32,
     pub total_earned: i128,
+}
+
+/// Stores who paid the dispute fee and how much, so it can be refunded or slashed
+/// when the dispute is resolved.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DisputeInfo {
+    pub payer: Address,
+    pub fee_amount: i128,
+    pub fee_token: Address,
 }

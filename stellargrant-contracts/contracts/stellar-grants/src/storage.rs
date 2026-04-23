@@ -1,4 +1,4 @@
-use crate::types::{EscrowLifecycleState, EscrowMode, EscrowState, Grant, Milestone};
+use crate::types::{DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState, Grant, Milestone};
 use soroban_sdk::{contracttype, Env};
 
 #[contracttype]
@@ -31,6 +31,12 @@ pub enum DataKey {
     StorageVersion,
     /// Global contract pause flag stored in instance storage.
     IsPaused,
+    /// Tracks whether reputation was already credited for a milestone payout (issue #151).
+    MilestoneReputationApplied(u64, u32),
+    /// Global dispute fee amount in the primary token (issue #152).
+    DisputeFeeAmount,
+    /// Dispute fee info stored per milestone when a dispute is raised (issue #152).
+    MilestoneDisputeInfo(u64, u32),
 }
 
 pub struct Storage;
@@ -374,5 +380,64 @@ impl Storage {
 
     pub fn set_paused(env: &Env, paused: bool) {
         env.storage().instance().set(&DataKey::IsPaused, &paused);
+    }
+
+    // --- Issue #151: milestone reputation tracking ---
+
+    pub fn has_milestone_reputation_applied(env: &Env, grant_id: u64, milestone_idx: u32) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::MilestoneReputationApplied(grant_id, milestone_idx))
+    }
+
+    pub fn mark_milestone_reputation_applied(env: &Env, grant_id: u64, milestone_idx: u32) {
+        let key = DataKey::MilestoneReputationApplied(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, &true);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    // --- Issue #152: dispute fee ---
+
+    pub fn get_dispute_fee_amount(env: &Env) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::DisputeFeeAmount)
+            .unwrap_or(0)
+    }
+
+    pub fn set_dispute_fee_amount(env: &Env, amount: i128) {
+        let key = DataKey::DisputeFeeAmount;
+        env.storage().persistent().set(&key, &amount);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn get_milestone_dispute_info(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<DisputeInfo> {
+        let key = DataKey::MilestoneDisputeInfo(grant_id, milestone_idx);
+        let info = env.storage().persistent().get(&key);
+        if info.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        info
+    }
+
+    pub fn set_milestone_dispute_info(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        info: &DisputeInfo,
+    ) {
+        let key = DataKey::MilestoneDisputeInfo(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, info);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_milestone_dispute_info(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::MilestoneDisputeInfo(grant_id, milestone_idx));
     }
 }
