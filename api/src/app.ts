@@ -8,11 +8,15 @@ import { buildMilestoneProofRouter } from "./routes/milestone-proof";
 import { GrantSyncService } from "./services/grant-sync-service";
 import { SignatureService } from "./services/signature-service";
 import { SorobanContractClient } from "./soroban/types";
+import { createRateLimiter } from "./middlewares/rate-limiter";
 
 export const createApp = (dataSource: DataSource, sorobanClient: SorobanContractClient) => {
   const app = express();
   app.use(helmet());
   app.use(express.json());
+
+  const rateLimiter = createRateLimiter(dataSource);
+  
 
   const grantRepo = dataSource.getRepository(Grant);
   const proofRepo = dataSource.getRepository(MilestoneProof);
@@ -20,6 +24,7 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   const signatureService = new SignatureService();
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.use(rateLimiter);
   app.use("/grants", buildGrantRouter(grantRepo, grantSyncService));
   app.use("/milestone_proof", buildMilestoneProofRouter(proofRepo, signatureService));
 
