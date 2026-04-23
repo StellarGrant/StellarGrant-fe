@@ -669,9 +669,8 @@ impl StellarGrantsContract {
             num_milestones,
             env.ledger().timestamp(),
             min_funding,
-            hard_cap,
-            tags: tags.clone(),
-        };
+            &env,
+        );
 
         Storage::set_grant(&env, grant_id, &grant);
         Storage::index_add(&env, initial_status as u32, grant_id);

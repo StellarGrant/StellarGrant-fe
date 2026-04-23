@@ -21,21 +21,23 @@ fn make_env_client_token() -> (
     let env = Env::default();
     env.mock_all_auths();
 
-    let admin    = Address::generate(&env);
-    let council  = Address::generate(&env);
-    let owner    = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let council = Address::generate(&env);
+    let owner = Address::generate(&env);
     let reviewer = Address::generate(&env);
-    let funder   = Address::generate(&env);
-    let tok_adm  = Address::generate(&env);
+    let funder = Address::generate(&env);
+    let tok_adm = Address::generate(&env);
     let tok = env.register_stellar_asset_contract_v2(tok_adm).address();
 
     let cid = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let env_ref: &'static Env = unsafe { &*(&env as *const Env) };
-    let client     = StellarGrantsContractClient::new(env_ref, &cid);
+    let client = StellarGrantsContractClient::new(env_ref, &cid);
     let tok_client = token::StellarAssetClient::new(env_ref, &tok);
 
     client.initialize(&admin, &council);
-    (env, client, admin, council, owner, reviewer, funder, tok, tok_client)
+    (
+        env, client, admin, council, owner, reviewer, funder, tok, tok_client,
+    )
 }
 
 fn create_funded_submitted_voted(
@@ -69,13 +71,16 @@ fn create_funded_submitted_voted(
     tok_admin.mint(funder, &2000);
     client.grant_fund(&gid, funder, &1000, token, &None);
     client.milestone_submit(
-        &gid, &0, owner,
+        &gid,
+        &0,
+        owner,
         &String::from_str(env, "MS"),
         &String::from_str(env, "proof"),
         &None,
     );
     let now = env.ledger().timestamp();
-    env.ledger().set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
     client.milestone_vote(&gid, &0, reviewer, &true, &None);
     gid
 }
@@ -87,7 +92,6 @@ fn test_reputation_increases_after_milestone_approve() {
     let (env, client, _admin, _council, owner, reviewer, funder, tok, tok_adm) =
         make_env_client_token();
 
-    // Register contributor profile
     client.contributor_register(
         &owner,
         &String::from_str(&env, "Alice"),
@@ -96,10 +100,11 @@ fn test_reputation_increases_after_milestone_approve() {
         &String::from_str(&env, "https://github.com/alice"),
     );
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
 
     let profile_before = client.get_contributor_profile(&owner).unwrap();
-    let rep_before    = profile_before.reputation_score;
+    let rep_before = profile_before.reputation_score;
     let earned_before = profile_before.total_earned;
 
     client.milestone_approve(&gid, &0);
@@ -130,28 +135,32 @@ fn test_reputation_idempotent_per_milestone() {
         &String::from_str(&env, "https://github.com/bob"),
     );
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
     client.milestone_approve(&gid, &0);
 
-    let rep_after_first = client.get_contributor_profile(&owner).unwrap().reputation_score;
+    let rep_after_first = client
+        .get_contributor_profile(&owner)
+        .unwrap()
+        .reputation_score;
 
-    // A second milestone_approve on the same milestone must be rejected.
     let result = client.try_milestone_approve(&gid, &0);
     assert!(result.is_err(), "second approve must fail");
 
-    // Reputation must remain unchanged.
-    let rep_unchanged = client.get_contributor_profile(&owner).unwrap().reputation_score;
+    let rep_unchanged = client
+        .get_contributor_profile(&owner)
+        .unwrap()
+        .reputation_score;
     assert_eq!(rep_after_first, rep_unchanged, "reputation must not double-count");
 }
 
 #[test]
 fn test_reputation_skipped_gracefully_without_profile() {
-    // milestone_approve must not panic when the contributor has no registered profile.
     let (env, client, _admin, _council, owner, reviewer, funder, tok, tok_adm) =
         make_env_client_token();
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
-    // No call to contributor_register — should silently skip reputation update.
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
     client.milestone_approve(&gid, &0);
 }
 
@@ -161,9 +170,9 @@ fn test_reputation_skipped_gracefully_without_profile() {
 fn test_zero_fee_dispute_requires_no_transfer() {
     let (env, client, _admin, _council, owner, reviewer, funder, tok, tok_adm) =
         make_env_client_token();
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
 
-    // Default fee = 0 → no transfer needed.
     client.dispute_milestone(&gid, &0, &owner);
 
     let m = client.get_milestone(&gid, &0);
@@ -177,9 +186,9 @@ fn test_dispute_fee_deducted_from_caller() {
 
     client.set_dispute_fee(&admin, &50i128);
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
 
-    // Give owner enough tokens to pay the fee.
     tok_adm.mint(&owner, &100);
 
     let tok_client = token::Client::new(&env, &tok);
@@ -202,7 +211,8 @@ fn test_dispute_fee_refunded_when_upheld() {
 
     client.set_dispute_fee(&admin, &50i128);
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
     tok_adm.mint(&owner, &100);
 
     client.dispute_milestone(&gid, &0, &owner);
@@ -210,7 +220,6 @@ fn test_dispute_fee_refunded_when_upheld() {
     let tok_client = token::Client::new(&env, &tok);
     let bal_before_resolve = tok_client.balance(&owner);
 
-    // approve=true → dispute upheld → fee refunded
     client.resolve_dispute(&council, &gid, &0, &true);
 
     let bal_after_resolve = tok_client.balance(&owner);
@@ -226,13 +235,13 @@ fn test_dispute_fee_sent_to_treasury_when_dismissed() {
     let (env, client, admin, council, owner, reviewer, funder, tok, tok_adm) =
         make_env_client_token();
 
-    // Configure treasury via set_staking_config (min_stake must be > 0)
     let treasury = Address::generate(&env);
     client.set_staking_config(&admin, &1i128, &treasury);
 
     client.set_dispute_fee(&admin, &50i128);
 
-    let gid = create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
+    let gid =
+        create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
     tok_adm.mint(&owner, &100);
 
     client.dispute_milestone(&gid, &0, &owner);
@@ -240,7 +249,6 @@ fn test_dispute_fee_sent_to_treasury_when_dismissed() {
     let tok_client = token::Client::new(&env, &tok);
     let treasury_before = tok_client.balance(&treasury);
 
-    // approve=false → dispute dismissed → fee slashed to treasury
     client.resolve_dispute(&council, &gid, &0, &false);
 
     let treasury_after = tok_client.balance(&treasury);
