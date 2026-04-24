@@ -12,15 +12,154 @@ mod types;
 pub use events::Events;
 pub use storage::Storage;
 pub use types::{
-    AccessControl, ContractError, DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState,
-    ExtensionRequest, Grant, GrantFund, GrantStatus, Milestone, MilestoneState,
-    MilestoneSubmission, Role,
+    AccessControl, BountySubmissionEntry, ContractError, DisputeInfo, EscrowLifecycleState,
+    EscrowMode, EscrowState, ExtensionRequest, Grant, GrantFund, GrantStatus, Milestone,
+    MilestoneState, MilestoneSubmission, MilestoneTopUp, Role,
 };
 
-use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, Map, String, Vec};
 pub const COMMUNITY_REVIEW_PERIOD: u64 = 3 * 24 * 60 * 60;
 pub const CHALLENGE_PERIOD: u64 = 48 * 60 * 60;
 pub const CANCEL_GRACE_PERIOD: u64 = 7 * 24 * 60 * 60;
+/// No owner activity (heartbeat) for this long allows permissionless `mark_grant_inactive`.
+pub const HEARTBEAT_INACTIVITY_SECS: u64 = 60 * 24 * 60 * 60;
+
+const MAX_BOUNTY_SUBMISSIONS_PER_MILESTONE: u32 = 20;
+
+fn milestone_payee(milestone: &Milestone, grant: &Grant) -> Address {
+    milestone
+        .bounty_winner
+        .clone()
+        .unwrap_or_else(|| grant.owner.clone())
+}
+
+fn bounty_submission_approve_weight(env: &Env, entry: &BountySubmissionEntry) -> u32 {
+    let mut w = 0u32;
+    for (voter, approved) in entry.votes.iter() {
+        if approved {
+            w = w.saturating_add(Storage::get_reviewer_reputation(env, voter.clone()));
+        }
+    }
+    w
+}
+
+fn milestone_payout_amount_for_token(
+    milestone: &Milestone,
+    token: Address,
+) -> Result<i128, ContractError> {
+    let extra = milestone.additional_funds.get(token.clone()).unwrap_or(0);
+    if milestone.payout_token == token {
+        milestone
+            .amount
+            .checked_add(extra)
+            .ok_or(ContractError::InvalidInput)
+    } else {
+        Ok(extra)
+    }
+}
+
+fn clear_milestone_additional_funding(env: &Env, milestone: &mut Milestone) {
+    milestone.additional_funds = Map::new(env);
+    milestone.top_up_contributions = Vec::new(env);
+}
+
+fn refund_milestone_top_up_contributions_from_grant(
+    env: &Env,
+    grant: &mut Grant,
+    milestone: &Milestone,
+) -> Result<(), ContractError> {
+    for i in 0..milestone.top_up_contributions.len() {
+        let c = milestone
+            .top_up_contributions
+            .get(i)
+            .ok_or(ContractError::InvalidInput)?;
+        if c.amount <= 0 {
+            continue;
+        }
+        let cur = grant.escrow_balances.get(c.token.clone()).unwrap_or(0);
+        if cur < c.amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+        token::Client::new(env, &c.token).transfer(
+            &env.current_contract_address(),
+            &c.funder,
+            &c.amount,
+        );
+        grant.escrow_balances.set(
+            c.token.clone(),
+            cur.checked_sub(c.amount)
+                .ok_or(ContractError::InsufficientBalance)?,
+        );
+    }
+    Ok(())
+}
+
+fn refund_all_milestone_top_up_contributions_and_clear(
+    env: &Env,
+    grant_id: u64,
+    grant: &mut Grant,
+) -> Result<(), ContractError> {
+    for milestone_idx in 0..grant.total_milestones() {
+        if let Some(mut milestone) = Storage::get_milestone(env, grant_id, milestone_idx) {
+            refund_milestone_top_up_contributions_from_grant(env, grant, &milestone)?;
+            clear_milestone_additional_funding(env, &mut milestone);
+            Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
+        }
+    }
+    Ok(())
+}
+
+fn payout_milestone_locked_funds_from_escrow(
+    env: &Env,
+    grant: &mut Grant,
+    milestone: &mut Milestone,
+    payee: &Address,
+) -> Result<i128, ContractError> {
+    let payout_tok = milestone.payout_token.clone();
+    let primary_amt = milestone_payout_amount_for_token(milestone, payout_tok.clone())?;
+
+    let mut reputation_weight: i128 = 0;
+
+    if primary_amt > 0 {
+        let cur = grant.escrow_balances.get(payout_tok.clone()).unwrap_or(0);
+        if cur < primary_amt {
+            return Err(ContractError::InsufficientBalance);
+        }
+        token::Client::new(env, &payout_tok).transfer(
+            &env.current_contract_address(),
+            payee,
+            &primary_amt,
+        );
+        grant.escrow_balances.set(
+            payout_tok.clone(),
+            cur.checked_sub(primary_amt)
+                .ok_or(ContractError::InsufficientBalance)?,
+        );
+        reputation_weight = primary_amt;
+    }
+
+    for (tok, amt) in milestone.additional_funds.iter() {
+        if tok == payout_tok || amt <= 0 {
+            continue;
+        }
+        let cur = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+        if cur < amt {
+            return Err(ContractError::InsufficientBalance);
+        }
+        token::Client::new(env, &tok).transfer(&env.current_contract_address(), payee, &amt);
+        grant.escrow_balances.set(
+            tok.clone(),
+            cur.checked_sub(amt)
+                .ok_or(ContractError::InsufficientBalance)?,
+        );
+        reputation_weight = reputation_weight
+            .checked_add(amt)
+            .ok_or(ContractError::InvalidInput)?;
+    }
+
+    clear_milestone_additional_funding(env, milestone);
+    Ok(reputation_weight)
+}
 
 #[contract]
 pub struct StellarGrantsContract;
@@ -117,45 +256,44 @@ impl StellarGrantsContract {
             return Err(ContractError::QuorumNotReached);
         }
 
-        let amount = milestone.amount;
         let payout_token = milestone.payout_token.clone();
-        let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-
-        if current_balance < amount {
+        let total_primary = milestone_payout_amount_for_token(&milestone, payout_token.clone())?;
+        let primary_bal = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
+        if primary_bal < total_primary {
             return Err(ContractError::InsufficientBalance);
         }
+        for (tok, amt) in milestone.additional_funds.iter() {
+            if tok == payout_token || amt <= 0 {
+                continue;
+            }
+            let b = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+            if b < amt {
+                return Err(ContractError::InsufficientBalance);
+            }
+        }
 
-        // State Update
         milestone.set_state(MilestoneState::Approved);
         milestone.status_updated_at = env.ledger().timestamp();
 
-        let recipient = grant.owner.clone();
-
-        // Payout Execution & balance deduction
-        let new_balance = current_balance
-            .checked_sub(amount)
-            .ok_or(ContractError::InsufficientBalance)?;
-        grant.escrow_balances.set(payout_token.clone(), new_balance);
+        let recipient = milestone_payee(&milestone, grant);
         grant.set_milestones_paid_out(grant.milestones_paid_out() + 1);
+
+        let rep_amt =
+            payout_milestone_locked_funds_from_escrow(env, grant, &mut milestone, &recipient)?;
 
         Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
 
-        let token_client = token::Client::new(env, &payout_token);
-        token_client.transfer(&env.current_contract_address(), &recipient, &amount);
+        Self::update_contributor_reputation(env, grant_id, milestone_idx, &recipient, rep_amt);
 
-        // Issue #151: credit reputation after payout
-        Self::update_contributor_reputation(env, grant_id, milestone_idx, &recipient, amount);
-
-        // Events
         Events::emit_milestone_approved(
             env,
             grant_id,
             milestone_idx,
-            amount,
+            total_primary,
             payout_token.clone(),
             recipient.clone(),
         );
-        Events::emit_payout_executed(env, grant_id, recipient, amount, payout_token);
+        Events::emit_payout_executed(env, grant_id, recipient, total_primary, payout_token);
 
         Ok(())
     }
@@ -220,43 +358,49 @@ impl StellarGrantsContract {
         let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
 
         let payout_token = milestone.payout_token.clone();
+        let total_owed_primary =
+            milestone_payout_amount_for_token(&milestone, payout_token.clone())?;
         let current_payout_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-        let milestone_already_paid = current_payout_balance < milestone.amount;
-        let token_client = token::Client::new(&env, &payout_token);
+        let milestone_already_paid = current_payout_balance < total_owed_primary;
 
         if approve {
+            let emit_amount = if milestone_already_paid {
+                milestone.amount
+            } else {
+                total_owed_primary
+            };
             if !milestone_already_paid {
-                // Approve: payout milestone amount to grant owner (contributor)
                 let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-                if current_balance < milestone.amount {
+                if current_balance < total_owed_primary {
                     return Err(ContractError::InvalidInput);
                 }
-                token_client.transfer(
-                    &env.current_contract_address(),
-                    &grant.owner,
-                    &milestone.amount,
-                );
-
-                grant
-                    .escrow_balances
-                    .set(payout_token.clone(), current_balance - milestone.amount);
+                for (tok, amt) in milestone.additional_funds.iter() {
+                    if tok == payout_token || amt <= 0 {
+                        continue;
+                    }
+                    let b = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+                    if b < amt {
+                        return Err(ContractError::InvalidInput);
+                    }
+                }
+                let payee = milestone_payee(&milestone, &grant);
+                let rep_amt = payout_milestone_locked_funds_from_escrow(
+                    &env,
+                    &mut grant,
+                    &mut milestone,
+                    &payee,
+                )?;
                 grant.set_milestones_paid_out(grant.milestones_paid_out() + 1);
                 Storage::set_grant(&env, grant_id, &grant);
+                Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
 
-                // Issue #151: credit reputation for the payout
-                Self::update_contributor_reputation(
-                    &env,
-                    grant_id,
-                    milestone_idx,
-                    &grant.owner,
-                    milestone.amount,
-                );
+                Self::update_contributor_reputation(&env, grant_id, milestone_idx, &payee, rep_amt);
             }
             Events::emit_milestone_paid(
                 &env,
                 grant_id,
                 milestone_idx,
-                milestone.amount,
+                emit_amount,
                 payout_token.clone(),
             );
 
@@ -282,7 +426,9 @@ impl StellarGrantsContract {
                 Storage::remove_milestone_dispute_info(&env, grant_id, milestone_idx);
             }
         } else {
-            // Reject: refund milestone amount to funders (pro-rata)
+            // Reject: refund milestone top-ups to their funders, then base amount pro-rata to grant funders.
+            refund_milestone_top_up_contributions_from_grant(&env, &mut grant, &milestone)?;
+            clear_milestone_additional_funding(&env, &mut milestone);
             let total_refundable = milestone.amount;
             let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
             if current_balance < total_refundable {
@@ -299,6 +445,7 @@ impl StellarGrantsContract {
                 .escrow_balances
                 .set(payout_token.clone(), current_balance - total_refundable);
             Storage::set_grant(&env, grant_id, &grant);
+            Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
 
             // Issue #152: slash dispute fee → treasury (dispute dismissed)
             if let Some(dispute_info) =
@@ -340,6 +487,8 @@ impl StellarGrantsContract {
         if grant.status() == GrantStatus::Cancelled || grant.status() == GrantStatus::Completed {
             return Err(ContractError::InvalidState);
         }
+
+        refund_all_milestone_top_up_contributions_and_clear(&env, grant_id, &mut grant)?;
 
         let mut total_clawed_back: i128 = 0;
 
@@ -393,22 +542,24 @@ impl StellarGrantsContract {
         }
 
         let payout_token = milestone.payout_token.clone();
-        let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-
-        if current_balance < milestone.amount {
+        let total_primary = milestone_payout_amount_for_token(&milestone, payout_token.clone())?;
+        let primary_bal = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
+        if primary_bal < total_primary {
             return Err(ContractError::InvalidInput);
         }
+        for (tok, amt) in milestone.additional_funds.iter() {
+            if tok == payout_token || amt <= 0 {
+                continue;
+            }
+            let b = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+            if b < amt {
+                return Err(ContractError::InvalidInput);
+            }
+        }
 
-        let token_client = token::Client::new(&env, &payout_token);
-        token_client.transfer(
-            &env.current_contract_address(),
-            &grant.owner,
-            &milestone.amount,
-        );
-
-        grant
-            .escrow_balances
-            .set(payout_token.clone(), current_balance - milestone.amount);
+        let payee = milestone_payee(&milestone, &grant);
+        let rep_amt =
+            payout_milestone_locked_funds_from_escrow(&env, &mut grant, &mut milestone, &payee)?;
         grant.set_milestones_paid_out(grant.milestones_paid_out() + 1);
         milestone.state = MilestoneState::Paid;
         milestone.status_updated_at = env.ledger().timestamp();
@@ -416,24 +567,10 @@ impl StellarGrantsContract {
         Storage::set_grant(&env, grant_id, &grant);
         Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
 
-        // Issue #151: credit reputation after manual withdrawal payout
-        let owner_clone = grant.owner.clone();
-        let amount_clone = milestone.amount;
-        Self::update_contributor_reputation(
-            &env,
-            grant_id,
-            milestone_idx,
-            &owner_clone,
-            amount_clone,
-        );
+        let payee_clone = payee.clone();
+        Self::update_contributor_reputation(&env, grant_id, milestone_idx, &payee_clone, rep_amt);
 
-        Events::emit_milestone_paid(
-            &env,
-            grant_id,
-            milestone_idx,
-            milestone.amount,
-            payout_token,
-        );
+        Events::emit_milestone_paid(&env, grant_id, milestone_idx, total_primary, payout_token);
         Events::milestone_status_changed(&env, grant_id, milestone_idx, MilestoneState::Paid);
 
         Ok(())
@@ -584,6 +721,25 @@ impl StellarGrantsContract {
             }
 
             let payout_token = milestone.payout_token.clone();
+            let total_owed_primary =
+                milestone_payout_amount_for_token(&milestone, payout_token.clone())?;
+            let primary_bal = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
+            if primary_bal < total_owed_primary {
+                return Err(ContractError::InsufficientBalance);
+            }
+            for (tok, amt) in milestone.additional_funds.iter() {
+                if tok == payout_token || amt <= 0 {
+                    continue;
+                }
+                let b = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+                if b < amt {
+                    return Err(ContractError::InsufficientBalance);
+                }
+            }
+
+            refund_milestone_top_up_contributions_from_grant(&env, &mut grant, &milestone)?;
+            clear_milestone_additional_funding(&env, &mut milestone);
+
             let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
             if current_balance < milestone.amount {
                 return Err(ContractError::InsufficientBalance);
@@ -617,7 +773,7 @@ impl StellarGrantsContract {
                 grant_id,
                 milestone_idx,
                 caller,
-                milestone.amount,
+                total_owed_primary,
                 payout_token,
             );
             Ok(())
@@ -823,6 +979,7 @@ impl StellarGrantsContract {
         min_funding: i128,
         hard_cap: i128,
         tags: soroban_sdk::Vec<String>,
+        is_open_bounty: bool,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
         assert_not_paused(&env)?;
@@ -897,6 +1054,7 @@ impl StellarGrantsContract {
             min_funding,
             hard_cap,
             tags: tags.clone(),
+            is_open_bounty,
             packed_config: 0,
         };
         grant.set_status(initial_status);
@@ -939,6 +1097,9 @@ impl StellarGrantsContract {
                 deadline_timestamp: deadline,
                 community_comments: soroban_sdk::Map::new(&env),
                 packed_stats: 0,
+                bounty_winner: None,
+                additional_funds: soroban_sdk::Map::new(&env),
+                top_up_contributions: soroban_sdk::Vec::new(&env),
             };
             milestone.set_idx(i);
             milestone.set_approvals(0);
@@ -1019,6 +1180,7 @@ impl StellarGrantsContract {
             0,
             0,
             soroban_sdk::Vec::new(&env),
+            false,
         )?;
         Storage::set_grant_min_reputation(&env, grant_id, min_reputation_score);
         Ok(grant_id)
@@ -1056,6 +1218,7 @@ impl StellarGrantsContract {
             0,
             0,
             soroban_sdk::Vec::new(&env),
+            false,
         )?;
 
         Storage::set_escrow_state(
@@ -1173,7 +1336,7 @@ impl StellarGrantsContract {
 
             let now = env.ledger().timestamp();
             let heartbeat_age = now.saturating_sub(grant.last_heartbeat);
-            let heartbeat_timeout_60d = heartbeat_age > 60 * 24 * 60 * 60;
+            let heartbeat_timeout_60d = heartbeat_age > HEARTBEAT_INACTIVITY_SECS;
 
             if !(caller_is_admin
                 || caller_is_owner
@@ -1241,6 +1404,8 @@ impl StellarGrantsContract {
             if grant.milestones_paid_out() >= grant.total_milestones() {
                 return Err(ContractError::InvalidState);
             }
+
+            refund_all_milestone_top_up_contributions_and_clear(&env, grant_id, &mut grant)?;
 
             for (token, balance) in grant.escrow_balances.iter() {
                 if balance > 0 {
@@ -1360,6 +1525,8 @@ impl StellarGrantsContract {
         grant_id: u64,
         total_milestones: u32,
     ) -> Result<i128, ContractError> {
+        let grant = Storage::get_grant(env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let primary = grant.token_address.clone();
         let mut total_paid: i128 = 0;
         let mut approved_count = 0;
         for milestone_idx in 0..total_milestones {
@@ -1370,7 +1537,12 @@ impl StellarGrantsContract {
                 {
                     return Err(ContractError::NotAllMilestonesApproved);
                 }
-                total_paid += milestone.amount;
+                total_paid = total_paid
+                    .checked_add(milestone_payout_amount_for_token(
+                        &milestone,
+                        primary.clone(),
+                    )?)
+                    .ok_or(ContractError::InvalidInput)?;
                 approved_count += 1;
             } else {
                 return Err(ContractError::NotAllMilestonesApproved);
@@ -1461,8 +1633,13 @@ impl StellarGrantsContract {
                     {
                         return Err(ContractError::DeadlinePassed);
                     }
+                    let paid_amt = milestone_payout_amount_for_token(
+                        &milestone,
+                        milestone.payout_token.clone(),
+                    )?;
                     milestone.set_state(MilestoneState::Paid);
                     milestone.status_updated_at = env.ledger().timestamp();
+                    clear_milestone_additional_funding(env, &mut milestone);
                     Storage::set_milestone(env, grant_id, milestone_idx, &milestone);
 
                     Events::milestone_status_changed(
@@ -1475,7 +1652,7 @@ impl StellarGrantsContract {
                         env,
                         grant_id,
                         milestone_idx,
-                        milestone.amount,
+                        paid_amt,
                         milestone.payout_token.clone(),
                     );
                 }
@@ -1540,6 +1717,7 @@ impl StellarGrantsContract {
         reviewer: Address,
         approve: bool,
         feedback: Option<String>,
+        bounty_submission_idx: Option<u32>,
     ) -> Result<bool, ContractError> {
         authorize_reviewer_vote_actor(&env, grant_id, &reviewer)?;
         assert_not_paused(&env)?;
@@ -1553,6 +1731,22 @@ impl StellarGrantsContract {
         }
         if mark_milestone_expired_if_needed(&env, grant_id, milestone_idx, &mut milestone)? {
             return Err(ContractError::DeadlinePassed);
+        }
+
+        if grant.is_open_bounty && milestone.state() == MilestoneState::Pending {
+            let sub_idx = bounty_submission_idx.ok_or(ContractError::InvalidInput)?;
+            return Self::milestone_vote_open_bounty(
+                env,
+                grant_id,
+                milestone_idx,
+                reviewer,
+                approve,
+                feedback,
+                sub_idx,
+            );
+        }
+        if bounty_submission_idx.is_some() {
+            return Err(ContractError::InvalidInput);
         }
 
         if milestone.state() == MilestoneState::CommunityReview {
@@ -1648,6 +1842,138 @@ impl StellarGrantsContract {
 
         Ok(quorum_reached)
     }
+
+    fn milestone_vote_open_bounty(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        reviewer: Address,
+        approve: bool,
+        feedback: Option<String>,
+        submission_idx: u32,
+    ) -> Result<bool, ContractError> {
+        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if !grant.reviewers.contains(reviewer.clone()) {
+            return Err(ContractError::Unauthorized);
+        }
+        access::require_optional_role(&env, &reviewer, Role::Reviewer)?;
+
+        let min_stake = Storage::get_min_reviewer_stake(&env);
+        if min_stake > 0 {
+            let reviewer_stake = Storage::get_reviewer_stake(&env, grant_id, &reviewer);
+            if reviewer_stake < min_stake {
+                return Err(ContractError::InsufficientStake);
+            }
+        }
+
+        let subs = Storage::get_bounty_submissions(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::InvalidInput)?;
+        if submission_idx >= subs.len() {
+            return Err(ContractError::InvalidInput);
+        }
+
+        let mut entry = subs.get(submission_idx).unwrap();
+        if entry.votes.contains_key(reviewer.clone()) {
+            return Err(ContractError::AlreadyVoted);
+        }
+
+        if let Some(ref fb) = feedback {
+            if fb.len() > 256 {
+                return Err(ContractError::InvalidInput);
+            }
+            entry.reasons.set(reviewer.clone(), fb.clone());
+        }
+
+        entry.votes.set(reviewer.clone(), approve);
+
+        let approval_weight = bounty_submission_approve_weight(&env, &entry);
+        let quorum_reached = approve && approval_weight >= grant.quorum();
+
+        let mut new_subs = Vec::new(&env);
+        for i in 0..subs.len() {
+            if i == submission_idx {
+                new_subs.push_back(entry.clone());
+            } else {
+                new_subs.push_back(subs.get(i).unwrap());
+            }
+        }
+        Storage::set_bounty_submissions(&env, grant_id, milestone_idx, &new_subs);
+
+        if quorum_reached {
+            let winning = Storage::get_bounty_submissions(&env, grant_id, milestone_idx)
+                .unwrap()
+                .get(submission_idx)
+                .unwrap();
+
+            let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+                .ok_or(ContractError::MilestoneNotFound)?;
+
+            milestone.description = winning.description.clone();
+            milestone.proof_url = Some(winning.proof_url.clone());
+            milestone.payout_token = winning.payout_token.clone();
+            milestone.bounty_winner = Some(winning.submitter.clone());
+            milestone.votes = winning.votes.clone();
+            milestone.reasons = winning.reasons.clone();
+            milestone.set_approvals(bounty_submission_approve_weight(&env, &winning));
+            milestone.set_state(MilestoneState::AwaitingPayout);
+            milestone.status_updated_at = env.ledger().timestamp();
+            milestone.submission_timestamp = env.ledger().timestamp();
+
+            Events::emit_quorum_reached(
+                &env,
+                grant_id,
+                milestone_idx,
+                milestone.approvals(),
+                grant.quorum(),
+            );
+
+            for (voter, voted_approve) in milestone.votes.iter() {
+                if voted_approve {
+                    let mut rep = Storage::get_reviewer_reputation(&env, voter.clone());
+                    rep += 1;
+                    Storage::set_reviewer_reputation(&env, voter.clone(), rep);
+                }
+            }
+
+            Events::milestone_status_changed(
+                &env,
+                grant_id,
+                milestone_idx,
+                MilestoneState::AwaitingPayout,
+            );
+            Events::emit_bounty_claimed(
+                &env,
+                grant_id,
+                milestone_idx,
+                winning.submitter.clone(),
+                submission_idx,
+            );
+
+            Storage::remove_bounty_submissions(&env, grant_id, milestone_idx);
+            Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+            Events::milestone_voted(
+                &env,
+                grant_id,
+                milestone_idx,
+                reviewer.clone(),
+                approve,
+                feedback.clone(),
+            );
+            return Ok(true);
+        }
+
+        Events::milestone_voted(
+            &env,
+            grant_id,
+            milestone_idx,
+            reviewer.clone(),
+            approve,
+            feedback.clone(),
+        );
+        Ok(false)
+    }
+
     pub fn milestone_reject(
         env: Env,
         grant_id: u64,
@@ -1819,6 +2145,28 @@ impl StellarGrantsContract {
             return Err(ContractError::InvalidState);
         }
 
+        if grant.is_open_bounty {
+            if Storage::is_blacklisted(&env, &recipient) {
+                return Err(ContractError::Blacklisted);
+            }
+            Storage::get_contributor(&env, recipient.clone())
+                .ok_or(ContractError::ContributorProfileRequired)?;
+            ensure_min_reputation_for_grant(&env, grant_id, recipient.clone())?;
+            apply_open_bounty_submission(
+                &env,
+                grant_id,
+                &grant,
+                milestone_idx,
+                recipient,
+                description,
+                proof_url,
+                payout_token,
+            )?;
+            grant.last_heartbeat = env.ledger().timestamp();
+            Storage::set_grant(&env, grant_id, &grant);
+            return Ok(());
+        }
+
         if grant.owner != recipient {
             return Err(ContractError::Unauthorized);
         }
@@ -1833,7 +2181,10 @@ impl StellarGrantsContract {
             description,
             proof_url,
             payout_token,
-        )
+        )?;
+        grant.last_heartbeat = env.ledger().timestamp();
+        Storage::set_grant(&env, grant_id, &grant);
+        Ok(())
     }
     pub fn milestone_submit_batch(
         env: Env,
@@ -1851,7 +2202,13 @@ impl StellarGrantsContract {
             return Err(ContractError::BatchTooLarge);
         }
 
-        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.is_open_bounty {
+            return Err(ContractError::InvalidInput);
+        }
+
+        check_heartbeat(&env, &mut grant);
 
         if grant.status() == GrantStatus::Inactive {
             return Err(ContractError::HeartbeatMissed);
@@ -1878,6 +2235,8 @@ impl StellarGrantsContract {
             )?;
         }
 
+        grant.last_heartbeat = env.ledger().timestamp();
+        Storage::set_grant(&env, grant_id, &grant);
         Ok(())
     }
     pub fn grant_fund(
@@ -1980,6 +2339,83 @@ impl StellarGrantsContract {
             Ok(())
         })
     }
+
+    pub fn grant_fund_milestone(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        funder: Address,
+        token: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        funder.require_auth();
+        assert_not_paused(&env)?;
+        reentrancy::with_non_reentrant(&env, || {
+            if amount <= 0 {
+                return Err(ContractError::InvalidInput);
+            }
+            ensure_token_interface(&env, &token)?;
+
+            let mut grant =
+                Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+            check_heartbeat(&env, &mut grant);
+
+            if grant.status() == GrantStatus::Inactive {
+                return Err(ContractError::HeartbeatMissed);
+            }
+            if grant.status() != GrantStatus::Active {
+                return Err(ContractError::InvalidState);
+            }
+
+            let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+                .ok_or(ContractError::MilestoneNotFound)?;
+
+            let st = milestone.state();
+            if st == MilestoneState::Paid
+                || st == MilestoneState::Rejected
+                || st == MilestoneState::Expired
+                || st == MilestoneState::ExpiredClaimed
+            {
+                return Err(ContractError::InvalidState);
+            }
+
+            let token_client = token::Client::new(&env, &token);
+            let contract_address = env.current_contract_address();
+            token_client.transfer(&funder, &contract_address, &amount);
+
+            let current_balance = grant.escrow_balances.get(token.clone()).unwrap_or(0);
+            let new_balance = current_balance
+                .checked_add(amount)
+                .ok_or(ContractError::InvalidInput)?;
+            grant.escrow_balances.set(token.clone(), new_balance);
+
+            let prev_extra = milestone.additional_funds.get(token.clone()).unwrap_or(0);
+            let new_extra = prev_extra
+                .checked_add(amount)
+                .ok_or(ContractError::InvalidInput)?;
+            milestone.additional_funds.set(token.clone(), new_extra);
+            milestone.top_up_contributions.push_back(MilestoneTopUp {
+                funder: funder.clone(),
+                token: token.clone(),
+                amount,
+            });
+
+            Storage::set_grant(&env, grant_id, &grant);
+            Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+
+            Events::emit_milestone_top_up_funded(
+                &env,
+                grant_id,
+                milestone_idx,
+                funder.clone(),
+                token,
+                amount,
+            );
+
+            Ok(())
+        })
+    }
+
     pub fn milestone_upvote(
         env: Env,
         grant_id: u64,
@@ -2458,6 +2894,38 @@ impl StellarGrantsContract {
             Ok(())
         })
     }
+
+    /// Anyone may call this to mark an abandoned grant inactive after the owner has not
+    /// refreshed `last_heartbeat` for [`HEARTBEAT_INACTIVITY_SECS`].
+    pub fn mark_grant_inactive(env: Env, grant_id: u64) -> Result<(), ContractError> {
+        assert_not_paused(&env)?;
+
+        let mut grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+        if grant.status() != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        let now = env.ledger().timestamp();
+        if now
+            <= grant
+                .last_heartbeat
+                .saturating_add(HEARTBEAT_INACTIVITY_SECS)
+        {
+            return Err(ContractError::HeartbeatNotStale);
+        }
+
+        grant.set_status(GrantStatus::Inactive);
+        Storage::set_grant(&env, grant_id, &grant);
+        Storage::index_transition(
+            &env,
+            GrantStatus::Active as u32,
+            GrantStatus::Inactive as u32,
+            grant_id,
+        );
+        Events::emit_grant_gone_inactive(&env, grant_id, now);
+        Ok(())
+    }
+
     pub fn grant_ping(env: Env, grant_id: u64, owner: Address) -> Result<(), ContractError> {
         owner.require_auth();
 
@@ -2547,25 +3015,30 @@ impl StellarGrantsContract {
                 return Err(ContractError::DeadlinePassed);
             }
 
-            let payout_amount = milestone.amount;
             let payout_token = milestone.payout_token.clone();
+            let payout_amount =
+                milestone_payout_amount_for_token(&milestone, payout_token.clone())?;
+            let primary_bal = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
+            if primary_bal < payout_amount {
+                return Err(ContractError::InvalidInput);
+            }
+            for (tok, amt) in milestone.additional_funds.iter() {
+                if tok == payout_token || amt <= 0 {
+                    continue;
+                }
+                let b = grant.escrow_balances.get(tok.clone()).unwrap_or(0);
+                if b < amt {
+                    return Err(ContractError::InvalidInput);
+                }
+            }
 
-            // Transfer milestone amount from contract escrow to grant owner
-            let token_client = token::Client::new(&env, &payout_token);
-            token_client.transfer(
-                &env.current_contract_address(),
-                &grant.owner,
-                &payout_amount,
-            );
-
-            // Update escrow accounting
-            let current_balance = grant.escrow_balances.get(payout_token.clone()).unwrap_or(0);
-            grant.escrow_balances.set(
-                payout_token.clone(),
-                current_balance
-                    .checked_sub(payout_amount)
-                    .ok_or(ContractError::InvalidInput)?,
-            );
+            let payee = milestone_payee(&milestone, &grant);
+            let rep_amt = payout_milestone_locked_funds_from_escrow(
+                &env,
+                &mut grant,
+                &mut milestone,
+                &payee,
+            )?;
             grant.set_milestones_paid_out(
                 grant
                     .milestones_paid_out()
@@ -2590,27 +3063,20 @@ impl StellarGrantsContract {
             Events::emit_payout_executed(
                 &env,
                 grant_id,
-                grant.owner.clone(),
+                payee.clone(),
                 payout_amount,
                 payout_token.clone(),
             );
             Events::emit_payee_receipt(
                 &env,
                 grant_id,
-                grant.owner.clone(),
+                payee.clone(),
                 payout_token.clone(),
                 payout_amount,
                 Some(milestone_idx),
             );
 
-            // Reuse the shared idempotent reputation path for direct payouts too.
-            Self::update_contributor_reputation(
-                &env,
-                grant_id,
-                milestone_idx,
-                &grant.owner,
-                payout_amount,
-            );
+            Self::update_contributor_reputation(&env, grant_id, milestone_idx, &payee, rep_amt);
 
             Ok(())
         })
@@ -2708,8 +3174,7 @@ fn check_heartbeat(env: &Env, grant: &mut Grant) {
     let now = env.ledger().timestamp();
     let seconds_since_heartbeat = now.saturating_sub(grant.last_heartbeat);
 
-    // 30 days = 30 * 24 * 60 * 60 = 2,592,000 seconds
-    if seconds_since_heartbeat > 30 * 24 * 60 * 60 {
+    if seconds_since_heartbeat > HEARTBEAT_INACTIVITY_SECS {
         grant.set_status(GrantStatus::Inactive);
         Storage::set_grant(env, grant.id, grant);
         Storage::index_transition(
@@ -2871,6 +3336,61 @@ fn mark_milestone_expired_if_needed(
     Ok(true)
 }
 
+fn apply_open_bounty_submission(
+    env: &Env,
+    grant_id: u64,
+    grant: &Grant,
+    milestone_idx: u32,
+    submitter: Address,
+    description: String,
+    proof_url: String,
+    payout_token: Option<Address>,
+) -> Result<(), ContractError> {
+    if milestone_idx >= grant.total_milestones() {
+        return Err(ContractError::InvalidInput);
+    }
+
+    let mut milestone = Storage::get_milestone(env, grant_id, milestone_idx)
+        .ok_or(ContractError::MilestoneNotFound)?;
+    if mark_milestone_expired_if_needed(env, grant_id, milestone_idx, &mut milestone)? {
+        return Err(ContractError::DeadlinePassed);
+    }
+
+    if milestone.state() != MilestoneState::Pending {
+        return Err(ContractError::MilestoneAlreadySubmitted);
+    }
+
+    let mut subs = Storage::get_bounty_submissions(env, grant_id, milestone_idx)
+        .unwrap_or_else(|| Vec::new(env));
+    if subs.len() >= MAX_BOUNTY_SUBMISSIONS_PER_MILESTONE {
+        return Err(ContractError::BountySubmissionsCap);
+    }
+
+    for i in 0..subs.len() {
+        if subs.get(i).unwrap().submitter == submitter {
+            return Err(ContractError::DuplicateBountySubmitter);
+        }
+    }
+
+    let payout = payout_token.unwrap_or_else(|| grant.token_address.clone());
+    ensure_token_interface(env, &payout)?;
+
+    let entry = BountySubmissionEntry {
+        submitter: submitter.clone(),
+        description: description.clone(),
+        proof_url: proof_url.clone(),
+        payout_token: payout,
+        submission_timestamp: env.ledger().timestamp(),
+        votes: Map::new(env),
+        reasons: Map::new(env),
+    };
+    subs.push_back(entry);
+    Storage::set_bounty_submissions(env, grant_id, milestone_idx, &subs);
+
+    Events::emit_milestone_submitted(env, grant_id, milestone_idx, description);
+    Ok(())
+}
+
 fn apply_milestone_submission(
     env: &Env,
     grant_id: u64,
@@ -2880,6 +3400,9 @@ fn apply_milestone_submission(
     proof_url: String,
     payout_token: Option<Address>,
 ) -> Result<(), ContractError> {
+    if grant.is_open_bounty {
+        return Err(ContractError::InvalidInput);
+    }
     if milestone_idx >= grant.total_milestones() {
         return Err(ContractError::InvalidInput);
     }

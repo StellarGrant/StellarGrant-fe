@@ -1,21 +1,30 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
+use soroban_sdk::{Address, Env, String as SorobanString, Vec};
 use stellar_grants::{StellarGrantsContract, Storage};
-use soroban_sdk::{Env, Address, String as SorobanString, Vec};
 
 fuzz_target!(|data: &[u8]| {
-    if data.len() < 2 { return; }
+    if data.len() < 2 {
+        return;
+    }
 
     let env = Env::default();
 
-
-    let owner   = Address::from_str(&env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
-    let token   = Address::from_str(&env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHG");
-    let reviewer = Address::from_str(&env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHJ");
+    let owner = Address::from_str(
+        &env,
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    );
+    let token = Address::from_str(
+        &env,
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHG",
+    );
+    let reviewer = Address::from_str(
+        &env,
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHJ",
+    );
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
 
-    // Step 1: create grant — skip if invalid (not a bug)
     let milestone_amount: i128 = 10;
     let total_milestones: u32 = 1;
     let quorum: u32 = 1;
@@ -31,13 +40,15 @@ fuzz_target!(|data: &[u8]| {
         reviewers.clone(),
         quorum,
         None,
+        0i128,
+        0i128,
+        Vec::new(&env),
+        false,
     ) {
         Ok(id) => id,
         Err(_) => return,
     };
 
-
-    // Step 2: submit milestone — skip if invalid
     let milestone_idx = data[1] as u32 % 4;
     let _ = StellarGrantsContract::milestone_submit(
         env.clone(),
@@ -46,9 +57,9 @@ fuzz_target!(|data: &[u8]| {
         owner.clone(),
         SorobanString::from_str(&env, "desc"),
         SorobanString::from_str(&env, "proof"),
+        None,
     );
 
-    // Step 3: vote — this must never panic, only return Err
     let approve = data[0] % 2 == 0;
     let _ = StellarGrantsContract::milestone_vote(
         env.clone(),
@@ -57,11 +68,13 @@ fuzz_target!(|data: &[u8]| {
         reviewer.clone(),
         approve,
         None,
+        None,
     );
 
-    // Invariant: no double votes — this is the real fuzz oracle
     if let Some(milestone) = Storage::get_milestone(&env, grant_id, milestone_idx) {
-        let count = milestone.votes.iter()
+        let count = milestone
+            .votes
+            .iter()
             .filter(|(v, _)| v == &reviewer)
             .count();
         assert!(count <= 1, "Double vote invariant violated!");

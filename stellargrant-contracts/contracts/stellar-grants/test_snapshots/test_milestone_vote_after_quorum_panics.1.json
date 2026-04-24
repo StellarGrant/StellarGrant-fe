@@ -102,6 +102,9 @@
                 },
                 {
                   "vec": []
+                },
+                {
+                  "bool": false
                 }
               ]
             }
@@ -185,6 +188,7 @@
                 {
                   "bool": true
                 },
+                "void",
                 "void"
               ]
             }
@@ -214,6 +218,7 @@
                 {
                   "bool": true
                 },
+                "void",
                 "void"
               ]
             }
@@ -375,6 +380,14 @@
                     },
                     "val": {
                       "u64": "1"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "is_open_bounty"
+                    },
+                    "val": {
+                      "bool": false
                     }
                   },
                   {
@@ -623,11 +636,25 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "additional_funds"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "amount"
                     },
                     "val": {
                       "i128": "10"
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "bounty_winner"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -711,6 +738,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "top_up_contributions"
+                    },
+                    "val": {
+                      "vec": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "votes"
                     },
                     "val": {
@@ -767,11 +802,25 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "additional_funds"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "amount"
                     },
                     "val": {
                       "i128": "10"
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "bounty_winner"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -853,6 +902,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "top_up_contributions"
+                    },
+                    "val": {
+                      "vec": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "votes"
                     },
                     "val": {
@@ -892,11 +949,25 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "additional_funds"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "amount"
                     },
                     "val": {
                       "i128": "10"
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "bounty_winner"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -974,6 +1045,14 @@
                     },
                     "val": {
                       "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "top_up_contributions"
+                    },
+                    "val": {
+                      "vec": []
                     }
                   },
                   {

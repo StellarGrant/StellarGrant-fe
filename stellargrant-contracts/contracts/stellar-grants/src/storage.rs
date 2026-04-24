@@ -1,5 +1,8 @@
-use crate::types::{DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState, Grant, Milestone};
-use soroban_sdk::{contracttype, Address, Env, Map};
+use crate::types::{
+    AccessControl, BountySubmissionEntry, DisputeInfo, EscrowLifecycleState, EscrowMode,
+    EscrowState, ExtensionRequest, Grant, Milestone, Role,
+};
+use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 #[contracttype]
 pub enum DataKey {
@@ -32,6 +35,7 @@ pub enum DataKey {
     AccessControl(soroban_sdk::Address),
     RoleMemberCount(u32),
     ExtensionRequest(u64, u32),
+    BountySubmissions(u64, u32),
 }
 
 pub struct Storage;
@@ -186,6 +190,36 @@ impl Storage {
         let key = DataKey::Milestone(grant_id, milestone_idx);
         env.storage().persistent().set(&key, milestone);
         Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn get_bounty_submissions(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<Vec<BountySubmissionEntry>> {
+        let key = DataKey::BountySubmissions(grant_id, milestone_idx);
+        let v = env.storage().persistent().get(&key);
+        if v.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        v
+    }
+
+    pub fn set_bounty_submissions(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        entries: &Vec<BountySubmissionEntry>,
+    ) {
+        let key = DataKey::BountySubmissions(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, entries);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_bounty_submissions(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::BountySubmissions(grant_id, milestone_idx));
     }
 
     pub fn increment_grant_counter(env: &Env) -> u64 {

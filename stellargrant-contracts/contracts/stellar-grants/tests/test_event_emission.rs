@@ -34,6 +34,7 @@ fn test_event_emission_on_grant_create_and_fund() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
     );
     let funder = <Address as TestAddress>::generate(&env);
     client.grant_accept(&grant_id, &owner);
@@ -86,6 +87,7 @@ fn test_event_emission_on_milestone_vote() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
     );
     let funder = <Address as TestAddress>::generate(&env);
     client.grant_accept(&grant_id, &owner);
@@ -104,7 +106,7 @@ fn test_event_emission_on_milestone_vote() {
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
-    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
+    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None, &None);
     let events = env.events().all();
     // Debug print all events
     println!("All events:");

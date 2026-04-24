@@ -48,6 +48,14 @@ pub enum ContractError {
     ExpiryNotReached = 43,
     /// `token_address` is missing SEP-41 / Soroban token interface (e.g. no `decimals`).
     InvalidTokenInterface = 44,
+    /// Open bounty milestone submitters must have registered a contributor profile.
+    ContributorProfileRequired = 45,
+    /// Same address already submitted for this milestone bounty.
+    DuplicateBountySubmitter = 46,
+    /// Too many bounty submissions for one milestone.
+    BountySubmissionsCap = 47,
+    /// Owner has checked in recently; grant cannot be marked inactive yet.
+    HeartbeatNotStale = 48,
 }
 
 #[contracttype]
@@ -192,6 +200,14 @@ pub enum MilestoneState {
 
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneTopUp {
+    pub funder: Address,
+    pub token: Address,
+    pub amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Milestone {
     pub description: String,
     pub amount: i128,
@@ -205,6 +221,24 @@ pub struct Milestone {
     pub deadline_timestamp: u64,
     pub community_comments: Map<Address, String>,
     pub packed_stats: u128,
+    /// When set, milestone payout and reputation go to this address (open bounty winner).
+    pub bounty_winner: Option<Address>,
+    /// Extra funds locked for this milestone, keyed by token (SEP-41 contract address).
+    pub additional_funds: Map<Address, i128>,
+    /// Per-deposit ledger so milestone top-ups can be refunded to the original funders on cancel.
+    pub top_up_contributions: Vec<MilestoneTopUp>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BountySubmissionEntry {
+    pub submitter: Address,
+    pub description: String,
+    pub proof_url: String,
+    pub payout_token: Address,
+    pub submission_timestamp: u64,
+    pub votes: Map<Address, bool>,
+    pub reasons: Map<Address, String>,
 }
 
 impl Milestone {
@@ -225,6 +259,8 @@ impl Milestone {
         approvals: u32,
         rejections: u32,
         community_upvotes: u32,
+        additional_funds: Map<Address, i128>,
+        top_up_contributions: Vec<MilestoneTopUp>,
     ) -> Self {
         let mut ms = Self {
             description,
@@ -239,6 +275,9 @@ impl Milestone {
             deadline_timestamp,
             community_comments,
             packed_stats: 0,
+            bounty_winner: None,
+            additional_funds,
+            top_up_contributions,
         };
         ms.set_idx(idx);
         ms.set_approvals(approvals);
@@ -361,6 +400,8 @@ pub struct Grant {
     pub min_funding: i128,
     pub hard_cap: i128,
     pub tags: Vec<String>,
+    /// When true, any registered contributor (non-blacklisted) may submit milestone proofs; reviewers pick a winner.
+    pub is_open_bounty: bool,
     pub packed_config: u128,
 }
 
@@ -387,6 +428,7 @@ impl Grant {
         min_funding: i128,
         hard_cap: i128,
         tags: Vec<String>,
+        is_open_bounty: bool,
         cancellation_requested_at: Option<u64>,
     ) -> Self {
         let mut g = Self {
@@ -407,6 +449,7 @@ impl Grant {
             min_funding,
             hard_cap,
             tags,
+            is_open_bounty,
             packed_config: 0,
         };
         g.set_status(status);

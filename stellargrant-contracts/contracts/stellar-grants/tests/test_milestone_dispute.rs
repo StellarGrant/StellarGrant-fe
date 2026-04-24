@@ -36,6 +36,7 @@ fn test_dispute_and_resolve_flow() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
     );
     client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
@@ -52,7 +53,7 @@ fn test_dispute_and_resolve_flow() {
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
-    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
+    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     client.resolve_dispute(&council, &grant_id, &0, &true);
     let milestone = client.get_milestone(&grant_id, &0);
@@ -92,6 +93,7 @@ fn test_vote_blocked_during_dispute() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
     );
     client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
@@ -108,10 +110,10 @@ fn test_vote_blocked_during_dispute() {
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
-    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
+    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     // This should panic
-    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
+    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None, &None);
 }
 
 #[test]
@@ -147,6 +149,7 @@ fn test_only_council_can_resolve_dispute() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
     );
     client.grant_accept(&grant_id, &owner);
     let funder = Address::generate(&env);
@@ -163,7 +166,7 @@ fn test_only_council_can_resolve_dispute() {
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
-    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None);
+    client.milestone_vote(&grant_id, &0, &reviewer, &true, &None, &None);
     client.dispute_milestone(&grant_id, &0, &owner);
     // This should panic (not council)
     client.resolve_dispute(&owner, &grant_id, &0, &true);

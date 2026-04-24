@@ -24,83 +24,31 @@ fn setup_active_grant<'a>(
     let milestone_deadlines: Option<Vec<u64>> = None;
     let tags = Vec::<String>::new(env);
 
-    let grant_id = client
-        .mock_auths(&[MockAuth {
-            address: &owner,
-            invoke: &MockAuthInvoke {
-                contract: &contract_id,
-                fn_name: "grant_create",
-                args: (
-                    &owner,
-                    &title,
-                    &description,
-                    &token_id,
-                    &100i128,
-                    &10i128,
-                    &1u32,
-                    reviewers,
-                    &quorum,
-                    &milestone_deadlines,
-                    &0i128,
-                    &0i128,
-                    &tags,
-                )
-                    .into_val(env),
-                sub_invokes: &[],
-            },
-        }])
-        .grant_create(
-            &owner,
-            &title,
-            &description,
-            &token_id,
-            &100,
-            &10,
-            &1,
-            reviewers,
-            &quorum,
-            &milestone_deadlines,
-            &0i128,
-            &0i128,
-            &tags,
-        );
-    client
-        .mock_auths(&[MockAuth {
-            address: &owner,
-            invoke: &MockAuthInvoke {
-                contract: &contract_id,
-                fn_name: "grant_accept",
-                args: (&grant_id, &owner).into_val(env),
-                sub_invokes: &[],
-            },
-        }])
-        .grant_accept(&grant_id, &owner);
-    client
-        .mock_auths(&[MockAuth {
-            address: &owner,
-            invoke: &MockAuthInvoke {
-                contract: &contract_id,
-                fn_name: "milestone_submit",
-                args: (
-                    &grant_id,
-                    &0u32,
-                    &owner,
-                    &String::from_str(env, "Milestone"),
-                    &String::from_str(env, "proof"),
-                    &None::<Address>,
-                )
-                    .into_val(env),
-                sub_invokes: &[],
-            },
-        }])
-        .milestone_submit(
-            &grant_id,
-            &0,
-            &owner,
-            &String::from_str(env, "Milestone"),
-            &String::from_str(env, "proof"),
-            &None,
-        );
+    let grant_id = client.mock_all_auths().grant_create(
+        &owner,
+        &title,
+        &description,
+        &token_id,
+        &100,
+        &10,
+        &1,
+        reviewers,
+        &quorum,
+        &milestone_deadlines,
+        &0i128,
+        &0i128,
+        &tags,
+        &false,
+    );
+    client.mock_all_auths().grant_accept(&grant_id, &owner);
+    client.mock_all_auths().milestone_submit(
+        &grant_id,
+        &0,
+        &owner,
+        &String::from_str(env, "Milestone"),
+        &String::from_str(env, "proof"),
+        &None,
+    );
 
     let ts = env.ledger().timestamp();
     env.ledger()
@@ -151,11 +99,11 @@ fn test_delegatee_vote_counts_for_reviewer_and_emits_event() {
             invoke: &MockAuthInvoke {
                 contract: &contract_id,
                 fn_name: "milestone_vote",
-                args: (&grant_id, &0u32, &reviewer, &true, &feedback).into_val(&env),
+                args: (&grant_id, &0u32, &reviewer, &true, &feedback, &None::<u32>).into_val(&env),
                 sub_invokes: &[],
             },
         }])
-        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback);
+        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback, &None);
     assert!(approved);
 
     env.as_contract(&contract_id, || {
@@ -214,11 +162,11 @@ fn test_delegate_update_and_revocation_work_for_same_grant() {
             invoke: &MockAuthInvoke {
                 contract: &contract_id,
                 fn_name: "milestone_vote",
-                args: (&grant_id, &0u32, &reviewer, &true, &feedback).into_val(&env),
+                args: (&grant_id, &0u32, &reviewer, &true, &feedback, &None::<u32>).into_val(&env),
                 sub_invokes: &[],
             },
         }])
-        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback);
+        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback, &None);
     assert!(approved);
 
     client
@@ -269,11 +217,11 @@ fn test_delegated_vote_uses_reviewer_slot_for_double_vote_protection() {
             invoke: &MockAuthInvoke {
                 contract: &contract_id,
                 fn_name: "milestone_vote",
-                args: (&grant_id, &0u32, &reviewer, &true, &feedback).into_val(&env),
+                args: (&grant_id, &0u32, &reviewer, &true, &feedback, &None::<u32>).into_val(&env),
                 sub_invokes: &[],
             },
         }])
-        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback);
+        .milestone_vote(&grant_id, &0, &reviewer, &true, &feedback, &None);
     assert!(
         !delegated_vote,
         "single delegated vote should not reach quorum"
@@ -297,10 +245,10 @@ fn test_delegated_vote_uses_reviewer_slot_for_double_vote_protection() {
             invoke: &MockAuthInvoke {
                 contract: &contract_id,
                 fn_name: "milestone_vote",
-                args: (&grant_id, &0u32, &reviewer, &true, &feedback).into_val(&env),
+                args: (&grant_id, &0u32, &reviewer, &true, &feedback, &None::<u32>).into_val(&env),
                 sub_invokes: &[],
             },
         }])
-        .try_milestone_vote(&grant_id, &0, &reviewer, &true, &feedback);
+        .try_milestone_vote(&grant_id, &0, &reviewer, &true, &feedback, &None);
     assert_eq!(second_vote, Err(Ok(ContractError::AlreadyVoted.into())));
 }

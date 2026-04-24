@@ -68,6 +68,7 @@ fn create_funded_submitted_voted(
         &0i128,
         &0i128,
         &Vec::<String>::new(env),
+        &false,
     );
     client.grant_accept(&gid, owner);
     tok_admin.mint(funder, &2000);
@@ -85,7 +86,7 @@ fn create_funded_submitted_voted(
     let now = env.ledger().timestamp();
     env.ledger()
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
-    client.milestone_vote(&gid, &0, reviewer, &true, &None);
+    client.milestone_vote(&gid, &0, reviewer, &true, &None, &None);
     gid
 }
 

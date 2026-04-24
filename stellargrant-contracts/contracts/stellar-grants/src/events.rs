@@ -201,6 +201,17 @@ pub struct MilestoneSubmitted {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BountyClaimed {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub winner: Address,
+    pub submission_index: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantFunded {
     pub event_version: u32,
     pub grant_id: u64,
@@ -208,6 +219,18 @@ pub struct GrantFunded {
     pub amount: i128,
     pub token: Address, // New: Specify which token was funded
     pub new_balance: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneTopUpFunded {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub funder: Address,
+    pub token: Address,
+    pub amount: i128,
     pub timestamp: u64,
 }
 
@@ -261,6 +284,38 @@ pub struct ContractWasmUpgraded {
     pub admin: Address,
     pub new_wasm_hash: BytesN<32>,
     pub new_storage_version: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleGranted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
+    pub sender: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRevoked {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
+    pub sender: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRenounced {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
     pub timestamp: u64,
 }
 
@@ -488,6 +543,24 @@ impl Events {
         event.publish(env);
     }
 
+    pub fn emit_bounty_claimed(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        winner: Address,
+        submission_index: u32,
+    ) {
+        let event = BountyClaimed {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            winner,
+            submission_index,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
     pub fn emit_grant_funded(
         env: &Env,
         grant_id: u64,
@@ -503,6 +576,26 @@ impl Events {
             amount,
             token,
             new_balance,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_milestone_top_up_funded(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        funder: Address,
+        token: Address,
+        amount: i128,
+    ) {
+        let event = MilestoneTopUpFunded {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            funder,
+            token,
+            amount,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

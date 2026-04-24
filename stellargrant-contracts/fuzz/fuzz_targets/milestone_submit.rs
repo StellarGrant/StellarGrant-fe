@@ -30,12 +30,16 @@ fuzz_target!(|data: &[u8]| {
             reviewers,
             quorum,
             None,
+            0i128,
+            0i128,
+            Vec::new(&env),
+            false,
         );
         // Fuzz milestone_submit with random description and proof_url
         let recipient = owner;
         let desc = String::from_str(&env, "desc");
         let proof = String::from_str(&env, "proof");
-        let _ = StellarGrantsContract::milestone_submit(env, 0, 0, recipient, desc, proof);
+        let _ = StellarGrantsContract::milestone_submit(env, 0, 0, recipient, desc, proof, None);
     });
     // If a panic occurred, treat as a fuzz failure only if input was not obviously invalid
     if result.is_err() && !data.is_empty() {

@@ -70,6 +70,7 @@
                 {
                   "bool": true
                 },
+                "void",
                 "void"
               ]
             }
@@ -207,6 +208,14 @@
                   },
                   {
                     "key": {
+                      "symbol": "is_open_bounty"
+                    },
+                    "val": {
+                      "bool": false
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "last_heartbeat"
                     },
                     "val": {
@@ -336,11 +345,25 @@
                 "map": [
                   {
                     "key": {
+                      "symbol": "additional_funds"
+                    },
+                    "val": {
+                      "map": []
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "amount"
                     },
                     "val": {
                       "i128": "100"
                     }
+                  },
+                  {
+                    "key": {
+                      "symbol": "bounty_winner"
+                    },
+                    "val": "void"
                   },
                   {
                     "key": {
@@ -418,6 +441,14 @@
                     },
                     "val": {
                       "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "top_up_contributions"
+                    },
+                    "val": {
+                      "vec": []
                     }
                   },
                   {
