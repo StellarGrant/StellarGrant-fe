@@ -137,14 +137,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -161,18 +153,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                      "u128": "36893488151714070529"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 1
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     }
                   },
                   {
@@ -191,14 +183,6 @@
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -231,14 +215,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]

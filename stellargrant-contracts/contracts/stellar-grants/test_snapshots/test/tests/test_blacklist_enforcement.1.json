@@ -120,6 +120,42 @@
               "key": {
                 "vec": [
                   {
+                    "symbol": "AccessControl"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "role_flags"
+                    },
+                    "val": {
+                      "u32": 9
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "key": {
+                "vec": [
+                  {
                     "symbol": "Council"
                   }
                 ]
@@ -251,14 +287,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -275,18 +303,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
+                      "u128": "18446744078004518913"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 1
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
                     }
                   },
                   {
@@ -301,14 +329,6 @@
                     },
                     "val": {
                       "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -341,14 +361,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]
@@ -410,6 +422,60 @@
               "durability": "persistent",
               "val": {
                 "vec": []
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "RoleMemberCount"
+                  },
+                  {
+                    "u32": 1
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 1
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "RoleMemberCount"
+                  },
+                  {
+                    "u32": 8
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 1
               }
             }
           },

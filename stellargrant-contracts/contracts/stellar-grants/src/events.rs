@@ -1,4 +1,4 @@
-use crate::types::MilestoneState;
+use crate::types::{MilestoneState, Role};
 use soroban_sdk::{contractevent, Address, BytesN, Env, String, Vec};
 
 const EVENT_VERSION: u32 = 1;
@@ -136,6 +136,18 @@ pub struct FinalRefund {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExpiredFundsClaimed {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub caller: Address,
+    pub amount: i128,
+    pub token: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContributorRegistered {
     pub event_version: u32,
     pub grant_id: u64,
@@ -252,6 +264,38 @@ pub struct ContractWasmUpgraded {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleGranted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
+    pub sender: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRevoked {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
+    pub sender: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleRenounced {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub role: Role,
+    pub account: Address,
+    pub timestamp: u64,
+}
+
 pub struct Events;
 
 #[contractevent]
@@ -316,6 +360,41 @@ impl Events {
             admin,
             new_wasm_hash,
             new_storage_version,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_role_granted(env: &Env, sender: Address, account: Address, role: Role) {
+        let event = RoleGranted {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            role,
+            account,
+            sender,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_role_revoked(env: &Env, sender: Address, account: Address, role: Role) {
+        let event = RoleRevoked {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            role,
+            account,
+            sender,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_role_renounced(env: &Env, account: Address, role: Role) {
+        let event = RoleRenounced {
+            event_version: EVENT_VERSION,
+            grant_id: GLOBAL_EVENT_GRANT_ID,
+            role,
+            account,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);
@@ -390,6 +469,26 @@ impl Events {
             grant_id,
             funder,
             amount,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_expired_funds_claimed(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        caller: Address,
+        amount: i128,
+        token: Address,
+    ) {
+        let event = ExpiredFundsClaimed {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            caller,
+            amount,
+            token,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

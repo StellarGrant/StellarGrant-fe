@@ -273,14 +273,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -297,18 +289,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                      "u128": "0"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 1
+                      "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
                     }
                   },
                   {
@@ -323,14 +315,6 @@
                     },
                     "val": {
                       "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -364,74 +348,8 @@
                     "val": {
                       "i128": "2000"
                     }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
                   }
                 ]
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 1000000
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "GrantStatusIndex"
-                  },
-                  {
-                    "u32": 1
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "vec": [
-                  {
-                    "u64": "302"
-                  }
-                ]
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 1000000
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "GrantStatusIndex"
-                  },
-                  {
-                    "u32": 7
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "vec": []
               }
             }
           },

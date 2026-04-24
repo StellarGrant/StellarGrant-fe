@@ -323,34 +323,10 @@
                 "map": [
                   {
                     "key": {
-                      "symbol": "approvals_count"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "lifecycle"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "mode"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "quorum_ready"
-                    },
-                    "val": {
-                      "bool": false
+                      "u128": "4294967297"
                     }
                   }
                 ]
@@ -454,14 +430,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -478,18 +446,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN"
+                      "u128": "79228162569604569823262539777"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 2
+                      "address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN"
                     }
                   },
                   {
@@ -514,14 +482,6 @@
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -554,14 +514,6 @@
                     },
                     "val": {
                       "i128": "100"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 3
                     }
                   }
                 ]
@@ -714,14 +666,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 2
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "community_comments"
                     },
                     "val": {
@@ -730,15 +674,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "deadline"
+                      "symbol": "deadline_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -754,10 +690,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 0
+                      "u128": "8589934592"
                     }
                   },
                   {
@@ -782,14 +718,6 @@
                     },
                     "val": {
                       "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
                     }
                   },
                   {
@@ -882,14 +810,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "community_comments"
                     },
                     "val": {
@@ -898,15 +818,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "deadline"
+                      "symbol": "deadline_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -922,10 +834,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 1
+                      "u128": "1"
                     }
                   },
                   {
@@ -948,14 +860,6 @@
                     },
                     "val": {
                       "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
                     }
                   },
                   {
@@ -1031,14 +935,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "community_comments"
                     },
                     "val": {
@@ -1047,15 +943,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "deadline"
+                      "symbol": "deadline_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -1071,10 +959,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 2
+                      "u128": "2"
                     }
                   },
                   {
@@ -1097,14 +985,6 @@
                     },
                     "val": {
                       "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
                     }
                   },
                   {
@@ -1140,6 +1020,36 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "MilestoneReputationApplied"
+                  },
+                  {
+                    "u64": "1"
+                  },
+                  {
+                    "u32": 0
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "bool": true
               }
             }
           },

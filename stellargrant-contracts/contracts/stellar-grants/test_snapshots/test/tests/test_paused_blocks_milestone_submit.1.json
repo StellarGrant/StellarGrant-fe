@@ -71,6 +71,42 @@
               "key": {
                 "vec": [
                   {
+                    "symbol": "AccessControl"
+                  },
+                  {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "role_flags"
+                    },
+                    "val": {
+                      "u32": 9
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
                     "symbol": "Council"
                   }
                 ]
@@ -202,14 +238,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -226,18 +254,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+                      "u128": "18446744078004518913"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 1
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                     }
                   },
                   {
@@ -252,14 +280,6 @@
                     },
                     "val": {
                       "vec": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -292,14 +312,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]
@@ -343,14 +355,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "community_comments"
                     },
                     "val": {
@@ -359,15 +363,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "deadline"
+                      "symbol": "deadline_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -383,10 +379,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 0
+                      "u128": "0"
                     }
                   },
                   {
@@ -411,14 +407,6 @@
                     },
                     "val": {
                       "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
                     }
                   },
                   {
@@ -454,6 +442,60 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "RoleMemberCount"
+                  },
+                  {
+                    "u32": 1
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 1
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 1000000
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "RoleMemberCount"
+                  },
+                  {
+                    "u32": 8
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "u32": 1
               }
             }
           },

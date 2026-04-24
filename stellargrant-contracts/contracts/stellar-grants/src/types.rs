@@ -1,6 +1,4 @@
 use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
-
-/// Contract error types
 #[contracterror]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -30,29 +28,64 @@ pub enum ContractError {
     ReleaseNotReady = 23,
     GrantAlreadyReleased = 24,
     InsufficientReputation = 25,
-    /// Reviewer vote rejected because the community review period has not elapsed yet.
     CommunityReviewPeriod = 26,
-    /// The voter has already upvoted this milestone.
     AlreadyUpvoted = 27,
-    /// Grant cancellation is pending; grace period has not elapsed yet.
     CancellationGracePeriod = 28,
     HeartbeatMissed = 29,
     Blacklisted = 30,
-    /// Caller is not the contract global admin for this operation.
     NotContractAdmin = 31,
     InsufficientBalance = 32,
-    /// Contract is globally paused; all state-modifying operations are blocked.
     ContractPaused = 33,
-    /// Donation would exceed the grant's hard cap.
     CapReached = 34,
-    /// Grant has more than 5 tags.
     TooManyTags = 35,
-    /// A tag exceeds 20 characters.
     TagTooLong = 36,
-    /// Caller has insufficient balance to pay the dispute fee.
     DisputeFeeInsufficient = 37,
-    /// Dispute fee has already been charged for this milestone.
     DisputeAlreadyCharged = 38,
+    ExtensionDenied = 39,
+    RoleAlreadyAssigned = 40,
+    RoleNotAssigned = 41,
+    DeadlineNotSet = 42,
+    ExpiryNotReached = 43,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum Role {
+    Admin = 1,
+    GrantCreator = 2,
+    Reviewer = 4,
+    Pauser = 8,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccessControl {
+    pub role_flags: u32,
+}
+
+impl AccessControl {
+    pub fn new() -> Self {
+        Self { role_flags: 0 }
+    }
+
+    pub fn has_role(&self, role: Role) -> bool {
+        (self.role_flags & role as u32) != 0
+    }
+
+    pub fn grant(&mut self, role: Role) {
+        self.role_flags |= role as u32;
+    }
+
+    pub fn revoke(&mut self, role: Role) {
+        self.role_flags &= !(role as u32);
+    }
+}
+
+impl Default for AccessControl {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[contracttype]
@@ -148,12 +181,11 @@ pub enum MilestoneState {
     Rejected = 4,
     Disputed = 5,
     Resolved = 6,
-    /// Open for community upvotes / comments before reviewer voting begins.
     CommunityReview = 7,
-    /// Quorum reached, but payment is delayed by a challenge period.
     AwaitingPayout = 8,
-    /// An AwaitingPayout milestone was challenged by a funder.
     Challenged = 9,
+    Expired = 10,
+    ExpiredClaimed = 11,
 }
 
 #[contracttype]
@@ -168,11 +200,8 @@ pub struct Milestone {
     pub status_updated_at: u64,
     pub proof_url: Option<String>,
     pub submission_timestamp: u64,
-    pub deadline: u64,
+    pub deadline_timestamp: u64,
     pub community_comments: Map<Address, String>,
-    pub pending_extension_deadline: Option<u64>,
-    pub extension_votes: Map<Address, bool>,
-    /// Packed fields (u32 each): idx, approvals, rejections, community_upvotes
     pub packed_stats: u128,
 }
 
@@ -188,14 +217,12 @@ impl Milestone {
         status_updated_at: u64,
         proof_url: Option<String>,
         submission_timestamp: u64,
-        deadline: u64,
+        deadline_timestamp: u64,
         community_comments: Map<Address, String>,
         idx: u32,
         approvals: u32,
         rejections: u32,
         community_upvotes: u32,
-        pending_extension_deadline: Option<u64>,
-        extension_votes: Map<Address, bool>,
     ) -> Self {
         let mut ms = Self {
             description,
@@ -207,10 +234,8 @@ impl Milestone {
             status_updated_at,
             proof_url,
             submission_timestamp,
-            deadline,
+            deadline_timestamp,
             community_comments,
-            pending_extension_deadline,
-            extension_votes,
             packed_stats: 0,
         };
         ms.set_idx(idx);
@@ -257,6 +282,28 @@ impl Milestone {
 
     pub fn set_community_upvotes(&mut self, val: u32) {
         self.packed_stats = (self.packed_stats & !(0xFFFFFFFF << 96)) | ((val as u128) << 96);
+    }
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionRequest {
+    pub requested_by: Address,
+    pub new_deadline: u64,
+    pub requested_at: u64,
+    pub approvals: Map<Address, bool>,
+    pub approvals_count: u32,
+}
+
+impl ExtensionRequest {
+    pub fn new(env: &soroban_sdk::Env, requested_by: Address, new_deadline: u64) -> Self {
+        Self {
+            requested_by,
+            new_deadline,
+            requested_at: env.ledger().timestamp(),
+            approvals: Map::new(env),
+            approvals_count: 0,
+        }
     }
 }
 
@@ -311,7 +358,6 @@ pub struct Grant {
     pub min_funding: i128,
     pub hard_cap: i128,
     pub tags: Vec<String>,
-    /// Packed fields (u32 each): status, quorum, total_milestones, milestones_paid_out
     pub packed_config: u128,
 }
 
@@ -368,7 +414,20 @@ impl Grant {
     }
 
     pub fn status(&self) -> GrantStatus {
-        match (self.packed_config & 0xFFFFFFFF) as u32 {
+        let status = (self.packed_config & 0xFFFFFFFF) as u32;
+        if status == 0 {
+            if self.min_funding > 0 {
+                let primary_balance = self
+                    .escrow_balances
+                    .get(self.primary_token.clone())
+                    .unwrap_or(0);
+                if primary_balance < self.min_funding {
+                    return GrantStatus::PendingFunding;
+                }
+            }
+            return GrantStatus::Active;
+        }
+        match status {
             1 => GrantStatus::Active,
             2 => GrantStatus::Cancelled,
             3 => GrantStatus::Completed,
@@ -386,7 +445,11 @@ impl Grant {
     }
 
     pub fn quorum(&self) -> u32 {
-        ((self.packed_config >> 32) & 0xFFFFFFFF) as u32
+        let quorum = ((self.packed_config >> 32) & 0xFFFFFFFF) as u32;
+        if quorum == 0 && !self.reviewers.is_empty() {
+            return (self.reviewers.len() / 2) + 1;
+        }
+        quorum
     }
 
     pub fn set_quorum(&mut self, quorum: u32) {
@@ -394,7 +457,17 @@ impl Grant {
     }
 
     pub fn total_milestones(&self) -> u32 {
-        ((self.packed_config >> 64) & 0xFFFFFFFF) as u32
+        let total = ((self.packed_config >> 64) & 0xFFFFFFFF) as u32;
+        if total == 0 && self.milestone_amount > 0 && self.total_amount > 0 {
+            let base = self.total_amount / self.milestone_amount;
+            let remainder = self.total_amount % self.milestone_amount;
+            let mut inferred = base as u32;
+            if remainder > 0 {
+                inferred = inferred.saturating_add(1);
+            }
+            return inferred;
+        }
+        total
     }
 
     pub fn set_total_milestones(&mut self, total: u32) {
@@ -423,9 +496,6 @@ pub struct ContributorProfile {
     pub grants_count: u32,
     pub total_earned: i128,
 }
-
-/// Stores who paid the dispute fee and how much, so it can be refunded or slashed
-/// when the dispute is resolved.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DisputeInfo {

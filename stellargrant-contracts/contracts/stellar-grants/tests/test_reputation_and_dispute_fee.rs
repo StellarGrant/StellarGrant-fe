@@ -3,7 +3,9 @@ use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Env, String, Vec,
 };
-use stellar_grants::{MilestoneState, StellarGrantsContractClient, COMMUNITY_REVIEW_PERIOD};
+use stellar_grants::{
+    MilestoneState, StellarGrantsContractClient, CHALLENGE_PERIOD, COMMUNITY_REVIEW_PERIOD,
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,6 +72,8 @@ fn create_funded_submitted_voted(
     client.grant_accept(&gid, owner);
     tok_admin.mint(funder, &2000);
     client.grant_fund(&gid, funder, &1000, token, &None);
+    tok_admin.mint(reviewer, &1);
+    client.stake_to_review(reviewer, &gid, &1);
     client.milestone_submit(
         &gid,
         &0,
@@ -83,6 +87,17 @@ fn create_funded_submitted_voted(
         .set_timestamp(now + COMMUNITY_REVIEW_PERIOD + 1);
     client.milestone_vote(&gid, &0, reviewer, &true, &None);
     gid
+}
+
+fn payout_voted_milestone(
+    env: &Env,
+    client: &StellarGrantsContractClient,
+    gid: u64,
+    owner: &Address,
+) {
+    let now = env.ledger().timestamp();
+    env.ledger().set_timestamp(now + CHALLENGE_PERIOD + 1);
+    client.milestone_payout(&gid, &0, owner);
 }
 
 // ── Issue #151 — Reputation auto-scaling ─────────────────────────────────────
@@ -107,7 +122,7 @@ fn test_reputation_increases_after_milestone_approve() {
     let rep_before = profile_before.reputation_score;
     let earned_before = profile_before.total_earned;
 
-    client.milestone_approve(&gid, &0);
+    payout_voted_milestone(&env, &client, gid, &owner);
 
     let profile_after = client.get_contributor_profile(&owner).unwrap();
     assert_eq!(
@@ -137,14 +152,14 @@ fn test_reputation_idempotent_per_milestone() {
 
     let gid =
         create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
-    client.milestone_approve(&gid, &0);
+    payout_voted_milestone(&env, &client, gid, &owner);
 
     let rep_after_first = client
         .get_contributor_profile(&owner)
         .unwrap()
         .reputation_score;
 
-    let result = client.try_milestone_approve(&gid, &0);
+    let result = client.try_milestone_payout(&gid, &0, &owner);
     assert!(result.is_err(), "second approve must fail");
 
     let rep_unchanged = client
@@ -164,7 +179,7 @@ fn test_reputation_skipped_gracefully_without_profile() {
 
     let gid =
         create_funded_submitted_voted(&env, &client, &owner, &reviewer, &funder, &tok, &tok_adm);
-    client.milestone_approve(&gid, &0);
+    payout_voted_milestone(&env, &client, gid, &owner);
 }
 
 // ── Issue #152 — Dispute fee ──────────────────────────────────────────────────
@@ -228,8 +243,8 @@ fn test_dispute_fee_refunded_when_upheld() {
     let bal_after_resolve = tok_client.balance(&owner);
     assert_eq!(
         bal_after_resolve - bal_before_resolve,
-        50,
-        "dispute fee must be refunded to caller when dispute is upheld"
+        1050,
+        "resolve_dispute(true) pays the milestone amount and refunds the dispute fee"
     );
 }
 

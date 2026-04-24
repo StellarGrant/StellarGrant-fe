@@ -1,4 +1,7 @@
-use crate::types::{DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState, Grant, Milestone};
+use crate::types::{
+    AccessControl, DisputeInfo, EscrowLifecycleState, EscrowMode, EscrowState, ExtensionRequest,
+    Grant, Milestone, Role,
+};
 use soroban_sdk::{contracttype, Env};
 
 #[contracttype]
@@ -7,13 +10,9 @@ pub enum DataKey {
     Milestone(u64, u32),
     GrantCounter,
     Contributor(soroban_sdk::Address),
-    /// Reviewer stake amount for a grant: (grant_id, reviewer) -> i128
     ReviewerStake(u64, soroban_sdk::Address),
-    /// Minimum stake required to review a grant
     MinReviewerStake,
-    /// Treasury address for slashed stakes
     Treasury,
-    /// Identity oracle contract address for KYC verification
     IdentityOracle,
     ReviewerReputation(soroban_sdk::Address),
     GlobalAdmin,
@@ -22,21 +21,17 @@ pub enum DataKey {
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
     GrantMinReputation(u64),
-    /// Tracks whether a voter has already upvoted a specific milestone.
     MilestoneUpvoter(u64, u32, soroban_sdk::Address),
     Blacklist(soroban_sdk::Address),
-    /// Per-status index: maps GrantStatus discriminant → Vec<u64> of grant IDs.
     GrantStatusIndex(u32),
-    /// Monotonic schema / upgrade generation for migrations (see `UPGRADE_GUIDE.md`).
     StorageVersion,
-    /// Global contract pause flag stored in instance storage.
     IsPaused,
-    /// Tracks whether reputation was already credited for a milestone payout (issue #151).
     MilestoneReputationApplied(u64, u32),
-    /// Global dispute fee amount in the primary token (issue #152).
     DisputeFeeAmount,
-    /// Dispute fee info stored per milestone when a dispute is raised (issue #152).
     MilestoneDisputeInfo(u64, u32),
+    AccessControl(soroban_sdk::Address),
+    RoleMemberCount(u32),
+    ExtensionRequest(u64, u32),
 }
 
 pub struct Storage;
@@ -106,6 +101,44 @@ impl Storage {
 
     pub fn set_council(env: &Env, council: &soroban_sdk::Address) {
         env.storage().persistent().set(&DataKey::Council, council);
+    }
+
+    pub fn get_access_control(env: &Env, address: &soroban_sdk::Address) -> AccessControl {
+        let key = DataKey::AccessControl(address.clone());
+        let access: AccessControl = env.storage().persistent().get(&key).unwrap_or_default();
+        if access.role_flags != 0 {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        access
+    }
+
+    pub fn set_access_control(
+        env: &Env,
+        address: &soroban_sdk::Address,
+        access_control: &AccessControl,
+    ) {
+        let key = DataKey::AccessControl(address.clone());
+        env.storage().persistent().set(&key, access_control);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_access_control(env: &Env, address: &soroban_sdk::Address) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::AccessControl(address.clone()));
+    }
+
+    pub fn get_role_member_count(env: &Env, role: Role) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::RoleMemberCount(role as u32))
+            .unwrap_or(0)
+    }
+
+    pub fn set_role_member_count(env: &Env, role: Role, count: u32) {
+        let key = DataKey::RoleMemberCount(role as u32);
+        env.storage().persistent().set(&key, &count);
+        Self::bump_persistent_ttl(env, &key);
     }
 
     pub fn get_storage_version(env: &Env) -> u32 {
@@ -316,8 +349,6 @@ impl Storage {
     }
 
     // --- Grant status index helpers ---
-
-    /// Maximum number of grant IDs stored per status bucket to bound gas costs.
     pub const STATUS_INDEX_MAX: u32 = 500;
 
     pub fn get_status_index(env: &Env, status: u32) -> soroban_sdk::Vec<u64> {
@@ -338,8 +369,6 @@ impl Storage {
         env.storage().persistent().set(&key, ids);
         Self::bump_persistent_ttl(env, &key);
     }
-
-    /// Add `grant_id` to the index for `status`, respecting the cap.
     pub fn index_add(env: &Env, status: u32, grant_id: u64) {
         let mut ids = Self::get_status_index(env, status);
         if ids.len() >= Self::STATUS_INDEX_MAX {
@@ -350,8 +379,6 @@ impl Storage {
             Self::set_status_index(env, status, &ids);
         }
     }
-
-    /// Remove `grant_id` from the index for `status`.
     pub fn index_remove(env: &Env, status: u32, grant_id: u64) {
         let ids = Self::get_status_index(env, status);
         let mut new_ids = soroban_sdk::Vec::new(env);
@@ -362,8 +389,6 @@ impl Storage {
         }
         Self::set_status_index(env, status, &new_ids);
     }
-
-    /// Move `grant_id` from one status bucket to another atomically.
     pub fn index_transition(env: &Env, from: u32, to: u32, grant_id: u64) {
         Self::index_remove(env, from, grant_id);
         Self::index_add(env, to, grant_id);
@@ -442,5 +467,35 @@ impl Storage {
         env.storage()
             .persistent()
             .remove(&DataKey::MilestoneDisputeInfo(grant_id, milestone_idx));
+    }
+
+    pub fn get_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<ExtensionRequest> {
+        let key = DataKey::ExtensionRequest(grant_id, milestone_idx);
+        let request = env.storage().persistent().get(&key);
+        if request.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        request
+    }
+
+    pub fn set_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        request: &ExtensionRequest,
+    ) {
+        let key = DataKey::ExtensionRequest(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, request);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_extension_request(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::ExtensionRequest(grant_id, milestone_idx));
     }
 }

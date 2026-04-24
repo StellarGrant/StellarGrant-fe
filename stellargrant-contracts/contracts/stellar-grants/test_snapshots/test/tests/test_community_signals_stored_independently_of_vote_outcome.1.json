@@ -277,14 +277,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -301,18 +293,18 @@
                   },
                   {
                     "key": {
-                      "symbol": "primary_token"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN"
+                      "u128": "18446744078004518913"
                     }
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "primary_token"
                     },
                     "val": {
-                      "u32": 1
+                      "address": "CCABDO7UZXYE4W6GVSEGSNNZTKSLFQGKXXQTH6OX7M7GKZ4Z6CUJNGZN"
                     }
                   },
                   {
@@ -331,14 +323,6 @@
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "status"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   },
                   {
@@ -371,14 +355,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]
@@ -422,14 +398,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "approvals"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "community_comments"
                     },
                     "val": {
@@ -447,15 +415,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "community_upvotes"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "deadline"
+                      "symbol": "deadline_timestamp"
                     },
                     "val": {
                       "u64": "0"
@@ -471,10 +431,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "idx"
+                      "symbol": "packed_stats"
                     },
                     "val": {
-                      "u32": 0
+                      "u128": "79228162514264337597838917632"
                     }
                   },
                   {
@@ -497,14 +457,6 @@
                     },
                     "val": {
                       "map": []
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "rejections"
-                    },
-                    "val": {
-                      "u32": 0
                     }
                   },
                   {
