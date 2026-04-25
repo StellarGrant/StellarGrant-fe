@@ -1,8 +1,24 @@
 import { Router } from "express";
 import { Repository } from "typeorm";
+import { z } from "zod";
 import { GrantSyncService } from "../services/grant-sync-service";
 import { Contributor } from "../entities/Contributor";
 import { AuditLog } from "../entities/AuditLog";
+import { Grant } from "../entities/Grant";
+
+const VALID_BULK_ACTIONS = ["approve", "reject", "flag"] as const;
+type BulkAction = (typeof VALID_BULK_ACTIONS)[number];
+
+const ACTION_STATUS_MAP: Record<BulkAction, string> = {
+  approve: "approved",
+  reject: "rejected",
+  flag: "flagged",
+};
+
+const bulkSchema = z.object({
+  grantIds: z.array(z.number().int().positive()).min(1).max(100),
+  action: z.enum(VALID_BULK_ACTIONS),
+});
 
 export const buildAdminRouter = (
   grantSyncService: GrantSyncService,
@@ -10,6 +26,7 @@ export const buildAdminRouter = (
   auditLogRepo: Repository<AuditLog>
 ) => {
   const router = Router();
+  const grantRepo: Repository<Grant> = auditLogRepo.manager.getRepository(Grant);
 
   router.post("/sync/:grant_id", async (req, res, next) => {
     try {
@@ -61,6 +78,74 @@ export const buildAdminRouter = (
 
       res.json({ ok: true, isBlacklisted: blacklist });
     } catch (error) {
+      next(error);
+    }
+  });
+
+  /**
+   * POST /admin/grants/bulk
+   * Bulk approve, reject, or flag multiple grants atomically.
+   * Body: { grantIds: number[], action: "approve" | "reject" | "flag" }
+   */
+  router.post("/grants/bulk", async (req, res, next) => {
+    try {
+      const parsed = bulkSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
+        return;
+      }
+
+      const { grantIds, action } = parsed.data;
+      const newStatus = ACTION_STATUS_MAP[action];
+      const adminAddress: string = (req as any).adminAddress;
+
+      const results: { id: number; updated: boolean }[] = [];
+      const invalidIds: number[] = [];
+
+      await grantRepo.manager.transaction(async (em) => {
+        const grants = await em.findByIds(Grant, grantIds);
+        const foundIds = new Set(grants.map((g) => g.id));
+
+        for (const id of grantIds) {
+          if (!foundIds.has(id)) {
+            invalidIds.push(id);
+          }
+        }
+
+        if (invalidIds.length > 0) {
+          throw Object.assign(
+            new Error(`Grant IDs not found: ${invalidIds.join(", ")}`),
+            { status: 404 },
+          );
+        }
+
+        for (const grant of grants) {
+          grant.status = newStatus;
+          results.push({ id: grant.id, updated: true });
+        }
+        await em.save(grants);
+
+        await em.save(AuditLog, {
+          adminAddress,
+          action: `BULK_${action.toUpperCase()}`,
+          target: `grants:${grantIds.join(",")}`,
+          details: JSON.stringify({ grantIds, newStatus }),
+        });
+      });
+
+      res.json({
+        data: {
+          action,
+          newStatus,
+          affected: results.length,
+          results,
+        },
+      });
+    } catch (error: any) {
+      if (error?.status === 404) {
+        res.status(404).json({ error: error.message });
+        return;
+      }
       next(error);
     }
   });

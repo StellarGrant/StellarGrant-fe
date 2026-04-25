@@ -11,11 +11,16 @@ import { buildMilestoneProofRouter } from "./routes/milestone-proof";
 import { buildLeaderboardRouter } from "./routes/leaderboard";
 import { buildAdminRouter } from "./routes/admin";
 import { buildActivityRouter } from "./routes/activity";
+import { buildProofsRouter } from "./routes/proofs";
+import { buildNotificationsRouter } from "./routes/notifications";
+import { buildAnalyticsRouter } from "./routes/analytics";
 import { GrantSyncService } from "./services/grant-sync-service";
 import { LeaderboardService } from "./services/leaderboard-service";
 import { SignatureService } from "./services/signature-service";
+import { IpfsService } from "./services/ipfs-service";
 import { Contributor } from "./entities/Contributor";
 import { AuditLog } from "./entities/AuditLog";
+import { GrantView } from "./entities/GrantView";
 import { buildAdminMiddleware } from "./middlewares/admin-middleware";
 import { SorobanContractClient } from "./soroban/types";
 import { createRateLimiter } from "./middlewares/rate-limiter";
@@ -82,6 +87,8 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
 
   const contributorRepo = dataSource.getRepository(Contributor);
   const auditLogRepo = dataSource.getRepository(AuditLog);
+  const grantViewRepo = dataSource.getRepository(GrantView);
+  const ipfsService = new IpfsService();
   const adminMiddleware = buildAdminMiddleware(signatureService);
 
   // Health check endpoint (no versioning)
@@ -94,6 +101,9 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/leaderboard", buildLeaderboardRouter(leaderboardService));
   app.use("/activity", buildActivityRouter(activityRepo));
   app.use("/admin", adminMiddleware, buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo));
+  app.use("/proofs", buildProofsRouter(ipfsService));
+  app.use("/notifications", buildNotificationsRouter(contributorRepo));
+  app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : "Internal server error";

@@ -15,6 +15,12 @@ export class Contributor {
   @Column({ type: "boolean", default: false })
   isBlacklisted!: boolean;
 
+  @Column({ type: "varchar", length: 254, nullable: true })
+  email!: string | null;
+
+  @Column({ type: "boolean", default: true })
+  emailNotifications!: boolean;
+
   @UpdateDateColumn()
   updatedAt!: Date;
 }
