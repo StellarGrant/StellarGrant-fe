@@ -1100,6 +1100,7 @@ impl StellarGrantsContract {
                 bounty_winner: None,
                 additional_funds: soroban_sdk::Map::new(&env),
                 top_up_contributions: soroban_sdk::Vec::new(&env),
+                proof_hash: None,
             };
             milestone.set_idx(i);
             milestone.set_approvals(0);
@@ -1407,9 +1408,18 @@ impl StellarGrantsContract {
 
             refund_all_milestone_top_up_contributions_and_clear(&env, grant_id, &mut grant)?;
 
+            // Pull-based refund model: record each funder's entitlement instead of pushing
+            // transfers. This prevents gas exhaustion when a grant has hundreds of funders.
+            // Funders must call `refund_claim(grant_id, funder)` to receive their tokens.
             for (token, balance) in grant.escrow_balances.iter() {
                 if balance > 0 {
-                    refund_token_to_funders(&env, grant_id, &grant.funders, &token, balance)?;
+                    record_pending_refunds_for_funders(
+                        &env,
+                        grant_id,
+                        &grant.funders,
+                        &token,
+                        balance,
+                    )?;
                 }
             }
 
@@ -1436,6 +1446,43 @@ impl StellarGrantsContract {
             Ok(())
         })
     }
+    /// Claim a pending refund after a grant has been cancelled.
+    ///
+    /// Under the pull-based refund model introduced to fix the gas-limit issue in
+    /// `grant_cancel` (#66), cancellation no longer loops through all funders.  Instead,
+    /// each funder's pro-rata share is recorded in storage and must be claimed here.
+    ///
+    /// Callable by any address that has a recorded refund; the caller must be the funder.
+    pub fn refund_claim(env: Env, grant_id: u64, funder: Address) -> Result<(), ContractError> {
+        funder.require_auth();
+        reentrancy::with_non_reentrant(&env, || {
+            let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+            if grant.status() != GrantStatus::Cancelled {
+                return Err(ContractError::InvalidState);
+            }
+
+            let pending = Storage::get_pending_refund(&env, grant_id, &funder);
+            if pending.is_empty() {
+                return Err(ContractError::NoRefundableAmount);
+            }
+
+            // Transfer each owed token and emit an event per token.
+            for (token, amount) in pending.iter() {
+                if amount > 0 {
+                    let token_client = token::Client::new(&env, &token);
+                    token_client.transfer(&env.current_contract_address(), &funder, &amount);
+                    Events::emit_refund_claimed(&env, grant_id, funder.clone(), amount, token);
+                }
+            }
+
+            // Clear the record so the funder cannot claim twice.
+            Storage::remove_pending_refund(&env, grant_id, &funder);
+
+            Ok(())
+        })
+    }
+
     pub fn grant_complete(env: Env, grant_id: u64) -> Result<(), ContractError> {
         reentrancy::with_non_reentrant(&env, || {
             let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
@@ -2186,6 +2233,57 @@ impl StellarGrantsContract {
         Storage::set_grant(&env, grant_id, &grant);
         Ok(())
     }
+    /// Attach a 32-byte cryptographic proof hash to an already-submitted milestone.
+    ///
+    /// The `proof_hash` is expected to be a raw 32-byte representation of an IPFS CIDv1
+    /// (multihash digest) or a Git commit SHA-256. Any 32-byte value is accepted on-chain;
+    /// format validation is the responsibility of the caller.
+    ///
+    /// Can be called multiple times to update a malformed hash before the milestone is approved.
+    /// Only the milestone submitter (grant owner or bounty winner) may call this.
+    pub fn milestone_submit_proof_hash(
+        env: Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        submitter: Address,
+        proof_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        submitter.require_auth();
+        assert_not_paused(&env)?;
+
+        let grant = Storage::get_grant(&env, grant_id).ok_or(ContractError::GrantNotFound)?;
+
+        if grant.status() != GrantStatus::Active {
+            return Err(ContractError::InvalidState);
+        }
+
+        let mut milestone = Storage::get_milestone(&env, grant_id, milestone_idx)
+            .ok_or(ContractError::MilestoneNotFound)?;
+
+        // Only the grant owner (or bounty winner if set) may attach a hash.
+        let authorised = if let Some(ref winner) = milestone.bounty_winner {
+            submitter == *winner
+        } else {
+            submitter == grant.owner
+        };
+        if !authorised {
+            return Err(ContractError::Unauthorized);
+        }
+
+        // Milestone must be submitted or in community review to accept a hash.
+        match milestone.state() {
+            MilestoneState::Submitted | MilestoneState::CommunityReview => {}
+            _ => return Err(ContractError::MilestoneNotSubmitted),
+        }
+
+        milestone.proof_hash = Some(proof_hash.clone());
+        Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
+
+        Events::emit_proof_hash_submitted(&env, grant_id, milestone_idx, submitter, proof_hash);
+
+        Ok(())
+    }
+
     pub fn milestone_submit_batch(
         env: Env,
         grant_id: u64,
@@ -3220,6 +3318,62 @@ fn has_token_funders(funders: &Vec<GrantFund>, token: &Address) -> bool {
         }
     }
     false
+}
+
+/// Pull-based refund accounting (issue #66).
+///
+/// Instead of looping through all funders and pushing token transfers — which
+/// exceeds the Soroban gas limit for grants with many funders — this helper
+/// records each funder's pro-rata entitlement in persistent storage.  The
+/// actual token transfers happen lazily when each funder calls `refund_claim`.
+fn record_pending_refunds_for_funders(
+    env: &Env,
+    grant_id: u64,
+    funders: &Vec<GrantFund>,
+    token: &Address,
+    refundable_amount: i128,
+) -> Result<(), ContractError> {
+    let mut total_token_contributions: i128 = 0;
+    let mut token_funders = soroban_sdk::Vec::new(env);
+    for fund_entry in funders.iter() {
+        if fund_entry.token == *token {
+            total_token_contributions += fund_entry.amount;
+            token_funders.push_back(fund_entry);
+        }
+    }
+
+    if total_token_contributions == 0 {
+        return Ok(());
+    }
+
+    let token_funders_len = token_funders.len();
+    let mut distributed = 0i128;
+
+    for i in 0..token_funders_len {
+        let fund_entry = funder_entry_at(&token_funders, i)?;
+        let is_last = i + 1 == token_funders_len;
+        let refund_amount = if is_last {
+            refundable_amount - distributed
+        } else {
+            let amount = fund_entry
+                .amount
+                .checked_mul(refundable_amount)
+                .ok_or(ContractError::InvalidInput)?
+                .checked_div(total_token_contributions)
+                .ok_or(ContractError::InvalidInput)?;
+            distributed += amount;
+            amount
+        };
+
+        if refund_amount > 0 {
+            // Append to any existing pending refunds for this funder (multiple tokens).
+            let mut pending = Storage::get_pending_refund(env, grant_id, &fund_entry.funder);
+            pending.push_back((token.clone(), refund_amount));
+            Storage::set_pending_refund(env, grant_id, &fund_entry.funder, &pending);
+        }
+    }
+
+    Ok(())
 }
 
 fn refund_token_to_funders(

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Map, String, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, BytesN, Map, String, Vec};
 #[contracterror]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -227,6 +227,9 @@ pub struct Milestone {
     pub additional_funds: Map<Address, i128>,
     /// Per-deposit ledger so milestone top-ups can be refunded to the original funders on cancel.
     pub top_up_contributions: Vec<MilestoneTopUp>,
+    /// Optional 32-byte cryptographic hash of the milestone proof (e.g. IPFS CID or Git commit SHA).
+    /// Set via `milestone_submit_proof_hash`; `None` until explicitly provided.
+    pub proof_hash: Option<BytesN<32>>,
 }
 
 #[contracttype]
@@ -278,6 +281,7 @@ impl Milestone {
             bounty_winner: None,
             additional_funds,
             top_up_contributions,
+            proof_hash: None,
         };
         ms.set_idx(idx);
         ms.set_approvals(approvals);

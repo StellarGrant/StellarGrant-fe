@@ -199,6 +199,30 @@ pub struct MilestoneSubmitted {
     pub timestamp: u64,
 }
 
+/// Emitted when a 32-byte proof hash is attached to a milestone via `milestone_submit_proof_hash`.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProofHashSubmitted {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub milestone_idx: u32,
+    pub submitter: Address,
+    pub proof_hash: BytesN<32>,
+    pub timestamp: u64,
+}
+
+/// Emitted when a funder claims their pending refund after a grant is cancelled.
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RefundClaimed {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub funder: Address,
+    pub amount: i128,
+    pub token: Address,
+    pub timestamp: u64,
+}
+
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BountyClaimed {
@@ -1124,6 +1148,44 @@ impl Events {
             grant_id,
             delegator,
             delegatee,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    /// Emit `ProofHashSubmitted` when a 32-byte hash is attached to a milestone.
+    pub fn emit_proof_hash_submitted(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        submitter: Address,
+        proof_hash: BytesN<32>,
+    ) {
+        let event = ProofHashSubmitted {
+            event_version: EVENT_VERSION,
+            grant_id,
+            milestone_idx,
+            submitter,
+            proof_hash,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    /// Emit `RefundClaimed` when a funder pulls their pending refund after cancellation.
+    pub fn emit_refund_claimed(
+        env: &Env,
+        grant_id: u64,
+        funder: Address,
+        amount: i128,
+        token: Address,
+    ) {
+        let event = RefundClaimed {
+            event_version: EVENT_VERSION,
+            grant_id,
+            funder,
+            amount,
+            token,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

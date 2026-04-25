@@ -743,6 +743,10 @@ mod tests {
         let reason = String::from_str(&env, "Project discontinued");
         client.grant_cancel(&grant_id, &owner, &reason);
 
+        // Pull-based refund: each funder must claim their refund.
+        client.refund_claim(&grant_id, &funder1);
+        client.refund_claim(&grant_id, &funder2);
+
         let token_client = token::Client::new(&env, &token_id);
         assert_eq!(token_client.balance(&funder1), 600);
         assert_eq!(token_client.balance(&funder2), 400);
@@ -880,6 +884,9 @@ mod tests {
         let reason = String::from_str(&env, "Malicious behavior detected");
         client.cancel_grant(&grant_id, &global_admin, &reason);
 
+        // Pull-based refund: funder must claim.
+        client.refund_claim(&grant_id, &funder);
+
         let token_client = token::Client::new(&env, &token_id);
         assert_eq!(token_client.balance(&funder), 500);
     }
@@ -999,6 +1006,11 @@ mod tests {
 
         client.cancel_grant(&grant_id, &owner, &String::from_str(&env, "Cancelled"));
 
+        // Pull-based refund.
+        client.refund_claim(&grant_id, &f1);
+        client.refund_claim(&grant_id, &f2);
+        client.refund_claim(&grant_id, &f3);
+
         let token_client = token::Client::new(&env, &token_id);
         assert_eq!(token_client.balance(&f1), 33);
         assert_eq!(token_client.balance(&f2), 33);
@@ -1087,6 +1099,7 @@ mod tests {
                     packed_stats: 0,
                     additional_funds: Map::new(&env),
                     top_up_contributions: Vec::new(&env),
+                    proof_hash: None,
                     bounty_winner: None,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1176,6 +1189,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -1197,6 +1211,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 1, &m2);
@@ -1270,6 +1285,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &m1);
@@ -1340,6 +1356,7 @@ mod tests {
                     packed_stats: 0,
                     additional_funds: Map::new(&env),
                     top_up_contributions: Vec::new(&env),
+                    proof_hash: None,
                     bounty_winner: None,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1412,6 +1429,7 @@ mod tests {
                     packed_stats: 0,
                     additional_funds: Map::new(&env),
                     top_up_contributions: Vec::new(&env),
+                    proof_hash: None,
                     bounty_winner: None,
                 };
                 Storage::set_milestone(&env, grant_id, i, &milestone);
@@ -1610,6 +1628,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -1873,6 +1892,7 @@ mod tests {
                     packed_stats: 0,
                     additional_funds: Map::new(&env),
                     top_up_contributions: Vec::new(&env),
+                    proof_hash: None,
                     bounty_winner: None,
                 };
                 milestone.set_idx(idx);
@@ -3298,6 +3318,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, milestone_idx, &milestone);
@@ -3856,6 +3877,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3910,6 +3932,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -3961,6 +3984,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -4010,6 +4034,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -4056,6 +4081,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -4142,6 +4168,7 @@ mod tests {
                 packed_stats: 0,
                 additional_funds: Map::new(&env),
                 top_up_contributions: Vec::new(&env),
+                proof_hash: None,
                 bounty_winner: None,
             };
             Storage::set_milestone(&env, grant_id, 0, &milestone);
@@ -4388,7 +4415,7 @@ mod tests {
         // Advance past the 7-day grace period
         env.ledger().set_timestamp(crate::CANCEL_GRACE_PERIOD + 1);
 
-        // Second call → should now execute the refund
+        // Second call → should now record pending refunds (pull model)
         client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "Going away"));
 
         env.as_contract(&contract_id, || {
@@ -4400,7 +4427,9 @@ mod tests {
             );
         });
 
-        // Funder should have received their tokens back
+        // Pull-based refund: funder claims their tokens.
+        client.refund_claim(&grant_id, &funder);
+
         let token_client = token::Client::new(&env, &token_id);
         assert_eq!(token_client.balance(&funder), 500);
     }
@@ -5949,6 +5978,10 @@ mod tests {
             &String::from_str(&env, "Not enough funding"),
         );
 
+        // Pull-based refund: each funder claims their respective token.
+        client.refund_claim(&grant_id, &funder1);
+        client.refund_claim(&grant_id, &funder2);
+
         // Verify refunds
         assert_eq!(token_a_client.balance(&funder1), 1000);
         assert_eq!(token_b_client.balance(&funder2), 1000);
@@ -6465,5 +6498,275 @@ mod tests {
 
         let r = client.try_mark_grant_inactive(&grant_id);
         assert_eq!(r, Err(Ok(ContractError::HeartbeatNotStale.into())));
+    }
+
+    // ── Tests for pull-based refund_claim (#66) ─────────────────────────────
+
+    fn setup_funded_grant<'a>(
+        env: &'a Env,
+        client: &StellarGrantsContractClient<'a>,
+        token: &Address,
+        contract_id: &Address,
+        tok: &token::StellarAssetClient<'a>,
+    ) -> (u64, Address, Address) {
+        let owner = Address::generate(env);
+        let reviewer = Address::generate(env);
+        let funder = Address::generate(env);
+        let mut reviewers = Vec::new(env);
+        reviewers.push_back(reviewer.clone());
+
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(env, "Pull Refund Grant"),
+            &String::from_str(env, "Desc"),
+            token,
+            &1000i128,
+            &500i128,
+            &1u32,
+            &reviewers,
+            &1u32,
+            &None,
+            &0i128,
+            &0i128,
+            &Vec::<String>::new(env),
+            &false,
+        );
+        client.grant_accept(&grant_id, &owner);
+        tok.mint(&funder, &600);
+        tok.mint(contract_id, &5000);
+        client.grant_fund(&grant_id, &funder, &600i128, token, &None);
+        (grant_id, owner, funder)
+    }
+
+    #[test]
+    fn test_refund_claim_succeeds_after_cancel() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+        let token_client = token::Client::new(&env, &token);
+
+        let (grant_id, owner, funder) =
+            setup_funded_grant(&env, &client, &token, &contract_id, &tok);
+
+        // Cancel the grant — should NOT push transfers immediately
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "shutting down"));
+
+        let balance_before = token_client.balance(&funder);
+
+        // Funder claims their refund
+        client.refund_claim(&grant_id, &funder);
+
+        let balance_after = token_client.balance(&funder);
+        assert!(
+            balance_after > balance_before,
+            "funder should have received tokens"
+        );
+    }
+
+    #[test]
+    fn test_refund_claim_fails_on_non_cancelled_grant() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+
+        let (grant_id, _owner, funder) =
+            setup_funded_grant(&env, &client, &token, &contract_id, &tok);
+
+        // Grant is still Active — refund_claim should fail
+        let result = client.try_refund_claim(&grant_id, &funder);
+        assert_eq!(result, Err(Ok(ContractError::InvalidState.into())));
+    }
+
+    #[test]
+    fn test_refund_claim_fails_when_no_pending_refund() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+
+        let (grant_id, owner, _funder) =
+            setup_funded_grant(&env, &client, &token, &contract_id, &tok);
+
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "done"));
+
+        // A non-funder has no pending refund
+        let outsider = Address::generate(&env);
+        let result = client.try_refund_claim(&grant_id, &outsider);
+        assert_eq!(result, Err(Ok(ContractError::NoRefundableAmount.into())));
+    }
+
+    #[test]
+    fn test_refund_claim_is_idempotency_protected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+
+        let (grant_id, owner, funder) =
+            setup_funded_grant(&env, &client, &token, &contract_id, &tok);
+
+        client.grant_cancel(&grant_id, &owner, &String::from_str(&env, "done"));
+
+        // First claim succeeds
+        client.refund_claim(&grant_id, &funder);
+
+        // Second claim fails — record was removed
+        let result = client.try_refund_claim(&grant_id, &funder);
+        assert_eq!(result, Err(Ok(ContractError::NoRefundableAmount.into())));
+    }
+
+    // ── Tests for milestone_submit_proof_hash (#78) ─────────────────────────
+
+    #[test]
+    fn test_proof_hash_submission_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+        tok.mint(&contract_id, &5000);
+
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Hash Grant"),
+            &String::from_str(&env, "Desc"),
+            &token,
+            &1000i128,
+            &500i128,
+            &1u32,
+            &reviewers,
+            &1u32,
+            &None,
+            &0i128,
+            &0i128,
+            &Vec::<String>::new(&env),
+            &false,
+        );
+        client.grant_accept(&grant_id, &owner);
+        tok.mint(&owner, &1000);
+        client.grant_fund(&grant_id, &owner, &1000i128, &token, &None);
+
+        // Submit the milestone first
+        client.milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &String::from_str(&env, "Work done"),
+            &String::from_str(&env, "https://proof.url"),
+            &None,
+        );
+
+        // Attach a 32-byte proof hash
+        let hash = BytesN::<32>::from_array(&env, &[0xabu8; 32]);
+        client.milestone_submit_proof_hash(&grant_id, &0u32, &owner, &hash);
+
+        // Verify the hash is stored
+        let milestone = client.get_milestone(&grant_id, &0u32);
+        assert_eq!(milestone.proof_hash, Some(hash));
+    }
+
+    #[test]
+    fn test_proof_hash_resubmission_updates_value() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+        tok.mint(&contract_id, &5000);
+
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Hash Grant 2"),
+            &String::from_str(&env, "Desc"),
+            &token,
+            &1000i128,
+            &500i128,
+            &1u32,
+            &reviewers,
+            &1u32,
+            &None,
+            &0i128,
+            &0i128,
+            &Vec::<String>::new(&env),
+            &false,
+        );
+        client.grant_accept(&grant_id, &owner);
+        tok.mint(&owner, &1000);
+        client.grant_fund(&grant_id, &owner, &1000i128, &token, &None);
+
+        client.milestone_submit(
+            &grant_id,
+            &0u32,
+            &owner,
+            &String::from_str(&env, "Work done"),
+            &String::from_str(&env, "https://proof.url"),
+            &None,
+        );
+
+        let first_hash = BytesN::<32>::from_array(&env, &[0x01u8; 32]);
+        client.milestone_submit_proof_hash(&grant_id, &0u32, &owner, &first_hash);
+
+        // Re-submit with corrected hash
+        let corrected_hash = BytesN::<32>::from_array(&env, &[0x02u8; 32]);
+        client.milestone_submit_proof_hash(&grant_id, &0u32, &owner, &corrected_hash);
+
+        let milestone = client.get_milestone(&grant_id, &0u32);
+        assert_eq!(milestone.proof_hash, Some(corrected_hash));
+    }
+
+    #[test]
+    fn test_proof_hash_rejected_for_non_submitted_milestone() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, admin, contract_id) = setup_test(&env);
+        let token = register_sep41_token(&env, admin.clone());
+        let tok = token::StellarAssetClient::new(&env, &token);
+        tok.mint(&contract_id, &5000);
+
+        let owner = Address::generate(&env);
+        let reviewer = Address::generate(&env);
+        let mut reviewers = Vec::new(&env);
+        reviewers.push_back(reviewer.clone());
+
+        let grant_id = client.grant_create(
+            &owner,
+            &String::from_str(&env, "Hash Grant 3"),
+            &String::from_str(&env, "Desc"),
+            &token,
+            &1000i128,
+            &500i128,
+            &1u32,
+            &reviewers,
+            &1u32,
+            &None,
+            &0i128,
+            &0i128,
+            &Vec::<String>::new(&env),
+            &false,
+        );
+        client.grant_accept(&grant_id, &owner);
+        tok.mint(&owner, &1000);
+        client.grant_fund(&grant_id, &owner, &1000i128, &token, &None);
+
+        // Milestone is still Pending — cannot attach hash
+        let hash = BytesN::<32>::from_array(&env, &[0xffu8; 32]);
+        let result = client.try_milestone_submit_proof_hash(&grant_id, &0u32, &owner, &hash);
+        assert_eq!(result, Err(Ok(ContractError::MilestoneNotSubmitted.into())));
     }
 }

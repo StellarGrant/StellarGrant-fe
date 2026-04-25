@@ -36,6 +36,8 @@ pub enum DataKey {
     RoleMemberCount(u32),
     ExtensionRequest(u64, u32),
     BountySubmissions(u64, u32),
+    /// Pending refund for a funder after grant cancellation: (grant_id, funder) -> Vec<(token, amount)>.
+    PendingRefund(u64, soroban_sdk::Address),
 }
 
 pub struct Storage;
@@ -591,5 +593,38 @@ impl Storage {
         env.storage()
             .persistent()
             .remove(&DataKey::ExtensionRequest(grant_id, milestone_idx));
+    }
+
+    // ── Pull-based refund helpers (issue #66) ─────────────────────────────
+
+    /// Returns the pending refunds owed to `funder` for a cancelled grant.
+    /// Each entry is `(token_address, amount)`.
+    pub fn get_pending_refund(
+        env: &Env,
+        grant_id: u64,
+        funder: &soroban_sdk::Address,
+    ) -> Vec<(soroban_sdk::Address, i128)> {
+        let key = DataKey::PendingRefund(grant_id, funder.clone());
+        env.storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(env))
+    }
+
+    pub fn set_pending_refund(
+        env: &Env,
+        grant_id: u64,
+        funder: &soroban_sdk::Address,
+        refunds: &Vec<(soroban_sdk::Address, i128)>,
+    ) {
+        let key = DataKey::PendingRefund(grant_id, funder.clone());
+        env.storage().persistent().set(&key, refunds);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_pending_refund(env: &Env, grant_id: u64, funder: &soroban_sdk::Address) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::PendingRefund(grant_id, funder.clone()));
     }
 }
