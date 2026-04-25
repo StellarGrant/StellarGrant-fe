@@ -13,14 +13,21 @@
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^13.3.0",
+    "@types/cors": "^2.8.19",
+    "@types/morgan": "^1.9.10",
+    "@types/uuid": "^10.0.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "express": "^4.22.1",
     "express-rate-limit": "^8.4.1",
     "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
     "pg": "^8.13.3",
     "reflect-metadata": "^0.2.2",
     "typeform": "^1.0.1",
     "typeorm": "^0.3.24",
+    "uuid": "^14.0.0",
+    "winston": "^3.19.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
