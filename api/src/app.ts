@@ -15,6 +15,8 @@ import { buildProofsRouter } from "./routes/proofs";
 import { buildNotificationsRouter } from "./routes/notifications";
 import { buildAnalyticsRouter } from "./routes/analytics";
 import { buildSearchRouter } from "./routes/search";
+import { buildWatchlistRouter } from "./routes/watchlist";
+import { UserWatchlist } from "./entities/UserWatchlist";
 import { GrantSyncService } from "./services/grant-sync-service";
 import { LeaderboardService } from "./services/leaderboard-service";
 import { SignatureService } from "./services/signature-service";
@@ -114,6 +116,7 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/notifications", buildNotificationsRouter(contributorRepo));
   app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
   app.use("/search", buildSearchRouter(dataSource));
+  app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
   app.get("/config/fee", async (req, res) => {
     const fee = await configService.getFeePercentage();
     res.json({ feePercentage: fee });
