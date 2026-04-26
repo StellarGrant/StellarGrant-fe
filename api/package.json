@@ -28,6 +28,7 @@
     "nodemailer": "^8.0.6",
     "pg": "^8.13.3",
     "reflect-metadata": "^0.2.2",
+    "socket.io": "^4.8.3",
     "typeform": "^1.0.1",
     "typeorm": "^0.3.24",
     "uuid": "^14.0.0",

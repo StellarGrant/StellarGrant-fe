@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { createApp } from "./app";
 import { buildDataSource } from "./db/data-source";
 import { MockSorobanContractClient } from "./soroban/mock-client";
+import { notificationService } from "./services/notification-service";
 
 const bootstrap = async () => {
   const dataSource = buildDataSource();
@@ -10,6 +11,9 @@ const bootstrap = async () => {
 
   const app = createApp(dataSource, new MockSorobanContractClient());
   const server = createServer(app);
+
+  // Initialize real-time notifications
+  notificationService.initialize(server);
 
   server.listen(env.port, () => {
     // Keep startup log concise for container logs.

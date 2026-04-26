@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Orbitron, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { SocketProvider } from "@/hooks/useSocket";
+import { NotificationToast } from "@/components/ui/NotificationToast";
 
 const orbitron = Orbitron({
   variable: "--font-orbitron",
@@ -32,7 +34,10 @@ export default function RootLayout({
       <body
         className={`${orbitron.variable} ${ibmPlexMono.variable} antialiased`}
       >
-        {children}
+        <SocketProvider>
+          {children}
+          <NotificationToast />
+        </SocketProvider>
       </body>
     </html>
   );

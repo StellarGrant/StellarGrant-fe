@@ -4,6 +4,7 @@ import { z } from "zod";
 import { MilestoneProof } from "../entities/MilestoneProof";
 import { Activity } from "../entities/Activity";
 import { SignatureService } from "../services/signature-service";
+import { notificationService } from "../services/notification-service";
 
 const milestoneProofSchema = z.object({
   grantId: z.number().int().positive(),
@@ -59,6 +60,13 @@ export const buildMilestoneProofRouter = (
         entityId: proof.id,
         actorAddress: payload.submittedBy,
         data: { grantId: payload.grantId, milestoneIdx: payload.milestoneIdx },
+      });
+
+      // Broadcast to reviewers (simplified for now as broadcast)
+      notificationService.broadcast("milestone_submitted", {
+        grantId: payload.grantId,
+        milestoneIdx: payload.milestoneIdx,
+        submittedBy: payload.submittedBy
       });
 
       res.status(201).json({ data: proof });

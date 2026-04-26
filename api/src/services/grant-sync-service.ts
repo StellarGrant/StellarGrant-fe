@@ -4,6 +4,7 @@ import { Contributor } from "../entities/Contributor";
 import { ReputationLog } from "../entities/ReputationLog";
 import { Activity } from "../entities/Activity";
 import { SorobanContractClient } from "../soroban/types";
+import { notificationService } from "./notification-service";
 
 export class GrantSyncService {
   private readonly grantRepo: Repository<Grant>;
@@ -37,6 +38,7 @@ export class GrantSyncService {
           actorAddress: grant.recipient,
           data: { title: grant.title, totalAmount: grant.totalAmount },
         });
+        notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
       } else if (existingGrant.status !== grant.status) {
         // Log activity for status changes
         await this.logActivity({
@@ -45,6 +47,12 @@ export class GrantSyncService {
           entityId: grant.id,
           actorAddress: grant.recipient,
           data: { oldStatus: existingGrant.status, newStatus: grant.status },
+        });
+        notificationService.notifyUser(grant.recipient, "grant_updated", { 
+          grantId: grant.id, 
+          title: grant.title,
+          oldStatus: existingGrant.status, 
+          newStatus: grant.status 
         });
       }
     }
@@ -66,6 +74,7 @@ export class GrantSyncService {
         actorAddress: grant.recipient,
         data: { title: grant.title, totalAmount: grant.totalAmount },
       });
+      notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
     } else if (existingGrant.status !== grant.status) {
       // Log activity for status changes
       await this.logActivity({
@@ -74,6 +83,12 @@ export class GrantSyncService {
         entityId: grant.id,
         actorAddress: grant.recipient,
         data: { oldStatus: existingGrant.status, newStatus: grant.status },
+      });
+      notificationService.notifyUser(grant.recipient, "grant_updated", { 
+        grantId: grant.id, 
+        title: grant.title,
+        oldStatus: existingGrant.status, 
+        newStatus: grant.status 
       });
     }
   }
