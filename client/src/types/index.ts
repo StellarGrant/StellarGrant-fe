@@ -2,7 +2,7 @@
  * Interface for signing transactions.
  * Implement this to integrate with various wallets (e.g., Freighter, Albedo).
  */
-export type StellarGrantsSigner = {
+export interface WalletAdapter {
   /**
    * Returns the public key of the signer.
    */
@@ -13,7 +13,7 @@ export type StellarGrantsSigner = {
    * @param networkPassphrase The passphrase of the network the transaction is for.
    */
   signTransaction(txXdr: string, networkPassphrase: string): Promise<string>;
-};
+}
 
 /**
  * Configuration options for the StellarGrants SDK.
@@ -25,8 +25,8 @@ export type StellarGrantsSDKConfig = {
   rpcUrl: string;
   /** The network passphrase (e.g., "Test SDF Network ; September 2015"). */
   networkPassphrase: string;
-  /** The signer used to authorize transactions. */
-  signer: StellarGrantsSigner;
+  /** The signer (wallet adapter) used to authorize transactions. */
+  signer: WalletAdapter;
   /** Default fee to use for transactions (in stroops). Defaults to "100". */
   defaultFee?: string;
   /** Polling interval in milliseconds when waiting for transactions. Defaults to 1000. */
@@ -87,4 +87,16 @@ export type MilestoneVoteInput = {
   milestoneIdx: number;
   /** Whether to approve (true) or reject (false) the milestone. */
   approve: boolean;
+};
+
+/**
+ * Options for state-changing transaction invocations.
+ */
+export type WriteOptions = {
+  /** Optional multiplier for the simulated resource fee. */
+  feeMultiplier?: number;
+  /** Pre-calculated Soroban transaction data. */
+  transactionData?: any; // xdr.SorobanTransactionData
+  /** Explicit fee to use, bypassing automatic calculation. */
+  simulatedFee?: string;
 };

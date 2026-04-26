@@ -14,6 +14,8 @@ import {
   MilestoneSubmitInput,
   MilestoneVoteInput,
   StellarGrantsSDKConfig,
+  WalletAdapter,
+  WriteOptions,
 } from "./types";
 import { EventParser, ParsedEvent } from "./events";
 
@@ -54,23 +56,10 @@ export class StellarGrantsSDK {
    * Creates a new grant in the system.
    * 
    * @param input Details of the grant to create.
+   * @param options Optional transaction configuration.
    * @returns A promise that resolves to the transaction submission result.
-   * @throws {StellarGrantsError} If simulation fails or transaction submission is rejected.
-   * @throws {SorobanRevertError} If the contract call reverts.
-   * 
-   * @example
-   * ```typescript
-   * const result = await sdk.grantCreate({
-   *   owner: "G...",
-   *   title: "Open Source SDK",
-   *   description: "Building a better SDK for Stellar",
-   *   budget: 5000000000n, // 500 XLM
-   *   deadline: 1735689600n,
-   *   milestoneCount: 3
-   * });
-   * ```
    */
-  async grantCreate(input: GrantCreateInput): Promise<rpc.Api.SendTransactionResponse> {
+  async grantCreate(input: GrantCreateInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
     return this.invokeWrite("grant_create", [
       nativeToScVal(input.owner, { type: "address" }),
       nativeToScVal(input.title),
@@ -78,52 +67,52 @@ export class StellarGrantsSDK {
       nativeToScVal(input.budget, { type: "i128" }),
       nativeToScVal(input.deadline, { type: "u64" }),
       nativeToScVal(input.milestoneCount, { type: "u32" }),
-    ]) as Promise<rpc.Api.SendTransactionResponse>;
+    ], options) as Promise<rpc.Api.SendTransactionResponse>;
   }
 
   /**
    * Funds an existing grant with tokens.
    * 
    * @param input Funding details including grant ID, token address, and amount.
+   * @param options Optional transaction configuration.
    * @returns A promise that resolves to the transaction submission result.
-   * @throws {StellarGrantsError} If simulation fails or transaction submission is rejected.
    */
-  async grantFund(input: GrantFundInput): Promise<rpc.Api.SendTransactionResponse> {
+  async grantFund(input: GrantFundInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
     return this.invokeWrite("grant_fund", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.token, { type: "address" }),
       nativeToScVal(input.amount, { type: "i128" }),
-    ]) as Promise<rpc.Api.SendTransactionResponse>;
+    ], options) as Promise<rpc.Api.SendTransactionResponse>;
   }
 
   /**
    * Submits a proof hash for a specific milestone.
    * 
    * @param input Milestone details and the proof hash.
+   * @param options Optional transaction configuration.
    * @returns A promise that resolves to the transaction submission result.
-   * @throws {StellarGrantsError} If the milestone index is invalid or caller is not the owner.
    */
-  async milestoneSubmit(input: MilestoneSubmitInput): Promise<rpc.Api.SendTransactionResponse> {
+  async milestoneSubmit(input: MilestoneSubmitInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
     return this.invokeWrite("milestone_submit", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.proofHash),
-    ]) as Promise<rpc.Api.SendTransactionResponse>;
+    ], options) as Promise<rpc.Api.SendTransactionResponse>;
   }
 
   /**
    * Casts a vote (approval or rejection) for a milestone.
    * 
    * @param input Vote details including grant ID, milestone index, and approval flag.
+   * @param options Optional transaction configuration.
    * @returns A promise that resolves to the transaction submission result.
-   * @throws {StellarGrantsError} If the caller is not an authorized reviewer.
    */
-  async milestoneVote(input: MilestoneVoteInput): Promise<rpc.Api.SendTransactionResponse> {
+  async milestoneVote(input: MilestoneVoteInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
     return this.invokeWrite("milestone_vote", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.approve),
-    ]) as Promise<rpc.Api.SendTransactionResponse>;
+    ], options) as Promise<rpc.Api.SendTransactionResponse>;
   }
 
   /**
@@ -152,21 +141,6 @@ export class StellarGrantsSDK {
 
   /**
    * Polls the RPC server for the status of a transaction until it reaches a terminal state.
-   * 
-   * This utility is essential for waiting until a transaction is actually included in a ledger.
-   * 
-   * @param hash The transaction hash to wait for.
-   * @param intervalMs The polling interval in milliseconds. Defaults to config or 1000ms.
-   * @param timeoutMs The total timeout in milliseconds. Defaults to config or 30000ms.
-   * @returns The full transaction response from the RPC server once successful.
-   * @throws {StellarGrantsError} If the transaction fails or times out.
-   * 
-   * @example
-   * ```typescript
-   * const sent = await sdk.grantCreate(input);
-   * const confirmed = await sdk.waitForTransaction(sent.hash);
-   * console.log("Ledger:", confirmed.ledger);
-   * ```
    */
   async waitForTransaction(
     hash: string,
@@ -191,18 +165,78 @@ export class StellarGrantsSDK {
 
   /**
    * Extracts and parses contract events from a successful transaction response.
-   * 
-   * @param response The successful transaction response obtained from `waitForTransaction`.
-   * @returns An array of parsed events with native JavaScript types.
-   * 
-   * @example
-   * ```typescript
-   * const events = sdk.parseEvents(confirmedTx);
-   * const created = EventParser.findEvent<GrantCreatedData>(events, "GrantCreated");
-   * ```
    */
   parseEvents(response: rpc.Api.GetTransactionResponse): ParsedEvent[] {
     return EventParser.parseEvents(response);
+  }
+
+  /**
+   * Simulates a transaction without submitting it.
+   * 
+   * @param method The contract method to call.
+   * @param args The arguments for the method.
+   * @returns The simulation response.
+   */
+  public async simulateTransaction(method: string, args: xdr.ScVal[]): Promise<rpc.Api.SimulateTransactionResponse> {
+    const tx = await this.buildTx(method, args);
+    const simulation = await this.server.simulateTransaction(tx);
+    this.ensureSimulationSuccess(simulation);
+    return simulation;
+  }
+
+  /**
+   * Subscribes to contract events.
+   * 
+   * @param callback Function called for each new event.
+   * @param options Filter options for events.
+   * @returns A function to unsubscribe.
+   */
+  public subscribeToEvents(
+    callback: (event: any) => void,
+    options?: { eventName?: string; startLedger?: number },
+  ): () => void {
+    let active = true;
+    let currentCursor: string | undefined = undefined;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const req: any = {
+           filters: [{ type: "contract", contractIds: [this.config.contractId] }],
+        };
+        if (!currentCursor && options?.startLedger) {
+          req.startLedger = options.startLedger;
+        }
+        if (currentCursor) {
+          req.pagination = { cursor: currentCursor };
+        }
+        
+        const response = await this.server.getEvents(req);
+        if (response.events) {
+          for (const ev of response.events) {
+            currentCursor = ev.id || ev.pagingToken || currentCursor; 
+            
+            if (options?.eventName) {
+              const topicMatches = ev.topic && ev.topic.some((t: string) => {
+                 try { 
+                    const scVal = xdr.ScVal.fromXDR(t, "base64");
+                    const parsed = scValToNative(scVal);
+                    return parsed === options.eventName || String(parsed) === options.eventName;
+                 } catch { return false; }
+              });
+              if (!topicMatches) continue;
+            }
+            callback(ev);
+          }
+        }
+      } catch (err) {
+         console.warn("Event poll error, continuing...", err);
+      }
+      if (active) setTimeout(poll, 5000);
+    };
+    
+    poll();
+    return () => { active = false; };
   }
 
   /**
@@ -222,13 +256,37 @@ export class StellarGrantsSDK {
   /**
    * Internal helper for state-changing contract invocations.
    */
-  private async invokeWrite(method: string, args: xdr.ScVal[]): Promise<unknown> {
+  private async invokeWrite(
+    method: string, 
+    args: xdr.ScVal[],
+    options?: WriteOptions
+  ): Promise<rpc.Api.SendTransactionResponse | unknown> {
     try {
-      const tx = await this.buildTx(method, args);
-      const simulation = await this.server.simulateTransaction(tx);
-      this.ensureSimulationSuccess(simulation);
+      let finalFee = this.config.defaultFee ?? "100";
 
-      const prepared = await this.server.prepareTransaction(tx);
+      if (!options?.transactionData || options?.feeMultiplier) {
+        const txForSim = await this.buildTx(method, args);
+        const simulation = await this.server.simulateTransaction(txForSim);
+        this.ensureSimulationSuccess(simulation);
+        
+        if (options?.feeMultiplier) {
+          finalFee = String(Math.ceil(Number(simulation.minResourceFee) * options.feeMultiplier));
+        } else {
+          finalFee = String(Number(simulation.minResourceFee || 0) + 10000);
+        }
+      }
+
+      if (options?.simulatedFee && !options?.feeMultiplier) {
+        finalFee = options.simulatedFee;
+      }
+
+      const tx = await this.buildTx(method, args, finalFee, options?.transactionData);
+      let prepared = tx;
+
+      if (!options?.transactionData) {
+        prepared = await this.server.prepareTransaction(tx);
+      }
+
       const signedXdr = await this.config.signer.signTransaction(
         prepared.toXDR(),
         this.config.networkPassphrase,
@@ -248,16 +306,26 @@ export class StellarGrantsSDK {
   /**
    * Builds a transaction for a contract call.
    */
-  private async buildTx(method: string, args: xdr.ScVal[]) {
+  private async buildTx(
+    method: string, 
+    args: xdr.ScVal[], 
+    overrideFee?: string, 
+    sorobanData?: string | xdr.SorobanTransactionData
+  ) {
     const source = await this.config.signer.getPublicKey();
     const account = await this.server.getAccount(source);
-    return new TransactionBuilder(account, {
-      fee: this.config.defaultFee ?? "100",
+    const builder = new TransactionBuilder(account, {
+      fee: overrideFee ?? this.config.defaultFee ?? "100",
       networkPassphrase: this.config.networkPassphrase,
     })
       .addOperation(this.contract.call(method, ...args))
-      .setTimeout(60)
-      .build();
+      .setTimeout(60);
+      
+    if (sorobanData) {
+      builder.setSorobanData(sorobanData);
+    }
+      
+    return builder.build();
   }
 
   /**
