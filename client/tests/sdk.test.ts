@@ -21,7 +21,7 @@ import {
 jest.mock("@stellar/stellar-sdk", () => {
   class MockServer {
     static simulationError: string | null = null;
-    constructor() {}
+    constructor() { }
     async getAccount() {
       return { accountId: "GTEST", sequence: "1" };
     }
@@ -53,6 +53,11 @@ jest.mock("@stellar/stellar-sdk", () => {
         async prepareTransaction(tx: any) { return tx; }
         async sendTransaction() { return { status: "PENDING", hash: "mockhash" }; }
         async getEvents() { return { events: [] }; }
+        async getTransaction(hash: string) {
+          if (hash === "fail") return { status: "FAILED" };
+          if (hash === "timeout") return { status: "NOT_FOUND" };
+          return { status: "SUCCESS", hash };
+        }
       },
     },
     Contract: class {
@@ -353,6 +358,11 @@ describe("invokeWrite option paths", () => {
   });
 
   describe("waitForTransaction", () => {
+    const signer = {
+      getPublicKey: jest.fn(async () => "GABC123"),
+      signTransaction: jest.fn(async () => "SIGNED_XDR"),
+    };
+
     it("resolves on SUCCESS", async () => {
       const sdk = new StellarGrantsSDK({
         contractId: "CBLAH",

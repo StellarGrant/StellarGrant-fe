@@ -207,5 +207,30 @@ export const buildAdminRouter = (
     }
   });
 
+  /**
+   * POST /admin/reconcile
+   * Manually trigger a reconciliation run. Returns the result immediately.
+   */
+  router.post("/reconcile", async (req, res, next) => {
+    if (!reconciliationService) {
+      res.status(503).json({ error: "Reconciliation service not available" });
+      return;
+    }
+    try {
+      const result = await reconciliationService.run();
+
+      await auditLogRepo.save({
+        adminAddress: (req as any).adminAddress,
+        action: "TRIGGER_RECONCILIATION",
+        target: `ledgers:${result.fromLedger}-${result.toLedger}`,
+        details: JSON.stringify(result),
+      });
+
+      res.json({ ok: true, result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 };
