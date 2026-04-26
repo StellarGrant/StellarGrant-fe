@@ -97,6 +97,34 @@ export class StellarGrantsSDK {
     ]);
   }
 
+  /**
+   * Polls the RPC server for the status of a transaction until it reaches a terminal state.
+   * @param hash The transaction hash to wait for.
+   * @param intervalMs The polling interval in milliseconds.
+   * @param timeoutMs The total timeout in milliseconds.
+   * @returns The transaction response from the RPC server.
+   */
+  async waitForTransaction(
+    hash: string,
+    intervalMs: number = this.config.pollingIntervalMs ?? 1000,
+    timeoutMs: number = this.config.pollingTimeoutMs ?? 30000,
+  ): Promise<rpc.Api.GetTransactionResponse> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const response = await this.server.getTransaction(hash);
+      if (response.status !== "NOT_FOUND") {
+        if (response.status === "SUCCESS") {
+          return response;
+        }
+        if (response.status === "FAILED") {
+          throw new StellarGrantsError(`Transaction failed: ${hash}`, "TRANSACTION_FAILED", response);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new StellarGrantsError(`Transaction timed out: ${hash}`, "TRANSACTION_TIMEOUT");
+  }
+
   private async invokeRead(method: string, args: xdr.ScVal[]): Promise<unknown> {
     try {
       const tx = await this.buildTx(method, args);

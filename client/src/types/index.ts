@@ -9,6 +9,8 @@ export type StellarGrantsSDKConfig = {
   networkPassphrase: string;
   signer: StellarGrantsSigner;
   defaultFee?: string;
+  pollingIntervalMs?: number;
+  pollingTimeoutMs?: number;
 };
 
 export type GrantCreateInput = {

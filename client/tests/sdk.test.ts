@@ -20,6 +20,11 @@ jest.mock("@stellar/stellar-sdk", () => {
     async sendTransaction() {
       return { status: "PENDING", hash: "abc123" };
     }
+    async getTransaction(hash: string) {
+      if (hash === "fail") return { status: "FAILED" };
+      if (hash === "timeout") return { status: "NOT_FOUND" };
+      return { status: "SUCCESS", hash };
+    }
   }
 
   return {
@@ -91,5 +96,43 @@ describe("StellarGrantsSDK", () => {
     const parsed = parseSorobanError(new Error("HostError: txFailed: revert: grant not active"));
     expect(parsed.name).toBe("SorobanRevertError");
     expect(parsed.message).toContain("grant not active");
+  });
+
+  describe("waitForTransaction", () => {
+    it("resolves on SUCCESS", async () => {
+      const sdk = new StellarGrantsSDK({
+        contractId: "CBLAH",
+        rpcUrl: "https://rpc.test",
+        networkPassphrase: "Test SDF Network ; September 2015",
+        signer,
+      });
+
+      const res = await sdk.waitForTransaction("abc123");
+      expect(res.status).toBe("SUCCESS");
+    });
+
+    it("throws on FAILED", async () => {
+      const sdk = new StellarGrantsSDK({
+        contractId: "CBLAH",
+        rpcUrl: "https://rpc.test",
+        networkPassphrase: "Test SDF Network ; September 2015",
+        signer,
+      });
+
+      await expect(sdk.waitForTransaction("fail")).rejects.toThrow("Transaction failed");
+    });
+
+    it("throws on timeout", async () => {
+      const sdk = new StellarGrantsSDK({
+        contractId: "CBLAH",
+        rpcUrl: "https://rpc.test",
+        networkPassphrase: "Test SDF Network ; September 2015",
+        signer,
+        pollingIntervalMs: 10,
+        pollingTimeoutMs: 50,
+      });
+
+      await expect(sdk.waitForTransaction("timeout")).rejects.toThrow("Transaction timed out");
+    });
   });
 });
