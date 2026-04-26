@@ -1,4 +1,8 @@
 export { StellarGrantsSDK } from "./StellarGrantsSDK";
+export * from "./types";
+export * from "./errors/StellarGrantsError";
+export * from "./errors/parseSorobanError";
+export * from "./wallets";
 export { parseSorobanError } from "./errors/parseSorobanError";
 export { SorobanRevertError, StellarGrantsError } from "./errors/StellarGrantsError";
 export type {
@@ -7,5 +11,5 @@ export type {
   MilestoneSubmitInput,
   MilestoneVoteInput,
   StellarGrantsSDKConfig,
-  StellarGrantsSigner,
+  WalletAdapter,
 } from "./types";

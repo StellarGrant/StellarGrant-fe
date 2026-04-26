@@ -1,13 +1,13 @@
-export type StellarGrantsSigner = {
+export interface WalletAdapter {
   getPublicKey(): Promise<string>;
   signTransaction(txXdr: string, networkPassphrase: string): Promise<string>;
-};
+}
 
 export type StellarGrantsSDKConfig = {
   contractId: string;
   rpcUrl: string;
   networkPassphrase: string;
-  signer: StellarGrantsSigner;
+  signer: WalletAdapter;
   defaultFee?: string;
 };
 

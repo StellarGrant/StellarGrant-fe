@@ -36,7 +36,7 @@ export class StellarGrantsSDK {
   /**
    * Creates a new grant.
    */
-  async grantCreate(input: GrantCreateInput): Promise<unknown> {
+  async grantCreate(input: GrantCreateInput, options?: any): Promise<unknown> {
     return this.invokeWrite("grant_create", [
       nativeToScVal(input.owner, { type: "address" }),
       nativeToScVal(input.title),
@@ -44,40 +44,40 @@ export class StellarGrantsSDK {
       nativeToScVal(input.budget, { type: "i128" }),
       nativeToScVal(input.deadline, { type: "u64" }),
       nativeToScVal(input.milestoneCount, { type: "u32" }),
-    ]);
+    ], options);
   }
 
   /**
    * Funds an existing grant.
    */
-  async grantFund(input: GrantFundInput): Promise<unknown> {
+  async grantFund(input: GrantFundInput, options?: any): Promise<unknown> {
     return this.invokeWrite("grant_fund", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.token, { type: "address" }),
       nativeToScVal(input.amount, { type: "i128" }),
-    ]);
+    ], options);
   }
 
   /**
    * Submits milestone proof for a grant.
    */
-  async milestoneSubmit(input: MilestoneSubmitInput): Promise<unknown> {
+  async milestoneSubmit(input: MilestoneSubmitInput, options?: any): Promise<unknown> {
     return this.invokeWrite("milestone_submit", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.proofHash),
-    ]);
+    ], options);
   }
 
   /**
    * Casts an approval/rejection vote for a milestone.
    */
-  async milestoneVote(input: MilestoneVoteInput): Promise<unknown> {
+  async milestoneVote(input: MilestoneVoteInput, options?: any): Promise<unknown> {
     return this.invokeWrite("milestone_vote", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.approve),
-    ]);
+    ], options);
   }
 
   /**
@@ -108,13 +108,50 @@ export class StellarGrantsSDK {
     }
   }
 
-  private async invokeWrite(method: string, args: xdr.ScVal[]): Promise<unknown> {
-    try {
-      const tx = await this.buildTx(method, args);
-      const simulation = await this.server.simulateTransaction(tx);
-      this.ensureSimulationSuccess(simulation);
+  public async simulateTransaction(method: string, args: xdr.ScVal[]): Promise<any> {
+    const tx = await this.buildTx(method, args);
+    const simulation = await this.server.simulateTransaction(tx);
+    this.ensureSimulationSuccess(simulation);
+    return simulation;
+  }
 
-      const prepared = await this.server.prepareTransaction(tx);
+  private async invokeWrite(
+    method: string, 
+    args: xdr.ScVal[],
+    options?: {
+      feeMultiplier?: number;
+      transactionData?: string | xdr.SorobanTransactionData;
+      simulatedFee?: string;
+    }
+  ): Promise<unknown> {
+    try {
+      let finalFee = this.config.defaultFee ?? "100";
+      let manualSim = false;
+
+      if (!options?.transactionData || options?.feeMultiplier) {
+        const txForSim = await this.buildTx(method, args);
+        const simulation = await this.server.simulateTransaction(txForSim);
+        this.ensureSimulationSuccess(simulation);
+        
+        if (options?.feeMultiplier) {
+          finalFee = String(Math.ceil(Number(simulation.minResourceFee) * options.feeMultiplier));
+        } else {
+          finalFee = String(Number(simulation.minResourceFee || 0) + 10000);
+        }
+        manualSim = true;
+      }
+
+      if (options?.simulatedFee && !options?.feeMultiplier) {
+        finalFee = options.simulatedFee;
+      }
+
+      const tx = await this.buildTx(method, args, finalFee, options?.transactionData);
+      let prepared = tx;
+
+      if (!options?.transactionData) {
+        prepared = await this.server.prepareTransaction(tx);
+      }
+
       const signedXdr = await this.config.signer.signTransaction(
         prepared.toXDR(),
         this.config.networkPassphrase,
@@ -131,16 +168,21 @@ export class StellarGrantsSDK {
     }
   }
 
-  private async buildTx(method: string, args: xdr.ScVal[]) {
+  private async buildTx(method: string, args: xdr.ScVal[], overrideFee?: string, sorobanData?: string | xdr.SorobanTransactionData) {
     const source = await this.config.signer.getPublicKey();
     const account = await this.server.getAccount(source);
-    return new TransactionBuilder(account, {
-      fee: this.config.defaultFee ?? "100",
+    const builder = new TransactionBuilder(account, {
+      fee: overrideFee ?? this.config.defaultFee ?? "100",
       networkPassphrase: this.config.networkPassphrase,
     })
       .addOperation(this.contract.call(method, ...args))
-      .setTimeout(60)
-      .build();
+      .setTimeout(60);
+      
+    if (sorobanData) {
+      builder.setSorobanData(sorobanData);
+    }
+      
+    return builder.build();
   }
 
   private ensureSimulationSuccess(simulation: any) {
@@ -153,5 +195,53 @@ export class StellarGrantsSDK {
     const retval = simulation?.result?.retval;
     if (!retval) return null;
     return scValToNative(retval);
+  }
+
+  public subscribeToEvents(
+    callback: (event: any) => void,
+    options?: { eventName?: string; startLedger?: number },
+  ): () => void {
+    let active = true;
+    let currentCursor: string | undefined = undefined;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const req: any = {
+           filters: [{ type: "contract", contractIds: [this.config.contractId] }],
+        };
+        if (!currentCursor && options?.startLedger) {
+          req.startLedger = options.startLedger;
+        }
+        if (currentCursor) {
+          req.pagination = { cursor: currentCursor };
+        }
+        
+        const response = await this.server.getEvents(req);
+        if (response.events) {
+          for (const ev of response.events) {
+            currentCursor = ev.id || ev.pagingToken || currentCursor; 
+            
+            if (options?.eventName) {
+              const topicMatches = ev.topic && ev.topic.some((t: string) => {
+                 try { 
+                    const scVal = xdr.ScVal.fromXDR(t, "base64");
+                    const parsed = scValToNative(scVal);
+                    return parsed === options.eventName || String(parsed) === options.eventName;
+                 } catch { return false; }
+              });
+              if (!topicMatches) continue;
+            }
+            callback(ev);
+          }
+        }
+      } catch (err) {
+         console.warn("Event poll error, continuing...", err);
+      }
+      if (active) setTimeout(poll, 5000);
+    };
+    
+    poll();
+    return () => { active = false; };
   }
 }
