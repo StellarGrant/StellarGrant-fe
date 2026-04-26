@@ -1,5 +1,15 @@
 import { StellarGrantsSDK } from "../src/StellarGrantsSDK";
 import { parseSorobanError } from "../src/errors/parseSorobanError";
+import {
+  UnauthorizedError,
+  GrantNotFoundError,
+  DeadlinePassedError,
+  InsufficientBalanceError,
+  CONTRACT_ERROR_CODES,
+  getErrorName,
+  getErrorClass,
+  SorobanRevertError,
+} from "../src/errors/StellarGrantsError";
 
 jest.mock("@stellar/stellar-sdk", () => {
   class MockServer {
@@ -91,5 +101,62 @@ describe("StellarGrantsSDK", () => {
     const parsed = parseSorobanError(new Error("HostError: txFailed: revert: grant not active"));
     expect(parsed.name).toBe("SorobanRevertError");
     expect(parsed.message).toContain("grant not active");
+  });
+
+  it("parses error code 2 (Unauthorized) from error message", () => {
+    const parsed = parseSorobanError(new Error("HostError: txFailed: revert: Error(Code2)"));
+    expect(parsed).toBeInstanceOf(UnauthorizedError);
+    expect(parsed.name).toBe("UnauthorizedError");
+    expect(parsed.message).toContain("Unauthorized");
+    expect((parsed as any).details).toHaveProperty("code", 2);
+  });
+
+  it("parses error code 1 (GrantNotFound) from error message", () => {
+    const parsed = parseSorobanError(new Error("HostError: txFailed: revert: Error(Code1)"));
+    expect(parsed).toBeInstanceOf(GrantNotFoundError);
+    expect(parsed.name).toBe("GrantNotFoundError");
+    expect(parsed.message).toContain("Grant not found");
+  });
+
+  it("parses error code 5 (DeadlinePassed) from error message", () => {
+    const parsed = parseSorobanError(new Error("HostError: txFailed: revert: error code: 5"));
+    expect(parsed).toBeInstanceOf(DeadlinePassedError);
+    expect(parsed.name).toBe("DeadlinePassedError");
+    expect(parsed.message).toContain("Deadline has passed");
+  });
+
+  it("parses error code 32 (InsufficientBalance) from error message", () => {
+    const parsed = parseSorobanError(new Error("HostError: txFailed: revert: code 32"));
+    expect(parsed).toBeInstanceOf(InsufficientBalanceError);
+    expect(parsed.name).toBe("InsufficientBalanceError");
+    expect(parsed.message).toContain("Insufficient token balance");
+  });
+
+  it("falls back to generic SorobanRevertError for unknown error codes", () => {
+    const parsed = parseSorobanError(new Error("HostError: txFailed: revert: Error(Code999)"));
+    expect(parsed).toBeInstanceOf(SorobanRevertError);
+    expect(parsed.name).toBe("SorobanRevertError");
+  });
+
+  it("exports CONTRACT_ERROR_CODES with correct values", () => {
+    expect(CONTRACT_ERROR_CODES.GrantNotFound).toBe(1);
+    expect(CONTRACT_ERROR_CODES.Unauthorized).toBe(2);
+    expect(CONTRACT_ERROR_CODES.DeadlinePassed).toBe(5);
+    expect(CONTRACT_ERROR_CODES.InsufficientBalance).toBe(32);
+    expect(CONTRACT_ERROR_CODES.ContractPaused).toBe(33);
+  });
+
+  it("getErrorName returns correct name for error code", () => {
+    expect(getErrorName(1)).toBe("GrantNotFound");
+    expect(getErrorName(2)).toBe("Unauthorized");
+    expect(getErrorName(5)).toBe("DeadlinePassed");
+    expect(getErrorName(32)).toBe("InsufficientBalance");
+    expect(getErrorName(999)).toBeUndefined();
+  });
+
+  it("getErrorClass returns correct class for error code", () => {
+    const ErrorClass = getErrorClass(2);
+    expect(ErrorClass).toBe(UnauthorizedError);
+    expect(new ErrorClass()).toBeInstanceOf(SorobanRevertError);
   });
 });
