@@ -225,9 +225,9 @@ export class StellarGrantsSDK {
             currentCursor = ev.id || ev.pagingToken || currentCursor; 
             
             if (options?.eventName) {
-              const topicMatches = ev.topic && ev.topic.some((t: string) => {
+              const topicMatches = ev.topic && ev.topic.some((t: any) => {
                  try { 
-                    const scVal = xdr.ScVal.fromXDR(t, "base64");
+                    const scVal = typeof t === "string" ? xdr.ScVal.fromXDR(t, "base64") : t;
                     const parsed = scValToNative(scVal);
                     return parsed === options.eventName || String(parsed) === options.eventName;
                  } catch { return false; }
@@ -274,7 +274,7 @@ export class StellarGrantsSDK {
 
       if (!options?.transactionData || options?.feeMultiplier) {
         const txForSim = await this.buildTx(method, args);
-        const simulation = await this.server.simulateTransaction(txForSim);
+        const simulation = await this.server.simulateTransaction(txForSim) as any;
         this.ensureSimulationSuccess(simulation);
         
         if (options?.feeMultiplier) {
