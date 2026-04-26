@@ -60,7 +60,6 @@ export class StellarGrantsSDK {
    * @returns A promise that resolves to the transaction submission result.
    */
   async grantCreate(input: GrantCreateInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
-  async grantCreate(input: GrantCreateInput, options?: any): Promise<unknown> {
     return this.invokeWrite("grant_create", [
       nativeToScVal(input.owner, { type: "address" }),
       nativeToScVal(input.title),
@@ -69,7 +68,6 @@ export class StellarGrantsSDK {
       nativeToScVal(input.deadline, { type: "u64" }),
       nativeToScVal(input.milestoneCount, { type: "u32" }),
     ], options) as Promise<rpc.Api.SendTransactionResponse>;
-    ], options);
   }
 
   /**
@@ -80,13 +78,11 @@ export class StellarGrantsSDK {
    * @returns A promise that resolves to the transaction submission result.
    */
   async grantFund(input: GrantFundInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
-  async grantFund(input: GrantFundInput, options?: any): Promise<unknown> {
     return this.invokeWrite("grant_fund", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.token, { type: "address" }),
       nativeToScVal(input.amount, { type: "i128" }),
     ], options) as Promise<rpc.Api.SendTransactionResponse>;
-    ], options);
   }
 
   /**
@@ -97,13 +93,11 @@ export class StellarGrantsSDK {
    * @returns A promise that resolves to the transaction submission result.
    */
   async milestoneSubmit(input: MilestoneSubmitInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
-  async milestoneSubmit(input: MilestoneSubmitInput, options?: any): Promise<unknown> {
     return this.invokeWrite("milestone_submit", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.proofHash),
     ], options) as Promise<rpc.Api.SendTransactionResponse>;
-    ], options);
   }
 
   /**
@@ -114,13 +108,11 @@ export class StellarGrantsSDK {
    * @returns A promise that resolves to the transaction submission result.
    */
   async milestoneVote(input: MilestoneVoteInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
-  async milestoneVote(input: MilestoneVoteInput, options?: any): Promise<unknown> {
     return this.invokeWrite("milestone_vote", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.approve),
     ], options) as Promise<rpc.Api.SendTransactionResponse>;
-    ], options);
   }
 
   /**
@@ -149,6 +141,11 @@ export class StellarGrantsSDK {
 
   /**
    * Polls the RPC server for the status of a transaction until it reaches a terminal state.
+   * 
+   * @param hash The transaction hash to wait for.
+   * @param intervalMs The polling interval in milliseconds.
+   * @param timeoutMs The total timeout in milliseconds.
+   * @returns The transaction response.
    */
   async waitForTransaction(
     hash: string,
@@ -173,6 +170,9 @@ export class StellarGrantsSDK {
 
   /**
    * Extracts and parses contract events from a successful transaction response.
+   * 
+   * @param response The successful transaction response.
+   * @returns An array of parsed events.
    */
   parseEvents(response: rpc.Api.GetTransactionResponse): ParsedEvent[] {
     return EventParser.parseEvents(response);
@@ -271,25 +271,6 @@ export class StellarGrantsSDK {
   ): Promise<rpc.Api.SendTransactionResponse | unknown> {
     try {
       let finalFee = this.config.defaultFee ?? "100";
-  public async simulateTransaction(method: string, args: xdr.ScVal[]): Promise<any> {
-    const tx = await this.buildTx(method, args);
-    const simulation = await this.server.simulateTransaction(tx);
-    this.ensureSimulationSuccess(simulation);
-    return simulation;
-  }
-
-  private async invokeWrite(
-    method: string, 
-    args: xdr.ScVal[],
-    options?: {
-      feeMultiplier?: number;
-      transactionData?: string | xdr.SorobanTransactionData;
-      simulatedFee?: string;
-    }
-  ): Promise<unknown> {
-    try {
-      let finalFee = this.config.defaultFee ?? "100";
-      let manualSim = false;
 
       if (!options?.transactionData || options?.feeMultiplier) {
         const txForSim = await this.buildTx(method, args);
@@ -301,7 +282,6 @@ export class StellarGrantsSDK {
         } else {
           finalFee = String(Number(simulation.minResourceFee || 0) + 10000);
         }
-        manualSim = true;
       }
 
       if (options?.simulatedFee && !options?.feeMultiplier) {
@@ -331,7 +311,15 @@ export class StellarGrantsSDK {
     }
   }
 
-  private async buildTx(method: string, args: xdr.ScVal[], overrideFee?: string, sorobanData?: string | xdr.SorobanTransactionData) {
+  /**
+   * Builds a transaction for a contract call.
+   */
+  private async buildTx(
+    method: string, 
+    args: xdr.ScVal[], 
+    overrideFee?: string, 
+    sorobanData?: string | xdr.SorobanTransactionData
+  ) {
     const source = await this.config.signer.getPublicKey();
     const account = await this.server.getAccount(source);
     const builder = new TransactionBuilder(account, {
@@ -364,53 +352,5 @@ export class StellarGrantsSDK {
     const retval = simulation?.result?.retval;
     if (!retval) return null;
     return scValToNative(retval);
-  }
-
-  public subscribeToEvents(
-    callback: (event: any) => void,
-    options?: { eventName?: string; startLedger?: number },
-  ): () => void {
-    let active = true;
-    let currentCursor: string | undefined = undefined;
-
-    const poll = async () => {
-      if (!active) return;
-      try {
-        const req: any = {
-           filters: [{ type: "contract", contractIds: [this.config.contractId] }],
-        };
-        if (!currentCursor && options?.startLedger) {
-          req.startLedger = options.startLedger;
-        }
-        if (currentCursor) {
-          req.pagination = { cursor: currentCursor };
-        }
-        
-        const response = await this.server.getEvents(req);
-        if (response.events) {
-          for (const ev of response.events) {
-            currentCursor = ev.id || ev.pagingToken || currentCursor; 
-            
-            if (options?.eventName) {
-              const topicMatches = ev.topic && ev.topic.some((t: string) => {
-                 try { 
-                    const scVal = xdr.ScVal.fromXDR(t, "base64");
-                    const parsed = scValToNative(scVal);
-                    return parsed === options.eventName || String(parsed) === options.eventName;
-                 } catch { return false; }
-              });
-              if (!topicMatches) continue;
-            }
-            callback(ev);
-          }
-        }
-      } catch (err) {
-         console.warn("Event poll error, continuing...", err);
-      }
-      if (active) setTimeout(poll, 5000);
-    };
-    
-    poll();
-    return () => { active = false; };
   }
 }

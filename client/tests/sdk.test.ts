@@ -63,7 +63,7 @@ describe("StellarGrantsSDK", () => {
   };
 
   it("calls write wrappers without stellar-cli dependency", async () => {
-    const sdk: any = new StellarGrantsSDK({
+    const sdk = new StellarGrantsSDK({
       contractId: "CBLAH",
       rpcUrl: "https://rpc.test",
       networkPassphrase: "Test SDF Network ; September 2015",
@@ -81,7 +81,7 @@ describe("StellarGrantsSDK", () => {
   });
 
   it("provides read wrapper response parsing", async () => {
-    const sdk: any = new StellarGrantsSDK({
+    const sdk = new StellarGrantsSDK({
       contractId: "CBLAH",
       rpcUrl: "https://rpc.test",
       networkPassphrase: "Test SDF Network ; September 2015",
@@ -100,7 +100,7 @@ describe("StellarGrantsSDK", () => {
 
   describe("waitForTransaction", () => {
     it("resolves on SUCCESS", async () => {
-      const sdk: any = new StellarGrantsSDK({
+      const sdk = new StellarGrantsSDK({
         contractId: "CBLAH",
         rpcUrl: "https://rpc.test",
         networkPassphrase: "Test SDF Network ; September 2015",
@@ -112,7 +112,7 @@ describe("StellarGrantsSDK", () => {
     });
 
     it("throws on FAILED", async () => {
-      const sdk: any = new StellarGrantsSDK({
+      const sdk = new StellarGrantsSDK({
         contractId: "CBLAH",
         rpcUrl: "https://rpc.test",
         networkPassphrase: "Test SDF Network ; September 2015",
@@ -123,7 +123,7 @@ describe("StellarGrantsSDK", () => {
     });
 
     it("throws on timeout", async () => {
-      const sdk: any = new StellarGrantsSDK({
+      const sdk = new StellarGrantsSDK({
         contractId: "CBLAH",
         rpcUrl: "https://rpc.test",
         networkPassphrase: "Test SDF Network ; September 2015",
