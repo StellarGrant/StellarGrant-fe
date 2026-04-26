@@ -3,6 +3,8 @@ import { Repository } from "typeorm";
 import { Grant } from "../entities/Grant";
 import { UserWatchlist } from "../entities/UserWatchlist";
 import { Activity } from "../entities/Activity";
+import { PlatformConfig } from "../entities/PlatformConfig";
+import { FeeCollection } from "../entities/FeeCollection";
 import { GrantSyncService } from "../services/grant-sync-service";
 import { SignatureService } from "../services/signature-service";
 import { z } from "zod";
@@ -95,6 +97,8 @@ export const buildGrantRouter = (
   const router = Router();
   const watchlistRepo = grantRepo.manager.getRepository(UserWatchlist);
   const activityRepo = grantRepo.manager.getRepository(Activity);
+  const configRepo = grantRepo.manager.getRepository(PlatformConfig);
+  const feeRepo = grantRepo.manager.getRepository(FeeCollection);
 
   router.get("/", async (req, res, next) => {
     try {
@@ -382,6 +386,50 @@ export const buildGrantRouter = (
       });
 
       res.json({ data: { watched: false } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---------------- Fund Grant (Sync/Record) ----------------
+  router.post("/:id/fund", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        res.status(400).json({ error: "Invalid grant id" });
+        return;
+      }
+
+      const { funderAddress, amount } = req.body;
+      if (!funderAddress || !amount) {
+        res.status(400).json({ error: "Missing funderAddress or amount" });
+        return;
+      }
+
+      const config = await configRepo.findOne({ where: { key: "platform_fee_percentage" } });
+      const percentage = config ? parseFloat(config.value) : 0;
+
+      // Calculate fee
+      const feeAmount = (BigInt(amount) * BigInt(Math.floor(percentage * 100))) / BigInt(10000);
+
+      await feeRepo.save({
+        grantId: id,
+        funderAddress,
+        totalContribution: amount,
+        feeAmount: feeAmount.toString(),
+        feePercentage: percentage.toString(),
+      });
+
+      // Log activity
+      await activityRepo.save({
+        type: "grant_funded" as any,
+        entityType: "grant",
+        entityId: id,
+        actorAddress: funderAddress,
+        data: { amount, feeAmount: feeAmount.toString(), feePercentage: percentage },
+      });
+
+      res.json({ ok: true, feeAmount: feeAmount.toString(), feePercentage: percentage });
     } catch (error) {
       next(error);
     }
