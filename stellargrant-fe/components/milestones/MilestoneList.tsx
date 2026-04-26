@@ -19,7 +19,7 @@ interface MilestoneListProps {
   grantId: string;
 }
 
-export function MilestoneList({ milestones, grantId }: MilestoneListProps) {
+export function MilestoneList({ milestones, grantId: _grantId }: MilestoneListProps) {
   // TODO: Implement milestone list component
   const renderStatus = (milestone: Milestone) => {
     if (milestone.paid) return "Paid";

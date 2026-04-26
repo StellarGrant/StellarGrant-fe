@@ -12,7 +12,7 @@ interface FundingProgressProps {
   tokens?: Array<{ token: string; amount: number }>;
 }
 
-export function FundingProgress({ current, target, token, tokens }: FundingProgressProps) {
+export function FundingProgress({ current, target, token: _token, tokens: _tokens }: FundingProgressProps) {
   const percentage = Math.min((current / target) * 100, 100);
 
   return (

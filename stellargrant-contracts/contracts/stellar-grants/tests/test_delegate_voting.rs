@@ -39,6 +39,7 @@ fn setup_active_grant<'a>(
         &0i128,
         &tags,
         &false,
+        &false,
     );
     client.mock_all_auths().grant_accept(&grant_id, &owner);
     client.mock_all_auths().milestone_submit(

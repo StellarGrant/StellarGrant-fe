@@ -11,7 +11,7 @@ interface MilestoneSubmitFormProps {
   milestoneIdx: number;
 }
 
-export function MilestoneSubmitForm({ grantId, milestoneIdx }: MilestoneSubmitFormProps) {
+export function MilestoneSubmitForm({ grantId: _grantId, milestoneIdx: _milestoneIdx }: MilestoneSubmitFormProps) {
   // TODO: Implement milestone submission form
   return (
     <form>

@@ -236,6 +236,17 @@ pub struct BountyClaimed {
 
 #[contractevent]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicGoodFunded {
+    pub event_version: u32,
+    pub grant_id: u64,
+    pub treasury: Address,
+    pub amount: i128,
+    pub token: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrantFunded {
     pub event_version: u32,
     pub grant_id: u64,
@@ -609,6 +620,24 @@ impl Events {
             milestone_idx,
             winner,
             submission_index,
+            timestamp: env.ledger().timestamp(),
+        };
+        event.publish(env);
+    }
+
+    pub fn emit_public_good_funded(
+        env: &Env,
+        grant_id: u64,
+        treasury: Address,
+        amount: i128,
+        token: Address,
+    ) {
+        let event = PublicGoodFunded {
+            event_version: EVENT_VERSION,
+            grant_id,
+            treasury,
+            amount,
+            token,
             timestamp: env.ledger().timestamp(),
         };
         event.publish(env);

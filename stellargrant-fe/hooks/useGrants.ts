@@ -13,7 +13,7 @@ interface UseGrantsOptions {
   q?: string;
 }
 
-export function useGrants(options?: UseGrantsOptions) {
+export function useGrants( _options?: UseGrantsOptions) {
   // TODO: Implement grants list hook with TanStack Query
   return {
     data: {

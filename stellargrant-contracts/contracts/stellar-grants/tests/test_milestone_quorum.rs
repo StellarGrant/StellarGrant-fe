@@ -40,6 +40,8 @@ fn test_milestone_voting_quorum_and_events() {
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
         &false,
+        &false,
+        &false,
     );
 
     client.grant_accept(&grant_id, &owner);
@@ -131,6 +133,8 @@ fn test_milestone_vote_after_quorum_panics() {
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
         &false,
+        &false,
+        &false,
     );
     client.grant_accept(&grant_id, &owner);
     client.milestone_submit(
@@ -206,6 +210,8 @@ fn test_milestone_double_voting_panics() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
+        &false,
         &false,
     );
 

@@ -64,6 +64,7 @@ jobs:
 
       - name: Run Coverage
         run: npm run test:coverage
+
   frontend:
     name: Frontend (Next.js)
     runs-on: ubuntu-latest

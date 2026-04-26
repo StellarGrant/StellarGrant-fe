@@ -334,6 +334,7 @@ pub struct Grant {
     pub hard_cap: i128,
     pub tags: Vec<String>,
     pub is_open_bounty: bool,
+    pub is_public_good: bool,
     pub packed_stats: u128,
 }
 
@@ -355,6 +356,7 @@ impl Grant {
         min_funding: i128,
         hard_cap: i128,
         tags: Vec<String>,
+        is_public_good: bool,
         env: &soroban_sdk::Env,
     ) -> Self {
         let mut g = Self {
@@ -376,6 +378,7 @@ impl Grant {
             hard_cap,
             tags,
             is_open_bounty: false,
+            is_public_good,
             packed_stats: 0,
         };
         g.set_status(status);

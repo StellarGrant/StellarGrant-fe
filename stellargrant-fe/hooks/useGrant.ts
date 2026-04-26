@@ -10,7 +10,7 @@ interface UseGrantOptions {
   enabled?: boolean; // default: true
 }
 
-export function useGrant(grantId: string, options?: UseGrantOptions) {
+export function useGrant( _grantId: string,  _options?: UseGrantOptions) {
   // TODO: Implement grant fetching hook with TanStack Query
   return {
     data: null,

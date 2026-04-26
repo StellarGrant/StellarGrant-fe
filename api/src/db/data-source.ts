@@ -6,6 +6,13 @@ import { MilestoneProof } from "../entities/MilestoneProof";
 import { User } from "../entities/User";
 import { GrantReviewer } from "../entities/GrantReviewer";
 import { MilestoneApproval } from "../entities/MilestoneApproval";
+import { Contributor } from "../entities/Contributor";
+import { ReputationLog } from "../entities/ReputationLog";
+import { AuditLog } from "../entities/AuditLog";
+import { UserWatchlist } from "../entities/UserWatchlist";
+import { Activity } from "../entities/Activity";
+import { GrantView } from "../entities/GrantView";
+import { ReconciliationCheckpoint } from "../entities/ReconciliationCheckpoint";
 
 export const buildDataSource = (databaseUrl = env.databaseUrl) =>
   new DataSource({
@@ -14,5 +21,6 @@ export const buildDataSource = (databaseUrl = env.databaseUrl) =>
       ? { location: databaseUrl.replace("sqljs://", ""), autoSave: false }
       : { url: databaseUrl }),
   entities: [Grant, MilestoneProof, User, GrantReviewer, MilestoneApproval],
+    entities: [Grant, MilestoneProof, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView, ReconciliationCheckpoint],
     synchronize: true,
   });

@@ -3,13 +3,16 @@ import { Grant } from "../entities/Grant";
 import { Contributor } from "../entities/Contributor";
 import { ReputationLog } from "../entities/ReputationLog";
 import { Activity } from "../entities/Activity";
+import { UserWatchlist } from "../entities/UserWatchlist";
 import { SorobanContractClient } from "../soroban/types";
+import { notificationService } from "./notification-service";
 
 export class GrantSyncService {
   private readonly grantRepo: Repository<Grant>;
   private readonly contributorRepo: Repository<Contributor>;
   private readonly reputationLogRepo: Repository<ReputationLog>;
   private readonly activityRepo: Repository<Activity>;
+  private readonly watchlistRepo: Repository<UserWatchlist>;
 
   constructor(
     private readonly dataSource: DataSource,
@@ -19,6 +22,7 @@ export class GrantSyncService {
     this.contributorRepo = this.dataSource.getRepository(Contributor);
     this.reputationLogRepo = this.dataSource.getRepository(ReputationLog);
     this.activityRepo = this.dataSource.getRepository(Activity);
+    this.watchlistRepo = this.dataSource.getRepository(UserWatchlist);
   }
 
   async syncAllGrants(): Promise<void> {
@@ -37,6 +41,7 @@ export class GrantSyncService {
           actorAddress: grant.recipient,
           data: { title: grant.title, totalAmount: grant.totalAmount },
         });
+        notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
       } else if (existingGrant.status !== grant.status) {
         // Log activity for status changes
         await this.logActivity({
@@ -45,6 +50,18 @@ export class GrantSyncService {
           entityId: grant.id,
           actorAddress: grant.recipient,
           data: { oldStatus: existingGrant.status, newStatus: grant.status },
+        });
+        notificationService.notifyUser(grant.recipient, "grant_updated", { 
+          grantId: grant.id, 
+          title: grant.title,
+          oldStatus: existingGrant.status, 
+          newStatus: grant.status 
+        });
+        await this.notifyWatchers(grant.id, "grant_updated", {
+          grantId: grant.id,
+          title: grant.title,
+          oldStatus: existingGrant.status,
+          newStatus: grant.status,
         });
       }
     }
@@ -66,6 +83,7 @@ export class GrantSyncService {
         actorAddress: grant.recipient,
         data: { title: grant.title, totalAmount: grant.totalAmount },
       });
+      notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
     } else if (existingGrant.status !== grant.status) {
       // Log activity for status changes
       await this.logActivity({
@@ -75,6 +93,25 @@ export class GrantSyncService {
         actorAddress: grant.recipient,
         data: { oldStatus: existingGrant.status, newStatus: grant.status },
       });
+      notificationService.notifyUser(grant.recipient, "grant_updated", { 
+        grantId: grant.id, 
+        title: grant.title,
+        oldStatus: existingGrant.status, 
+        newStatus: grant.status 
+      });
+      await this.notifyWatchers(grant.id, "grant_updated", {
+        grantId: grant.id,
+        title: grant.title,
+        oldStatus: existingGrant.status,
+        newStatus: grant.status,
+      });
+    }
+  }
+
+  private async notifyWatchers(grantId: number, type: string, data: any): Promise<void> {
+    const watchers = await this.watchlistRepo.find({ where: { grantId } });
+    for (const watcher of watchers) {
+      notificationService.notifyUser(watcher.address, type as any, data);
     }
   }
 

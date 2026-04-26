@@ -851,13 +851,19 @@ impl StellarGrantsContract {
         }
         access_control
     }
-    pub fn initialize(env: Env, admin: Address, council: Address) -> Result<(), ContractError> {
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        council: Address,
+        treasury: Address,
+    ) -> Result<(), ContractError> {
         if Storage::get_global_admin(&env).is_some() {
             return Err(ContractError::InvalidInput);
         }
         admin.require_auth();
         Storage::set_global_admin(&env, &admin);
         Storage::set_council(&env, &council);
+        Storage::set_treasury(&env, &treasury);
         Storage::set_storage_version(&env, 1);
         access::grant_role(&env, &admin, Role::Admin)?;
         access::grant_role(&env, &admin, Role::Pauser)?;
@@ -985,6 +991,7 @@ impl StellarGrantsContract {
         hard_cap: i128,
         tags: soroban_sdk::Vec<String>,
         _is_open_bounty: bool,
+        is_public_good: bool,
     ) -> Result<u64, ContractError> {
         owner.require_auth();
         assert_not_paused(&env)?;
@@ -1057,6 +1064,7 @@ impl StellarGrantsContract {
             min_funding,
             hard_cap,
             tags.clone(),
+            is_public_good,
             &env,
         );
 
@@ -1148,6 +1156,7 @@ impl StellarGrantsContract {
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
         min_reputation_score: u64,
+        is_public_good: bool,
     ) -> Result<u64, ContractError> {
         let quorum = (reviewers.len() / 2) + 1;
         let grant_id = Self::grant_create(
@@ -1166,6 +1175,7 @@ impl StellarGrantsContract {
             0,
             soroban_sdk::Vec::new(&env),
             false,
+            is_public_good,
         )?;
         Storage::set_grant_min_reputation(&env, grant_id, min_reputation_score);
         Ok(grant_id)
@@ -1182,6 +1192,7 @@ impl StellarGrantsContract {
         num_milestones: u32,
         reviewers: soroban_sdk::Vec<Address>,
         multisig_signers: soroban_sdk::Vec<Address>,
+        is_public_good: bool,
     ) -> Result<u64, ContractError> {
         if multisig_signers.is_empty() {
             return Err(ContractError::InvalidInput);
@@ -1204,6 +1215,7 @@ impl StellarGrantsContract {
             0,
             soroban_sdk::Vec::new(&env),
             false,
+            is_public_good,
         )?;
 
         Storage::set_escrow_state(
@@ -1397,13 +1409,28 @@ impl StellarGrantsContract {
             // Funders must call `refund_claim(grant_id, funder)` to receive their tokens.
             for (token, balance) in grant.escrow_balances.iter() {
                 if balance > 0 {
-                    record_pending_refunds_for_funders(
-                        &env,
-                        grant_id,
-                        &grant.funders,
-                        &token,
-                        balance,
-                    )?;
+                    if grant.is_public_good {
+                        if let Some(treasury) = Storage::get_treasury(&env) {
+                            token::Client::new(&env, &token).transfer(
+                                &env.current_contract_address(),
+                                &treasury,
+                                &balance,
+                            );
+                            Events::emit_public_good_funded(
+                                &env, grant_id, treasury, balance, token,
+                            );
+                        } else {
+                            return Err(ContractError::InvalidInput);
+                        }
+                    } else {
+                        record_pending_refunds_for_funders(
+                            &env,
+                            grant_id,
+                            &grant.funders,
+                            &token,
+                            balance,
+                        )?;
+                    }
                 }
             }
 

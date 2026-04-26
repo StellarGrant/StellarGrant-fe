@@ -7,6 +7,7 @@ import { SignatureService } from "../services/signature-service";
 import { Grant } from "../entities/Grant";
 import { User } from "../entities/User";
 import * as emailService from "../services/email-service";
+import { notificationService } from "../services/notification-service";
 
 const milestoneProofSchema = z.object({
   grantId: z.number().int().positive(),
@@ -93,6 +94,13 @@ export const buildMilestoneProofRouter = (
           }
         }
       }
+
+      // Broadcast to reviewers (simplified for now as broadcast)
+      notificationService.broadcast("milestone_submitted", {
+        grantId: payload.grantId,
+        milestoneIdx: payload.milestoneIdx,
+        submittedBy: payload.submittedBy
+      });
 
       res.status(201).json({ data: proof });
     } catch (error: any) {

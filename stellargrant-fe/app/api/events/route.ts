@@ -11,7 +11,7 @@ import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const grantId = searchParams.get("grantId");
+  const _grantId = searchParams.get("grantId");
 
   // TODO: Implement SSE streaming for contract events
   // This will poll Stellar RPC for new events and push them to clients

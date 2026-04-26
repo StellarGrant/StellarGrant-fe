@@ -17,7 +17,7 @@ interface UseContractEventsOptions {
   grantId: string;
 }
 
-export function useContractEvents({ grantId }: UseContractEventsOptions) {
+export function useContractEvents({ grantId: _grantId }: UseContractEventsOptions) {
   // TODO: Implement contract events hook with SSE
   return {
     events: [] as ContractEvent[],

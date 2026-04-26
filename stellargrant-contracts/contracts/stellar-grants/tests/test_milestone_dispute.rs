@@ -19,7 +19,8 @@ fn test_dispute_and_resolve_flow() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&admin, &council);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &council, &treasury);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(
@@ -76,7 +77,8 @@ fn test_vote_blocked_during_dispute() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&admin, &council);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &council, &treasury);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(
@@ -132,7 +134,8 @@ fn test_only_council_can_resolve_dispute() {
     let token_admin = token::StellarAssetClient::new(&env, &token);
     let contract_id = env.register_contract(None, stellar_grants::StellarGrantsContract);
     let client = StellarGrantsContractClient::new(&env, &contract_id);
-    client.initialize(&admin, &council);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &council, &treasury);
     let mut reviewers: Vec<Address> = Vec::new(&env);
     reviewers.push_back(reviewer.clone());
     let grant_id = client.grant_create(

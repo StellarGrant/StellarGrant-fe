@@ -35,6 +35,8 @@ fn test_event_emission_on_grant_create_and_fund() {
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
         &false,
+        &false,
+        &false,
     );
     let funder = <Address as TestAddress>::generate(&env);
     client.grant_accept(&grant_id, &owner);
@@ -87,6 +89,8 @@ fn test_event_emission_on_milestone_vote() {
         &0i128,
         &0i128,
         &soroban_sdk::Vec::<soroban_sdk::String>::new(&env),
+        &false,
+        &false,
         &false,
     );
     let funder = <Address as TestAddress>::generate(&env);

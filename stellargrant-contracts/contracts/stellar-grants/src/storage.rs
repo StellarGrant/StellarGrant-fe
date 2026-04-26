@@ -90,6 +90,10 @@ impl Storage {
         env.storage().persistent().get(&DataKey::Treasury)
     }
 
+    pub fn set_treasury(env: &Env, treasury: &soroban_sdk::Address) {
+        env.storage().persistent().set(&DataKey::Treasury, treasury);
+    }
+
     pub fn get_identity_oracle(env: &Env) -> Option<soroban_sdk::Address> {
         env.storage().persistent().get(&DataKey::IdentityOracle)
     }

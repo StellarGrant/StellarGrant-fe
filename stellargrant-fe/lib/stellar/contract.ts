@@ -5,29 +5,29 @@
  * Uses auto-generated TypeScript bindings from the contract ABI.
  */
 
-import { getRpcClient, networkPassphraseConfig } from "./client";
+import { networkPassphraseConfig } from "./client";
 
 const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID || "";
 
 export class ContractClient {
-  private contractId: string;
-  private rpcUrl: string;
-  private networkPassphrase: string;
+  private _contractId: string;
+  private _rpcUrl: string;
+  private _networkPassphrase: string;
 
   constructor(config?: {
     contractId?: string;
     rpcUrl?: string;
     networkPassphrase?: string;
   }) {
-    this.contractId = config?.contractId || contractId;
-    this.rpcUrl = config?.rpcUrl || process.env.NEXT_PUBLIC_STELLAR_RPC_URL || "";
-    this.networkPassphrase = config?.networkPassphrase || networkPassphraseConfig;
+    this._contractId = config?.contractId || contractId;
+    this._rpcUrl = config?.rpcUrl || process.env.NEXT_PUBLIC_STELLAR_RPC_URL || "";
+    this._networkPassphrase = config?.networkPassphrase || networkPassphraseConfig;
   }
 
   /**
    * Read-only: Fetch a grant by ID
    */
-  async grantGet(params: { grant_id: bigint }) {
+  async grantGet(_params: { grant_id: bigint }) {
     // TODO: Implement contract method calls
     throw new Error("Not implemented");
   }
@@ -35,7 +35,7 @@ export class ContractClient {
   /**
    * Read-only: Fetch all milestones for a grant
    */
-  async milestonesGet(params: { grant_id: bigint }) {
+  async milestonesGet(_params: { grant_id: bigint }) {
     // TODO: Implement contract method calls
     throw new Error("Not implemented");
   }
@@ -43,7 +43,7 @@ export class ContractClient {
   /**
    * Read-only: Get contributor reputation score
    */
-  async contributorScore(params: { address: string }) {
+  async contributorScore(_params: { address: string }) {
     // TODO: Implement contract method calls
     throw new Error("Not implemented");
   }
@@ -51,7 +51,7 @@ export class ContractClient {
   /**
    * Read-only: Get reviewer list for a grant
    */
-  async grantReviewers(params: { grant_id: bigint }) {
+  async grantReviewers(_params: { grant_id: bigint }) {
     // TODO: Implement contract method calls
     throw new Error("Not implemented");
   }
@@ -59,7 +59,7 @@ export class ContractClient {
   /**
    * Write: Create a new grant
    */
-  async grantCreate(params: {
+  async grantCreate(_params: {
     owner: string;
     title: string;
     budget: bigint;
@@ -73,7 +73,7 @@ export class ContractClient {
   /**
    * Write: Fund a grant
    */
-  async grantFund(params: {
+  async grantFund(_params: {
     grant_id: string;
     token: string;
     amount: bigint;
@@ -85,7 +85,7 @@ export class ContractClient {
   /**
    * Write: Submit milestone proof
    */
-  async milestoneSubmit(params: {
+  async milestoneSubmit(_params: {
     grant_id: string;
     milestone_idx: number;
     proof_hash: string;
@@ -97,7 +97,7 @@ export class ContractClient {
   /**
    * Write: Approve milestone
    */
-  async milestoneApprove(params: {
+  async milestoneApprove(_params: {
     grant_id: string;
     milestone_idx: number;
     reviewer: string;

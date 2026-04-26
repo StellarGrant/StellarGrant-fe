@@ -36,7 +36,8 @@ fn make_env_client_token() -> (
     let client = StellarGrantsContractClient::new(env_ref, &cid);
     let tok_client = token::StellarAssetClient::new(env_ref, &tok);
 
-    client.initialize(&admin, &council);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &council, &treasury);
     (
         env, client, admin, council, owner, reviewer, funder, tok, tok_client,
     )
@@ -68,6 +69,7 @@ fn create_funded_submitted_voted(
         &0i128,
         &0i128,
         &Vec::<String>::new(env),
+        &false,
         &false,
     );
     client.grant_accept(&gid, owner);
