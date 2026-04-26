@@ -1,4 +1,4 @@
-import { ContributorScore, SorobanContractClient, SorobanGrant } from "./types";
+import { ContributorScore, SorobanContractClient, SorobanContractEvent, SorobanGrant } from "./types";
 
 const mockGrants: SorobanGrant[] = [
   {
@@ -61,5 +61,27 @@ export class MockSorobanContractClient implements SorobanContractClient {
       reputation: 100, // Dummy fixed reputation for mocks
       totalEarned: "1000000000",
     };
+  }
+
+  async fetchEvents(fromLedger: number, toLedger: number): Promise<SorobanContractEvent[]> {
+    // Return synthetic events so the reconciliation task has something to process in dev/test.
+    const events: SorobanContractEvent[] = [];
+    for (const grant of mockGrants) {
+      const ledger = fromLedger + (grant.id % Math.max(1, toLedger - fromLedger + 1));
+      events.push({
+        ledger,
+        id: `${ledger}-mock-${grant.id}-0`,
+        type: "grant_created",
+        grantId: grant.id,
+        actorAddress: grant.recipient,
+        data: { title: grant.title, totalAmount: grant.totalAmount, status: grant.status },
+      });
+    }
+    return events;
+  }
+
+  async getLatestLedger(): Promise<number> {
+    // Simulate a slowly advancing ledger (5-second Stellar close time).
+    return Math.floor(Date.now() / 5000);
   }
 }

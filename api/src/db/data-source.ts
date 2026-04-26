@@ -9,6 +9,7 @@ import { AuditLog } from "../entities/AuditLog";
 import { UserWatchlist } from "../entities/UserWatchlist";
 import { Activity } from "../entities/Activity";
 import { GrantView } from "../entities/GrantView";
+import { ReconciliationCheckpoint } from "../entities/ReconciliationCheckpoint";
 
 export const buildDataSource = (databaseUrl = env.databaseUrl) =>
   new DataSource({
@@ -16,6 +17,6 @@ export const buildDataSource = (databaseUrl = env.databaseUrl) =>
     ...(databaseUrl.startsWith("sqljs")
       ? { location: databaseUrl.replace("sqljs://", ""), autoSave: false }
       : { url: databaseUrl }),
-    entities: [Grant, MilestoneProof, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView],
+    entities: [Grant, MilestoneProof, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView, ReconciliationCheckpoint],
     synchronize: true,
   });
