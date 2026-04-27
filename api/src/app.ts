@@ -20,7 +20,6 @@ import { ResponseCacheService } from "./services/response-cache";
 import { buildSearchRouter } from "./routes/search";
 import { buildWatchlistRouter } from "./routes/watchlist";
 import { UserWatchlist } from "./entities/UserWatchlist";
-import { GrantSyncService } from "./services/grant-sync-service";
 import { ReconciliationService } from "./services/reconciliation-service";
 import { LeaderboardService } from "./services/leaderboard-service";
 import { SignatureService } from "./services/signature-service";
@@ -98,7 +97,6 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     sorobanClient,
     () => responseCache.invalidateGrantsAndStats(),
   );
-  const grantSyncService = new GrantSyncService(dataSource, sorobanClient);
   const reconciliationService = new ReconciliationService(dataSource, sorobanClient, grantSyncService);
   const signatureService = new SignatureService();
   const leaderboardService = new LeaderboardService(dataSource);
@@ -128,9 +126,8 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use(
     "/admin",
     adminMiddleware,
-    buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo, responseCache),
+    buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo, responseCache, reconciliationService),
   );
-  app.use("/admin", adminMiddleware, buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo, reconciliationService));
   app.use("/proofs", buildProofsRouter(ipfsService));
   app.use("/notifications", buildNotificationsRouter(contributorRepo));
   app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
