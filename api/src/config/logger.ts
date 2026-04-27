@@ -4,6 +4,7 @@ import { env } from "./env";
 const logLevel = env.logLevel;
 
 const isProduction = env.nodeEnv === "production";
+const isTest = env.nodeEnv === "test";
 
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: "isoDateTime" }),
@@ -30,17 +31,7 @@ export const logger = winston.createLogger({
   format: logFormat,
   transports: [
     new winston.transports.Console({
-      silent: process.env.NODE_ENV === "test",
-    }),
-  ],
-  exceptionHandlers: [
-    new winston.transports.Console({
-      silent: process.env.NODE_ENV === "test",
-    }),
-  ],
-  rejectionHandlers: [
-    new winston.transports.Console({
-      silent: process.env.NODE_ENV === "test",
+      silent: isTest,
     }),
   ],
 });
@@ -61,7 +52,7 @@ export const requestLogger = (): winston.Logger =>
         ),
     transports: [
       new winston.transports.Console({
-        silent: process.env.NODE_ENV === "test",
+        silent: isTest,
       }),
     ],
   });

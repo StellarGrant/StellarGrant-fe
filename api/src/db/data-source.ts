@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { env } from "../config/env";
 import { Grant } from "../entities/Grant";
+import { Milestone } from "../entities/Milestone";
 import { MilestoneProof } from "../entities/MilestoneProof";
 import { User } from "../entities/User";
 import { GrantReviewer } from "../entities/GrantReviewer";
@@ -23,21 +24,7 @@ export const buildDataSource = (databaseUrl = env.databaseUrl) =>
     ...(databaseUrl.startsWith("sqljs")
       ? { location: databaseUrl.replace("sqljs://", ""), autoSave: false }
       : { url: databaseUrl }),
-    entities: [
-      Grant,
-      MilestoneProof,
-      User,
-      GrantReviewer,
-      MilestoneApproval,
-      Contributor,
-      ReputationLog,
-      AuditLog,
-      UserWatchlist,
-      Activity,
-      GrantView,
-      ReconciliationCheckpoint,
-      FeeCollection,
-    ],
+    entities: [Grant, Milestone, MilestoneProof, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView, ReconciliationCheckpoint],
     synchronize: true,
   });
 
