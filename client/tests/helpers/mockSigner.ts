@@ -7,7 +7,7 @@ export type MockSigner = {
 
 export function makeMockSigner(): MockSigner {
     return {
-        getPublicKey: jest.fn(async () => "GABC123TESTPUBLICKEY"),
+        getPublicKey: jest.fn(async () => "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA"),
         signTransaction: jest.fn(async (_txXdr: string, _passphrase: string) => "SIGNED_XDR_STRING"),
     };
 }

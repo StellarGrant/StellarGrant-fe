@@ -1,3 +1,10 @@
+export type SorobanMilestone = {
+  idx: number;
+  title: string;
+  description?: string | null;
+  deadline: string;
+};
+
 export type SorobanGrant = {
   id: number;
   title: string;
@@ -7,6 +14,7 @@ export type SorobanGrant = {
   /** Comma-separated tag string, e.g. "web3,climate,open-source" */
   tags?: string | null;
   localizedMetadata?: Record<string, { title?: string; description?: string }> | null;
+  milestones?: SorobanMilestone[];
 };
 
 export type ContributorScore = {

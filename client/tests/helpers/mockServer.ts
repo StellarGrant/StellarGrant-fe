@@ -2,6 +2,7 @@ export interface MockServerState {
     simulationError?: string;
     simulationResult?: any;
     minResourceFee?: string;
+    networkPassphrase?: string;
     sendStatus?: "PENDING" | "ERROR";
     sendErrorResult?: string;
     events?: any[];
@@ -18,7 +19,15 @@ export function makeMockServer(): { server: any; state: MockServerState } {
     };
 
     const server = {
-        getAccount: jest.fn(async () => ({ accountId: "GABC123TESTPUBLICKEY", sequence: "1" })),
+        getAccount: jest.fn(async () => ({
+            accountId: "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA",
+            sequence: "1",
+        })),
+
+        getNetwork: jest.fn(async () => ({
+            passphrase: state.networkPassphrase ?? "Test SDF Network ; September 2015",
+            protocolVersion: 20,
+        })),
 
         simulateTransaction: jest.fn(async () => {
             if (state.simulationError) {

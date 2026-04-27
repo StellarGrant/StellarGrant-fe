@@ -323,6 +323,50 @@ describe("API e2e", () => {
     expect(response.body.data.id).toBe(1);
   });
 
+  it("includes milestone deadline summary in the grant list response", async () => {
+    const app = createApp(dataSource, sorobanClient);
+    const response = await request(app).get("/grants");
+
+    expect(response.status).toBe(200);
+    const grant = response.body.data.find((item: { id: number }) => item.id === 1);
+    expect(grant.milestoneSummary).toMatchObject({
+      total: 2,
+      submitted: 0,
+      overdue: 1,
+      upcoming: 1,
+    });
+    expect(grant.hasOverdueMilestones).toBe(true);
+  });
+
+  it("flags overdue milestones in the single-grant response", async () => {
+    const app = createApp(dataSource, sorobanClient);
+    const response = await request(app).get("/grants/1");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.milestones).toHaveLength(2);
+
+    const overdueMilestone = response.body.data.milestones.find((milestone: { idx: number }) => milestone.idx === 1);
+    const upcomingMilestone = response.body.data.milestones.find((milestone: { idx: number }) => milestone.idx === 0);
+
+    expect(overdueMilestone.overdue).toBe(true);
+    expect(overdueMilestone.submitted).toBe(false);
+    expect(upcomingMilestone.overdue).toBe(false);
+    expect(response.body.data.hasOverdueMilestones).toBe(true);
+  });
+
+  it("returns upcoming and overdue milestones on the dashboard endpoint", async () => {
+    const app = createApp(dataSource, sorobanClient);
+    const response = await request(app).get(
+      "/dashboard/GBRPYHIL2C2WBO36G6UIGR2PA4M3TQ7VOY3RTMAL4LRRA67ZOHQ65SZD",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.summary.upcomingCount).toBe(1);
+    expect(response.body.data.summary.overdueCount).toBe(1);
+    expect(response.body.data.upcomingDeadlines[0].grantId).toBe(1);
+    expect(response.body.data.overdueMilestones[0].grantId).toBe(1);
+  });
+
   it("returns 404 for a grant that does not exist", async () => {
     const app = createApp(dataSource, sorobanClient);
     const response = await request(app).get("/grants/9999");

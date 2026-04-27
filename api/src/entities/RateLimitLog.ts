@@ -10,13 +10,13 @@ export class RateLimitLog {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ type: "varchar", length: 45 })
+  @Column({ type: "varchar", length: 64 })
   ip!: string;
 
   @Column({ type: "varchar", length: 255 })
   path!: string;
 
-  @Column({ type: "varchar", length: 10 })
+  @Column({ type: "varchar", length: 16 })
   method!: string;
 
   @Column({ type: "varchar", length: 255, nullable: true })

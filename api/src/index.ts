@@ -6,6 +6,7 @@ import { MockSorobanContractClient } from "./soroban/mock-client";
 import { notificationService } from "./services/notification-service";
 import { ReconciliationService } from "./services/reconciliation-service";
 import { GrantSyncService } from "./services/grant-sync-service";
+import { MilestoneDeadlineService } from "./services/milestone-deadline-service";
 import { logger } from "./config/logger";
 import { RateLimitAlertService } from "./services/rate-limit-alert-service";
 
@@ -23,7 +24,9 @@ const bootstrap = async () => {
   // Start the periodic reconciliation task (every 30 minutes)
   const grantSyncService = new GrantSyncService(dataSource, sorobanClient);
   const reconciliationService = new ReconciliationService(dataSource, sorobanClient, grantSyncService);
+  const milestoneDeadlineService = new MilestoneDeadlineService(dataSource);
   reconciliationService.start(30 * 60 * 1000);
+  milestoneDeadlineService.start(24 * 60 * 60 * 1000);
 
   // Periodic rate limit spike alerts
   const rateLimitAlertService = new RateLimitAlertService(dataSource);

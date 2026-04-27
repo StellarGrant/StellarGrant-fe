@@ -1,4 +1,5 @@
 import {
+  Account,
   Contract,
   rpc,
   TransactionBuilder,
@@ -19,6 +20,9 @@ import {
 } from "./types";
 import { EventParser, ParsedEvent } from "./events";
 
+const READ_ONLY_SIMULATION_ACCOUNT =
+  "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA";
+
 /**
  * Encapsulated client for StellarGrants Soroban contract interactions.
  * 
@@ -30,7 +34,6 @@ import { EventParser, ParsedEvent } from "./events";
  * const sdk = new StellarGrantsSDK({
  *   contractId: "CD...",
  *   rpcUrl: "https://soroban-testnet.stellar.org",
- *   networkPassphrase: "Test SDF Network ; September 2015",
  *   signer: freighterSigner
  * });
  * ```
@@ -39,10 +42,11 @@ export class StellarGrantsSDK {
   private readonly contract: Contract;
   private readonly server: rpc.Server;
   private readonly config: StellarGrantsSDKConfig;
+  private networkPassphrasePromise?: Promise<string>;
 
   /**
    * Initializes a new instance of the StellarGrantsSDK.
-   * @param config Configuration options including contract ID, RPC URL, and signer.
+   * @param config Configuration options including contract ID, RPC URL, and optional signer.
    */
   constructor(config: StellarGrantsSDKConfig) {
     this.config = config;
@@ -186,7 +190,7 @@ export class StellarGrantsSDK {
    * @returns The simulation response.
    */
   public async simulateTransaction(method: string, args: xdr.ScVal[]): Promise<rpc.Api.SimulateTransactionResponse> {
-    const tx = await this.buildTx(method, args);
+    const tx = await this.buildTx(method, args, { skipAccountLookup: true });
     const simulation = await this.server.simulateTransaction(tx);
     this.ensureSimulationSuccess(simulation);
     return simulation;
@@ -252,7 +256,7 @@ export class StellarGrantsSDK {
    */
   private async invokeRead(method: string, args: xdr.ScVal[]): Promise<unknown> {
     try {
-      const tx = await this.buildTx(method, args);
+      const tx = await this.buildTx(method, args, { skipAccountLookup: true });
       const simulation = await this.server.simulateTransaction(tx);
       this.ensureSimulationSuccess(simulation);
       return this.parseSimulationResult(simulation);
@@ -269,6 +273,7 @@ export class StellarGrantsSDK {
     args: xdr.ScVal[],
     options?: WriteOptions
   ): Promise<rpc.Api.SendTransactionResponse | unknown> {
+    const signer = this.requireSigner();
     try {
       let finalFee = this.config.defaultFee ?? "100";
 
@@ -288,18 +293,22 @@ export class StellarGrantsSDK {
         finalFee = options.simulatedFee;
       }
 
-      const tx = await this.buildTx(method, args, finalFee, options?.transactionData);
+      const tx = await this.buildTx(method, args, {
+        overrideFee: finalFee,
+        sorobanData: options?.transactionData,
+      });
       let prepared = tx;
 
       if (!options?.transactionData) {
         prepared = await this.server.prepareTransaction(tx);
       }
 
-      const signedXdr = await this.config.signer.signTransaction(
+      const networkPassphrase = await this.resolveNetworkPassphrase();
+      const signedXdr = await signer.signTransaction(
         prepared.toXDR(),
-        this.config.networkPassphrase,
+        networkPassphrase,
       );
-      const signedTx = TransactionBuilder.fromXDR(signedXdr, this.config.networkPassphrase);
+      const signedTx = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
 
       const sent = await this.server.sendTransaction(signedTx);
       if (sent.status === "ERROR") {
@@ -317,23 +326,61 @@ export class StellarGrantsSDK {
   private async buildTx(
     method: string, 
     args: xdr.ScVal[], 
-    overrideFee?: string, 
-    sorobanData?: string | xdr.SorobanTransactionData
+    options?: {
+      overrideFee?: string;
+      sorobanData?: string | xdr.SorobanTransactionData;
+      skipAccountLookup?: boolean;
+    }
   ) {
-    const source = await this.config.signer.getPublicKey();
-    const account = await this.server.getAccount(source);
+    const account = await this.getSourceAccount(options?.skipAccountLookup);
+    const networkPassphrase = await this.resolveNetworkPassphrase();
     const builder = new TransactionBuilder(account, {
-      fee: overrideFee ?? this.config.defaultFee ?? "100",
-      networkPassphrase: this.config.networkPassphrase,
+      fee: options?.overrideFee ?? this.config.defaultFee ?? "100",
+      networkPassphrase,
     })
       .addOperation(this.contract.call(method, ...args))
       .setTimeout(60);
       
-    if (sorobanData) {
-      builder.setSorobanData(sorobanData);
+    if (options?.sorobanData) {
+      builder.setSorobanData(options.sorobanData);
     }
       
     return builder.build();
+  }
+
+  private async resolveNetworkPassphrase(): Promise<string> {
+    if (this.config.networkPassphrase) {
+      return this.config.networkPassphrase;
+    }
+
+    if (!this.networkPassphrasePromise) {
+      this.networkPassphrasePromise = this.server.getNetwork().then((network: any) => network.passphrase);
+    }
+
+    return this.networkPassphrasePromise;
+  }
+
+  private requireSigner(): WalletAdapter {
+    if (!this.config.signer) {
+      throw new StellarGrantsError(
+        "A signer is required for write operations. Initialize StellarGrantsSDK with a signer to submit transactions.",
+        "SIGNER_REQUIRED",
+      );
+    }
+
+    return this.config.signer;
+  }
+
+  private async getSourceAccount(skipAccountLookup = false): Promise<Account> {
+    if (skipAccountLookup) {
+      const source = this.config.signer
+        ? await this.config.signer.getPublicKey()
+        : READ_ONLY_SIMULATION_ACCOUNT;
+      return new Account(source, "0");
+    }
+
+    const source = await this.requireSigner().getPublicKey();
+    return this.server.getAccount(source);
   }
 
   /**

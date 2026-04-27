@@ -11,6 +11,9 @@ export class FeeCollection {
   @Column({ type: "varchar", length: 120 })
   funderAddress!: string;
 
+  @Column({ type: "varchar", length: 30 })
+  token!: string;
+
   @Column({ type: "varchar", length: 60 })
   totalContribution!: string;
 
