@@ -3,6 +3,7 @@ import { Repository } from "typeorm";
 import { z } from "zod";
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { Contributor } from "../entities/Contributor";
+import { Grant } from "../entities/Grant";
 
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
@@ -67,7 +68,7 @@ function verifySignature(params: {
   );
 }
 
-function toProfile(c: Contributor) {
+function toProfile(c: Contributor, grants?: Grant[]) {
   return {
     address: c.address,
     bio: c.bio ?? null,
@@ -76,10 +77,17 @@ function toProfile(c: Contributor) {
     twitterUrl: c.twitterUrl ?? null,
     linkedinUrl: c.linkedinUrl ?? null,
     updatedAt: c.updatedAt,
+    grants: grants?.map(g => ({
+      id: g.id,
+      title: g.title,
+      status: g.status,
+      totalAmount: g.totalAmount,
+      tags: g.tags,
+    })) ?? [],
   };
 }
 
-export const buildProfilesRouter = (contributorRepo: Repository<Contributor>) => {
+export const buildProfilesRouter = (contributorRepo: Repository<Contributor>, grantRepo: Repository<Grant>) => {
   const router = Router();
 
   router.get("/:address", async (req, res, next) => {
@@ -96,7 +104,8 @@ export const buildProfilesRouter = (contributorRepo: Repository<Contributor>) =>
         return;
       }
 
-      res.json({ data: toProfile(contributor) });
+      const grants = await grantRepo.find({ where: { recipient: address } });
+      res.json({ data: toProfile(contributor, grants) });
     } catch (error) {
       next(error);
     }

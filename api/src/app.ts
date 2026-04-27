@@ -184,7 +184,7 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/dashboard", buildDashboardRouter(grantRepo, milestoneRepo, proofRepo, grantSyncService));
   app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
   app.use("/search", buildSearchRouter(dataSource));
-  app.use("/profiles", buildProfilesRouter(contributorRepo));
+  app.use("/profiles", buildProfilesRouter(contributorRepo, grantRepo));
   app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
   app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo));
   app.use(buildMilestoneCommentsRouter(milestoneRepo, milestoneCommentRepo, grantReviewerRepo));
