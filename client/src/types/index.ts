@@ -23,10 +23,10 @@ export type StellarGrantsSDKConfig = {
   contractId: string;
   /** The URL of the Soroban RPC server. */
   rpcUrl: string;
-  /** The network passphrase (e.g., "Test SDF Network ; September 2015"). */
-  networkPassphrase: string;
-  /** The signer (wallet adapter) used to authorize transactions. */
-  signer: WalletAdapter;
+  /** The network passphrase (e.g., "Test SDF Network ; September 2015"). If omitted, it is resolved from the RPC server. */
+  networkPassphrase?: string;
+  /** The signer (wallet adapter) used to authorize transactions. Optional for read-only usage. */
+  signer?: WalletAdapter;
   /** Default fee to use for transactions (in stroops). Defaults to "100". */
   defaultFee?: string;
   /** Polling interval in milliseconds when waiting for transactions. Defaults to 1000. */

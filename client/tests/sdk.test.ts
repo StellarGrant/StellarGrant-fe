@@ -8,6 +8,7 @@
 import { StellarGrantsSDK } from "../src/StellarGrantsSDK";
 import { StellarGrantsError } from "../src/errors/StellarGrantsError";
 import { makeSdk, TEST_NETWORK_PASSPHRASE } from "./helpers/sdkFactory";
+import { makeMockServer } from "./helpers/mockServer";
 import {
   GrantCreateInput,
   GrantFundInput,
@@ -30,6 +31,9 @@ jest.mock("@stellar/stellar-sdk", () => {
         return { error: MockServer.simulationError };
       }
       return { result: { retval: { _mock: "ok" } } };
+    }
+    async getNetwork() {
+      return { passphrase: TEST_NETWORK_PASSPHRASE, protocolVersion: 20 };
     }
     async prepareTransaction(tx: any) {
       return tx;
@@ -63,6 +67,9 @@ jest.mock("@stellar/stellar-sdk", () => {
     Contract: class {
       constructor() { }
       call(method: string, ...args: unknown[]) { return { method, args }; }
+    },
+    Account: class {
+      constructor(public accountId: string, public sequence: string) { }
     },
     TransactionBuilder: class {
       static fromXDR(_xdr: string, _passphrase: string) {
@@ -104,6 +111,23 @@ const MILESTONE_VOTE: MilestoneVoteInput = { grantId: 1, milestoneIdx: 0, approv
 // Read methods — Req 2.x
 // ---------------------------------------------------------------------------
 describe("Read methods", () => {
+  it("supports read-only initialization with only contractId and rpcUrl", async () => {
+    const { server: mockServer, state } = makeMockServer();
+    state.simulationResult = { _native: { id: 7, status: "active" } };
+
+    const sdk = new StellarGrantsSDK({
+      contractId: "CTEST_CONTRACT_ID_MOCK",
+      rpcUrl: "https://rpc.test.mock",
+    });
+    (sdk as any).server = mockServer;
+
+    const result = await sdk.grantGet(7);
+
+    expect(result).toEqual({ id: 7, status: "active" });
+    expect(mockServer.getNetwork).toHaveBeenCalledTimes(1);
+    expect(mockServer.getAccount).not.toHaveBeenCalled();
+  });
+
   it("grantGet calls simulateTransaction exactly once and returns parsed result", async () => {
     const { sdk, mockServer } = makeSdk();
     mockServer.simulateTransaction.mockResolvedValueOnce({
@@ -143,6 +167,19 @@ describe("Read methods", () => {
 
     expect(mockServer.simulateTransaction).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ idx: 0 });
+  });
+
+  it("read-only methods skip account lookup even when a signer is configured", async () => {
+    const { sdk, mockServer, mockSigner } = makeSdk();
+    mockServer.simulateTransaction.mockResolvedValueOnce({
+      result: { retval: { _native: { id: 1 } } },
+      minResourceFee: "1000",
+    });
+
+    await sdk.grantGet(1);
+
+    expect(mockSigner.getPublicKey).toHaveBeenCalledTimes(1);
+    expect(mockServer.getAccount).not.toHaveBeenCalled();
   });
 
   it("simulateTransaction (public) returns raw simulation object", async () => {
@@ -193,6 +230,17 @@ describe("Read methods", () => {
 // Write methods — Req 3.x
 // ---------------------------------------------------------------------------
 describe("Write methods", () => {
+  it("throws a clear error when attempting a write without a signer", async () => {
+    const { sdk, mockServer } = makeSdk({ signer: undefined });
+
+    await expect(sdk.grantFund(GRANT_FUND)).rejects.toMatchObject({
+      code: "SIGNER_REQUIRED",
+      message: "A signer is required for write operations. Initialize StellarGrantsSDK with a signer to submit transactions.",
+    });
+    expect(mockServer.simulateTransaction).not.toHaveBeenCalled();
+    expect(mockServer.sendTransaction).not.toHaveBeenCalled();
+  });
+
   it("grantCreate calls signTransaction once and returns send result", async () => {
     const { sdk, mockSigner, mockServer } = makeSdk();
 
@@ -227,6 +275,16 @@ describe("Write methods", () => {
     await sdk.milestoneVote(MILESTONE_VOTE);
 
     expect(mockServer.sendTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the network passphrase from RPC for writes when not configured", async () => {
+    const { sdk, mockServer, mockSigner, state } = makeSdk({ networkPassphrase: undefined });
+    state.networkPassphrase = "Standalone Network ; February 2017";
+
+    await sdk.grantFund(GRANT_FUND);
+
+    expect(mockServer.getNetwork).toHaveBeenCalledTimes(1);
+    expect(mockSigner.signTransaction).toHaveBeenCalledWith("TX_XDR", "Standalone Network ; February 2017");
   });
 
   it("throws StellarGrantsError when sendTransaction returns status ERROR", async () => {
@@ -359,7 +417,7 @@ describe("invokeWrite option paths", () => {
 
   describe("waitForTransaction", () => {
     const signer = {
-      getPublicKey: jest.fn(async () => "GABC123"),
+      getPublicKey: jest.fn(async () => "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA"),
       signTransaction: jest.fn(async () => "SIGNED_XDR"),
     };
 
