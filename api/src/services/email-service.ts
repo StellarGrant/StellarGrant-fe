@@ -7,7 +7,9 @@ export type EmailEventType =
   | "milestone_approved"
   | "milestone_rejected"
   | "grant_funded"
-  | "grant_created";
+  | "grant_created"
+  | "milestone_deadline_upcoming"
+  | "milestone_deadline_overdue";
 
 export interface EmailPayload {
   to: string;
@@ -61,6 +63,22 @@ function buildTemplate(event: EmailEventType, data: Record<string, string | numb
                <p>Creator: <code>${data.recipient}</code></p>
                <p><a href="${base}/grants/${data.grantId}">View grant</a></p>`,
         text: `New grant #${data.grantId} created by ${data.recipient}.\nView at: ${base}/grants/${data.grantId}`,
+      };
+    case "milestone_deadline_upcoming":
+      return {
+        subject: `[StellarGrant] Milestone due in ${data.daysRemaining} day${Number(data.daysRemaining) === 1 ? "" : "s"} — Grant #${data.grantId}`,
+        html: `<p>Your milestone <strong>${data.milestoneTitle ?? `#${data.milestoneIdx}`}</strong> for <strong>${data.grantTitle ?? `Grant #${data.grantId}`}</strong> is due in <strong>${data.daysRemaining} day${Number(data.daysRemaining) === 1 ? "" : "s"}</strong>.</p>
+               <p>Deadline: <code>${data.deadline}</code></p>
+               <p><a href="${base}/grants/${data.grantId}/milestones">Open milestone dashboard</a></p>`,
+        text: `Milestone ${data.milestoneTitle ?? `#${data.milestoneIdx}`} for Grant #${data.grantId} is due in ${data.daysRemaining} day${Number(data.daysRemaining) === 1 ? "" : "s"}.\nDeadline: ${data.deadline}\nOpen: ${base}/grants/${data.grantId}/milestones`,
+      };
+    case "milestone_deadline_overdue":
+      return {
+        subject: `[StellarGrant] Milestone overdue — Grant #${data.grantId}`,
+        html: `<p>Your milestone <strong>${data.milestoneTitle ?? `#${data.milestoneIdx}`}</strong> for <strong>${data.grantTitle ?? `Grant #${data.grantId}`}</strong> is now <strong>overdue</strong>.</p>
+               <p>Deadline: <code>${data.deadline}</code></p>
+               <p><a href="${base}/grants/${data.grantId}/milestones">Review milestone</a></p>`,
+        text: `Milestone ${data.milestoneTitle ?? `#${data.milestoneIdx}`} for Grant #${data.grantId} is overdue.\nDeadline: ${data.deadline}\nReview: ${base}/grants/${data.grantId}/milestones`,
       };
   }
 }

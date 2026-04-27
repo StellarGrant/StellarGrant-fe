@@ -1,10 +1,11 @@
-import { DataSource, Repository } from "typeorm";
+import { DataSource, In, Repository } from "typeorm";
 import { Grant } from "../entities/Grant";
 import { Contributor } from "../entities/Contributor";
 import { ReputationLog } from "../entities/ReputationLog";
 import { Activity } from "../entities/Activity";
 import { UserWatchlist } from "../entities/UserWatchlist";
-import { SorobanContractClient } from "../soroban/types";
+import { Milestone } from "../entities/Milestone";
+import { SorobanContractClient, SorobanMilestone } from "../soroban/types";
 import { notificationService } from "./notification-service";
 
 export class GrantSyncService {
@@ -13,6 +14,7 @@ export class GrantSyncService {
   private readonly reputationLogRepo: Repository<ReputationLog>;
   private readonly activityRepo: Repository<Activity>;
   private readonly watchlistRepo: Repository<UserWatchlist>;
+  private readonly milestoneRepo: Repository<Milestone>;
 
   constructor(
     private readonly dataSource: DataSource,
@@ -23,13 +25,16 @@ export class GrantSyncService {
     this.reputationLogRepo = this.dataSource.getRepository(ReputationLog);
     this.activityRepo = this.dataSource.getRepository(Activity);
     this.watchlistRepo = this.dataSource.getRepository(UserWatchlist);
+    this.milestoneRepo = this.dataSource.getRepository(Milestone);
   }
 
   async syncAllGrants(): Promise<void> {
     const grants = await this.sorobanClient.fetchGrants();
     for (const grant of grants) {
+      const { milestones, ...grantRecord } = grant;
       const existingGrant = await this.grantRepo.findOne({ where: { id: grant.id } });
-      await this.grantRepo.save(grant);
+      await this.grantRepo.save(grantRecord);
+      await this.syncMilestones(grant.id, milestones);
       await this.syncContributorScore(grant.recipient);
 
       // Log activity for new grants
@@ -70,8 +75,10 @@ export class GrantSyncService {
   async syncGrant(id: number): Promise<void> {
     const grant = await this.sorobanClient.fetchGrantById(id);
     if (!grant) return;
+    const { milestones, ...grantRecord } = grant;
     const existingGrant = await this.grantRepo.findOne({ where: { id } });
-    await this.grantRepo.save(grant);
+    await this.grantRepo.save(grantRecord);
+    await this.syncMilestones(grant.id, milestones);
     await this.syncContributorScore(grant.recipient);
 
     // Log activity for new grants
@@ -112,6 +119,42 @@ export class GrantSyncService {
     const watchers = await this.watchlistRepo.find({ where: { grantId } });
     for (const watcher of watchers) {
       notificationService.notifyUser(watcher.address, type as any, data);
+    }
+  }
+
+  private async syncMilestones(grantId: number, milestones?: SorobanMilestone[]): Promise<void> {
+    if (!milestones) {
+      return;
+    }
+
+    const existing = await this.milestoneRepo.find({ where: { grantId } });
+    const existingByIdx = new Map(existing.map((milestone) => [milestone.idx, milestone]));
+    const nextIdxs = new Set<number>();
+
+    for (const milestone of milestones) {
+      nextIdxs.add(milestone.idx);
+      const previous = existingByIdx.get(milestone.idx);
+      const deadlineChanged = previous?.deadline !== milestone.deadline;
+
+      await this.milestoneRepo.save({
+        id: previous?.id,
+        grantId,
+        idx: milestone.idx,
+        title: milestone.title,
+        description: milestone.description ?? null,
+        deadline: milestone.deadline,
+        lastDeadlineReminderAt: deadlineChanged ? null : previous?.lastDeadlineReminderAt ?? null,
+        lastDeadlineReminderDaysBefore: deadlineChanged ? null : previous?.lastDeadlineReminderDaysBefore ?? null,
+        overdueNotifiedAt: deadlineChanged ? null : previous?.overdueNotifiedAt ?? null,
+      });
+    }
+
+    const staleIds = existing
+      .filter((milestone) => !nextIdxs.has(milestone.idx))
+      .map((milestone) => milestone.id);
+
+    if (staleIds.length > 0) {
+      await this.milestoneRepo.delete({ id: In(staleIds) });
     }
   }
 

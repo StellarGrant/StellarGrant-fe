@@ -1,7 +1,6 @@
 import { Column, Entity, Index, PrimaryColumn, UpdateDateColumn } from "typeorm";
 
 @Entity({ name: "contributors" })
-@Index("IDX_contributors_search", { synchronize: false, expression: "to_tsvector('english', address || ' ' || COALESCE(email, ''))" })
 export class Contributor {
   @PrimaryColumn({ type: "varchar", length: 120 })
   address!: string;

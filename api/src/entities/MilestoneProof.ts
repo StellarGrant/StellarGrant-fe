@@ -2,7 +2,6 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -12,7 +11,6 @@ import { Grant } from "./Grant";
 
 @Entity({ name: "milestone_proofs" })
 @Unique(["grantId", "milestoneIdx"])
-@Index("IDX_milestone_proofs_search", { synchronize: false, expression: "to_tsvector('english', COALESCE(description, '') || ' ' || proofCid)" })
 export class MilestoneProof {
   @PrimaryGeneratedColumn("increment")
   id!: number;
