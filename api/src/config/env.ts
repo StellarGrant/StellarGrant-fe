@@ -23,4 +23,7 @@ export const env = {
   /** When empty, response caching is disabled (safe for tests and local dev without Redis). */
   redisUrl: process.env.REDIS_URL ?? "",
   cacheTtlSeconds: Math.max(5, Number(process.env.CACHE_TTL_SECONDS ?? 120)),
+  rateLimitAlertWindowMinutes: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_WINDOW_MINUTES ?? 5)),
+  rateLimitAlertThreshold: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_THRESHOLD ?? 200)),
+  rateLimitAlertCooldownMinutes: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_COOLDOWN_MINUTES ?? 10)),
 };

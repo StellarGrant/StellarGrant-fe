@@ -9,6 +9,7 @@ import { Grant } from "../entities/Grant";
 import { ResponseCacheService } from "../services/response-cache";
 import { PlatformConfig } from "../entities/PlatformConfig";
 import { FeeCollection } from "../entities/FeeCollection";
+import { RateLimitLog } from "../entities/RateLimitLog";
 
 const VALID_BULK_ACTIONS = ["approve", "reject", "flag"] as const;
 type BulkAction = (typeof VALID_BULK_ACTIONS)[number];
@@ -39,6 +40,7 @@ export const buildAdminRouter = (
   const grantRepo: Repository<Grant> = auditLogRepo.manager.getRepository(Grant);
   const configRepo = auditLogRepo.manager.getRepository(PlatformConfig);
   const feeRepo = auditLogRepo.manager.getRepository(FeeCollection);
+  const rateLimitRepo = auditLogRepo.manager.getRepository(RateLimitLog);
 
   router.post("/sync/:grant_id", async (req, res, next) => {
     try {
@@ -184,6 +186,49 @@ export const buildAdminRouter = (
       });
 
       res.json({ ok: true, result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /**
+   * GET /admin/rate-limits
+   * Monitor rate limit "block" events grouped by IP and (optional) address.
+   *
+   * Query params:
+   * - sinceMinutes (default: 60, max: 24h)
+   * - limit (default: 50, max: 500)
+   */
+  router.get("/rate-limits", async (req, res, next) => {
+    try {
+      const sinceMinutes = Math.min(
+        24 * 60,
+        Math.max(1, Number(req.query.sinceMinutes ?? 60)),
+      );
+      const limit = Math.min(500, Math.max(1, Number(req.query.limit ?? 50)));
+      const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
+
+      const rows = await rateLimitRepo.createQueryBuilder("rl")
+        .select("rl.ip", "ip")
+        .addSelect("rl.address", "address")
+        .addSelect("COUNT(*)", "hits")
+        .addSelect("MAX(rl.createdAt)", "lastSeenAt")
+        .where("rl.createdAt >= :since", { since })
+        .groupBy("rl.ip")
+        .addGroupBy("rl.address")
+        .orderBy("hits", "DESC")
+        .limit(limit)
+        .getRawMany<{ ip: string; address: string | null; hits: string; lastSeenAt: string }>();
+
+      res.json({
+        data: rows.map((r) => ({
+          ip: r.ip,
+          address: r.address ?? null,
+          hits: Number(r.hits),
+          lastSeenAt: r.lastSeenAt,
+        })),
+        meta: { sinceMinutes, limit },
+      });
     } catch (error) {
       next(error);
     }

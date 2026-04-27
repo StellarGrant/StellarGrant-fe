@@ -22,6 +22,9 @@ export class RateLimitLog {
   @Column({ type: "varchar", length: 255, nullable: true })
   userAgent!: string;
 
+  @Column({ type: "varchar", length: 120, nullable: true })
+  address!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 }
