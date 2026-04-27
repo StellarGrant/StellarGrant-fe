@@ -1,4 +1,4 @@
-import { Server as SocketServer } from "socket.io";
+import { Server as SocketServer, type Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import { env } from "../config/env";
 
@@ -15,7 +15,7 @@ export class NotificationService {
       },
     });
 
-    this.io.on("connection", (socket) => {
+    this.io.on("connection", (socket: Socket) => {
       const address = socket.handshake.query.address as string;
       if (address) {
         const sockets = this.userSockets.get(address) || [];

@@ -6,9 +6,9 @@ export const env = {
   port: Number(process.env.PORT ?? 4000),
   databaseUrl:
     process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/stellargrant",
-  adminAddresses: (process.env.ADMIN_ADDRESSES ?? "").split(",").map(a => a.trim()).filter(Boolean),
+  adminAddresses: (process.env.ADMIN_ADDRESSES ?? "").split(",").map((a: string) => a.trim()).filter(Boolean),
   nodeEnv: process.env.NODE_ENV ?? "development",
-  corsOrigins: (process.env.CORS_ORIGINS ?? "http://localhost:3000").split(",").map(a => a.trim()).filter(Boolean),
+  corsOrigins: (process.env.CORS_ORIGINS ?? "http://localhost:3000").split(",").map((a: string) => a.trim()).filter(Boolean),
   logLevel: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === "production" ? "info" : "debug"),
   // IPFS / Pinata
   pinataJwt: process.env.PINATA_JWT ?? "",
@@ -20,4 +20,10 @@ export const env = {
   smtpPass: process.env.SMTP_PASS ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "noreply@stellargrant.io",
   appBaseUrl: process.env.APP_BASE_URL ?? "https://stellargrant.io",
+  /** When empty, response caching is disabled (safe for tests and local dev without Redis). */
+  redisUrl: process.env.REDIS_URL ?? "",
+  cacheTtlSeconds: Math.max(5, Number(process.env.CACHE_TTL_SECONDS ?? 120)),
+  rateLimitAlertWindowMinutes: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_WINDOW_MINUTES ?? 5)),
+  rateLimitAlertThreshold: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_THRESHOLD ?? 200)),
+  rateLimitAlertCooldownMinutes: Math.max(1, Number(process.env.RATE_LIMIT_ALERT_COOLDOWN_MINUTES ?? 10)),
 };

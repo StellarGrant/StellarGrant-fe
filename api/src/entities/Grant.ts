@@ -1,11 +1,9 @@
-import { Column, Entity, Index, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Milestone } from "./Milestone";
 import { MilestoneProof } from "./MilestoneProof";
+import { GrantReviewer } from "./GrantReviewer";
 
 @Entity({ name: "grants" })
-@Index("IDX_grants_status", ["status"], { synchronize: false })
-@Index("IDX_grants_updated_at", ["updatedAt"], { synchronize: false })
-@Index("IDX_grants_total_amount", ["totalAmount"], { synchronize: false })
-@Index("IDX_grants_search", { synchronize: false, expression: "to_tsvector('english', title || ' ' || COALESCE(tags, '') || ' ' || COALESCE(CAST(localizedMetadata AS TEXT), ''))" })
 export class Grant {
   @PrimaryColumn({ type: "int" })
   id!: number;
@@ -37,4 +35,7 @@ export class Grant {
 
   @OneToMany(() => MilestoneProof, (proof) => proof.grant)
   proofs!: MilestoneProof[];
+
+  @OneToMany(() => Milestone, (milestone) => milestone.grant)
+  milestones!: Milestone[];
 }

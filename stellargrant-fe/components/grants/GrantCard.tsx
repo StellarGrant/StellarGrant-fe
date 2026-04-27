@@ -14,7 +14,7 @@ import { FundingProgress } from "./FundingProgress";
 
 interface GrantCardProps {
   grant: {
-    id: string;
+    id: number;
     title: string;
     status: number;
     funded: bigint | number;

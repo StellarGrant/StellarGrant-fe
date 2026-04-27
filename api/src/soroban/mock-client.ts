@@ -1,5 +1,12 @@
 import { ContributorScore, SorobanContractClient, SorobanContractEvent, SorobanGrant } from "./types";
 
+const toIsoDeadline = (daysFromNow: number) => {
+  const date = new Date();
+  date.setUTCHours(12, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString();
+};
+
 const mockGrants: SorobanGrant[] = [
   {
     id: 1,
@@ -12,6 +19,20 @@ const mockGrants: SorobanGrant[] = [
       en: { title: "Open Source Grants Q2", description: "Supporting the best open-source projects." },
       es: { title: "Subvenciones de Código Abierto Q2", description: "Apoyando los mejores proyectos de código abierto." },
     },
+    milestones: [
+      {
+        idx: 0,
+        title: "Architecture review",
+        description: "Finalize the implementation plan and publish the design brief.",
+        deadline: toIsoDeadline(7),
+      },
+      {
+        idx: 1,
+        title: "Prototype delivery",
+        description: "Ship the first contributor-ready prototype for evaluation.",
+        deadline: toIsoDeadline(-2),
+      },
+    ],
   },
   {
     id: 2,
@@ -23,6 +44,14 @@ const mockGrants: SorobanGrant[] = [
     localizedMetadata: {
       en: { title: "Climate Data Tools", description: "Tools for measuring climate impact." },
     },
+    milestones: [
+      {
+        idx: 0,
+        title: "Dataset ingestion",
+        description: "Import the first climate dataset and validate refresh jobs.",
+        deadline: toIsoDeadline(3),
+      },
+    ],
   },
   {
     id: 3,
@@ -31,6 +60,14 @@ const mockGrants: SorobanGrant[] = [
     recipient: "GDZAPKZFP3PVPRMDG6WQVIMZLQ5J3FZGQ27BFLDL3YQSM6L7LS6AXEX",
     totalAmount: "500000000",
     tags: "defi,web3,infrastructure",
+    milestones: [
+      {
+        idx: 0,
+        title: "Validator integration",
+        description: "Connect the new validator pipeline and complete smoke tests.",
+        deadline: toIsoDeadline(1),
+      },
+    ],
   },
   {
     id: 4,
@@ -39,6 +76,14 @@ const mockGrants: SorobanGrant[] = [
     recipient: "GAV3TIZZ7DRCCMUVKZRQXELRTJFMXQT4XJFNV5BYMNOFXWXZA5MGDVEV",
     totalAmount: "75000000",
     tags: "education,community",
+    milestones: [
+      {
+        idx: 0,
+        title: "Curriculum planning",
+        description: "Draft the first training curriculum and secure mentors.",
+        deadline: toIsoDeadline(14),
+      },
+    ],
   },
 ];
 

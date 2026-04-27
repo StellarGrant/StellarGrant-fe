@@ -1,3 +1,4 @@
+import { buildMyDonationsRouter } from "./routes/my-donations";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -5,6 +6,13 @@ import morgan from "morgan";
 import { DataSource } from "typeorm";
 import { Grant } from "./entities/Grant";
 import { MilestoneProof } from "./entities/MilestoneProof";
+import { User } from "./entities/User";
+import { buildUserRouter } from "./routes/users";
+import { GrantReviewer } from "./entities/GrantReviewer";
+import { buildGrantReviewerRouter } from "./routes/grant-reviewers";
+import { MilestoneApproval } from "./entities/MilestoneApproval";
+import { buildMilestoneApprovalRouter } from "./routes/milestone-approvals";
+ import { buildMilestoneApprovalNotifyRouter } from "./routes/milestone-approvals-notify";
 import { Activity } from "./entities/Activity";
 import { buildGrantRouter } from "./routes/grants";
 import { buildMilestoneProofRouter } from "./routes/milestone-proof";
@@ -14,10 +22,13 @@ import { buildActivityRouter } from "./routes/activity";
 import { buildProofsRouter } from "./routes/proofs";
 import { buildNotificationsRouter } from "./routes/notifications";
 import { buildAnalyticsRouter } from "./routes/analytics";
+import { buildStatsRouter } from "./routes/stats";
+import { GrantSyncService } from "./services/grant-sync-service";
+import { ResponseCacheService } from "./services/response-cache";
 import { buildSearchRouter } from "./routes/search";
 import { buildWatchlistRouter } from "./routes/watchlist";
+import { buildDashboardRouter } from "./routes/dashboard";
 import { UserWatchlist } from "./entities/UserWatchlist";
-import { GrantSyncService } from "./services/grant-sync-service";
 import { ReconciliationService } from "./services/reconciliation-service";
 import { LeaderboardService } from "./services/leaderboard-service";
 import { SignatureService } from "./services/signature-service";
@@ -27,6 +38,7 @@ import { AuditLog } from "./entities/AuditLog";
 import { GrantView } from "./entities/GrantView";
 import { PlatformConfig } from "./entities/PlatformConfig";
 import { FeeCollection } from "./entities/FeeCollection";
+import { Milestone } from "./entities/Milestone";
 import { ConfigService } from "./services/config-service";
 import { FeeService } from "./services/fee-service";
 import { buildAdminMiddleware } from "./middlewares/admin-middleware";
@@ -63,7 +75,7 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     origin: env.corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-admin-address", "x-admin-signature", "x-admin-nonce", "x-admin-timestamp"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-user-address", "x-admin-address", "x-admin-signature", "x-admin-nonce", "x-admin-timestamp"],
   }));
 
   // Request ID generation
@@ -88,7 +100,11 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
 
   const activityRepo = dataSource.getRepository(Activity);
   const grantRepo = dataSource.getRepository(Grant);
+  const milestoneRepo = dataSource.getRepository(Milestone);
   const proofRepo = dataSource.getRepository(MilestoneProof);
+  const userRepo = dataSource.getRepository(User);
+  const grantReviewerRepo = dataSource.getRepository(GrantReviewer);
+  const milestoneApprovalRepo = dataSource.getRepository(MilestoneApproval);
   const grantSyncService = new GrantSyncService(dataSource, sorobanClient);
   const reconciliationService = new ReconciliationService(dataSource, sorobanClient, grantSyncService);
   const signatureService = new SignatureService();
@@ -110,15 +126,27 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   // Apply rate limiting
   app.use(rateLimiter);
   app.use("/grants", buildGrantRouter(grantRepo, grantSyncService, signatureService));
+  app.use("/milestone_proof", buildMilestoneProofRouter(proofRepo, signatureService, grantRepo, userRepo));
+  app.use("/users", buildUserRouter(userRepo));
+  app.use("/grant_reviewers", buildGrantReviewerRouter(grantReviewerRepo));
+  app.use("/milestone_approvals", buildMilestoneApprovalRouter(milestoneApprovalRepo));
+   app.use("/milestone_approvals_notify", buildMilestoneApprovalNotifyRouter(milestoneApprovalRepo, grantRepo, userRepo));
+  app.use("/grants", buildGrantRouter(grantRepo, grantSyncService, signatureService));
   app.use("/milestone_proof", buildMilestoneProofRouter(proofRepo, signatureService));
   app.use("/leaderboard", buildLeaderboardRouter(leaderboardService));
   app.use("/activity", buildActivityRouter(activityRepo));
-  app.use("/admin", adminMiddleware, buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo, reconciliationService));
+  app.use(
+    "/admin",
+    adminMiddleware,
+    buildAdminRouter(grantSyncService, contributorRepo, auditLogRepo, responseCache, reconciliationService),
+  );
   app.use("/proofs", buildProofsRouter(ipfsService));
   app.use("/notifications", buildNotificationsRouter(contributorRepo));
+  app.use("/dashboard", buildDashboardRouter(grantRepo, milestoneRepo, proofRepo, grantSyncService));
   app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
   app.use("/search", buildSearchRouter(dataSource));
   app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
+  app.use(buildMyDonationsRouter(dataSource));
   app.get("/config/fee", async (req, res) => {
     const fee = await configService.getFeePercentage();
     res.json({ feePercentage: fee });
