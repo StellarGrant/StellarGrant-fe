@@ -5,20 +5,8 @@ import { Community } from "../entities/Community";
 import { Grant } from "../entities/Grant";
 import { env } from "../config/env";
 import { Activity } from "../entities/Activity";
-
-const createCommunitySchema = z.object({
-  name: z.string().min(2).max(120),
-  description: z.string().max(2000).optional(),
-  logoUrl: z.string().url().max(2000).optional(),
-  adminAddresses: z.array(z.string().min(10).max(120)).max(20).optional(),
-  featured: z.boolean().optional(),
-});
-
-const updateCommunitySchema = z.object({
-  description: z.string().max(2000).optional(),
-  logoUrl: z.string().url().max(2000).nullable().optional(),
-  featured: z.boolean().optional(),
-});
+import { validateBody, validateParams, validateRequest } from "../middlewares/validation-middleware";
+import { communityCreateSchema, communityUpdateSchema, idParamSchema } from "../schemas";
 
 const isPlatformAdmin = (address?: string) =>
   !!address && env.adminAddresses.includes(address);
@@ -39,7 +27,7 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/", async (req, res, next) => {
+  router.post("/", validateBody(communityCreateSchema), async (req, res, next) => {
     try {
       const adminAddress = req.header("x-admin-address") ?? undefined;
       if (!isPlatformAdmin(adminAddress)) {
@@ -47,14 +35,8 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      const parsed = createCommunitySchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
+      const payload = (req as any).validatedBody;
       const fallbackAdmin = adminAddress as string;
-      const payload = parsed.data;
       const created = await communityRepo.save({
         name: payload.name.trim(),
         description: payload.description?.trim() ?? null,
@@ -73,13 +55,9 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.patch("/:id", async (req, res, next) => {
+  router.patch("/:id", validateRequest({ params: idParamSchema, body: communityUpdateSchema }), async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
-      if (Number.isNaN(id)) {
-        res.status(400).json({ error: "Invalid community id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
@@ -94,13 +72,7 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      const parsed = updateCommunitySchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const payload = parsed.data;
+      const payload = (req as any).validatedBody;
       if (payload.description !== undefined) {
         community.description = payload.description.trim();
       }
@@ -118,13 +90,9 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.get("/:id/grants", async (req, res, next) => {
+  router.get("/:id/grants", validateParams(idParamSchema), async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
-      if (Number.isNaN(id)) {
-        res.status(400).json({ error: "Invalid community id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
@@ -152,14 +120,9 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/:id/grants/:grantId", async (req, res, next) => {
+  router.post("/:id/grants/:grantId", validateRequest({ params: z.object({ id: z.coerce.number().int().positive(), grantId: z.coerce.number().int().positive() }) }), async (req, res, next) => {
     try {
-      const communityId = Number(req.params.id);
-      const grantId = Number(req.params.grantId);
-      if (Number.isNaN(communityId) || Number.isNaN(grantId)) {
-        res.status(400).json({ error: "Invalid id" });
-        return;
-      }
+      const { id, grantId } = (req as any).validatedParams;
 
       const actor = req.header("x-admin-address") ?? undefined;
       if (!isPlatformAdmin(actor)) {
@@ -167,7 +130,7 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      const community = await communityRepo.findOne({ where: { id: communityId } });
+      const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
         res.status(404).json({ error: "Community not found" });
         return;
@@ -179,7 +142,7 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      grant.communityId = communityId;
+      grant.communityId = id;
       await grantRepo.save(grant);
       res.json({ data: grant });
     } catch (error) {

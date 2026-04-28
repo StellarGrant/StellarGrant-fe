@@ -10,24 +10,8 @@ import { ResponseCacheService } from "../services/response-cache";
 import { PlatformConfig } from "../entities/PlatformConfig";
 import { FeeCollection } from "../entities/FeeCollection";
 import { RateLimitLog } from "../entities/RateLimitLog";
-
-const VALID_BULK_ACTIONS = ["approve", "reject", "flag"] as const;
-type BulkAction = (typeof VALID_BULK_ACTIONS)[number];
-
-const ACTION_STATUS_MAP: Record<BulkAction, string> = {
-  approve: "approved",
-  reject: "rejected",
-  flag: "flagged",
-};
-
-const bulkSchema = z.object({
-  grantIds: z.array(z.number().int().positive()).min(1).max(100),
-  action: z.enum(VALID_BULK_ACTIONS),
-});
-
-const configSchema = z.object({
-  feePercentage: z.number().min(0).max(100),
-});
+import { validateBody, validateParams, validateRequest } from "../middlewares/validation-middleware";
+import { adminBulkActionSchema, adminBlacklistSchema, addressParamSchema } from "../schemas";
 
 export const buildAdminRouter = (
   grantSyncService: GrantSyncService,
@@ -42,38 +26,29 @@ export const buildAdminRouter = (
   const feeRepo = auditLogRepo.manager.getRepository(FeeCollection);
   const rateLimitRepo = auditLogRepo.manager.getRepository(RateLimitLog);
 
-  router.post("/sync/:grant_id", async (req, res, next) => {
+  router.post("/sync/:grant_id", validateParams(z.object({ grant_id: z.coerce.number().int().positive() })), async (req, res, next) => {
     try {
-      const grantId = parseInt(req.params.grant_id, 10);
-      if (isNaN(grantId)) {
-        res.status(400).json({ error: "Invalid grant ID" });
-        return;
-      }
+      const { grant_id } = (req as any).validatedParams;
 
-      await grantSyncService.syncGrant(grantId);
+      await grantSyncService.syncGrant(grant_id);
 
       await auditLogRepo.save({
         adminAddress: (req as any).adminAddress,
         action: "SYNC_GRANT",
-        target: `grant:${grantId}`,
-        details: `Force synced grant ${grantId}`,
+        target: `grant:${grant_id}`,
+        details: `Force synced grant ${grant_id}`,
       });
 
-      res.json({ ok: true, message: `Grant ${grantId} synced` });
+      res.json({ ok: true, message: `Grant ${grant_id} synced` });
     } catch (error) {
       next(error);
     }
   });
 
-  router.patch("/users/:address/blacklist", async (req, res, next) => {
+  router.patch("/users/:address/blacklist", validateRequest({ params: addressParamSchema, body: adminBlacklistSchema }), async (req, res, next) => {
     try {
-      const { address } = req.params;
-      const { blacklist } = req.body;
-
-      if (typeof blacklist !== "boolean") {
-        res.status(400).json({ error: "Missing or invalid 'blacklist' field (boolean)" });
-        return;
-      }
+      const { address } = (req as any).validatedParams;
+      const { blacklist } = (req as any).validatedBody;
 
       let contributor = await contributorRepo.findOne({ where: { address } });
       if (!contributor) {
@@ -101,15 +76,14 @@ export const buildAdminRouter = (
    * Bulk approve, reject, or flag multiple grants atomically.
    * Body: { grantIds: number[], action: "approve" | "reject" | "flag" }
    */
-  router.post("/grants/bulk", async (req, res, next) => {
+  router.post("/grants/bulk", validateBody(adminBulkActionSchema), async (req, res, next) => {
     try {
-      const parsed = bulkSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const { grantIds, action } = parsed.data;
+      const { grantIds, action } = (req as any).validatedBody;
+      const ACTION_STATUS_MAP: Record<string, string> = {
+        approve: "approved",
+        reject: "rejected",
+        flag: "flagged",
+      };
       const newStatus = ACTION_STATUS_MAP[action];
       const adminAddress: string = (req as any).adminAddress;
 

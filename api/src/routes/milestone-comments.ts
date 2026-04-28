@@ -1,17 +1,13 @@
 import { Router } from "express";
 import { Repository } from "typeorm";
 import { z } from "zod";
-import { env } from "../config/env";
-import { GrantReviewer } from "../entities/GrantReviewer";
 import { Milestone } from "../entities/Milestone";
 import { MilestoneComment } from "../entities/MilestoneComment";
+import { GrantReviewer } from "../entities/GrantReviewer";
+import { env } from "../config/env";
 import { notificationService } from "../services/notification-service";
-
-const createCommentSchema = z.object({
-  content: z.string().trim().min(1).max(4000),
-  authorAddress: z.string().trim().min(10).max(120),
-  parentCommentId: z.number().int().positive().optional(),
-});
+import { validateParams, validateRequest } from "../middlewares/validation-middleware";
+import { milestoneCommentCreateSchema, idParamSchema } from "../schemas";
 
 const isAdmin = (address?: string) => !!address && env.adminAddresses.includes(address);
 
@@ -22,22 +18,18 @@ export const buildMilestoneCommentsRouter = (
 ) => {
   const router = Router();
 
-  router.get("/milestones/:id/comments", async (req, res, next) => {
+  router.get("/milestones/:id/comments", validateParams(idParamSchema), async (req, res, next) => {
     try {
-      const milestoneId = Number(req.params.id);
-      if (Number.isNaN(milestoneId)) {
-        res.status(400).json({ error: "Invalid milestone id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
 
-      const milestone = await milestoneRepo.findOne({ where: { id: milestoneId } });
+      const milestone = await milestoneRepo.findOne({ where: { id } });
       if (!milestone) {
         res.status(404).json({ error: "Milestone not found" });
         return;
       }
 
       const comments = await commentsRepo.find({
-        where: { milestoneId },
+        where: { milestoneId: id },
         order: { createdAt: "ASC", id: "ASC" },
       });
 
@@ -47,16 +39,13 @@ export const buildMilestoneCommentsRouter = (
     }
   });
 
-  router.post("/milestones/:id/comments", async (req, res, next) => {
+  router.post("/milestones/:id/comments", validateRequest({ params: idParamSchema, body: milestoneCommentCreateSchema }), async (req, res, next) => {
     try {
-      const milestoneId = Number(req.params.id);
-      if (Number.isNaN(milestoneId)) {
-        res.status(400).json({ error: "Invalid milestone id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
+      const payload = (req as any).validatedBody;
 
       const milestone = await milestoneRepo.findOne({
-        where: { id: milestoneId },
+        where: { id },
         relations: { grant: true },
       });
       if (!milestone) {
@@ -64,23 +53,16 @@ export const buildMilestoneCommentsRouter = (
         return;
       }
 
-      const parsed = createCommentSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const payload = parsed.data;
       if (payload.parentCommentId) {
         const parent = await commentsRepo.findOne({ where: { id: payload.parentCommentId } });
-        if (!parent || parent.milestoneId !== milestoneId) {
+        if (!parent || parent.milestoneId !== id) {
           res.status(400).json({ error: "Invalid parentCommentId" });
           return;
         }
       }
 
       const saved = await commentsRepo.save({
-        milestoneId,
+        milestoneId: id,
         content: payload.content,
         authorAddress: payload.authorAddress,
         parentCommentId: payload.parentCommentId ?? null,
@@ -93,7 +75,7 @@ export const buildMilestoneCommentsRouter = (
       for (const address of recipients) {
         notificationService.notifyUser(address, "milestone_comment_added", {
           commentId: saved.id,
-          milestoneId,
+          milestoneId: id,
           grantId: milestone.grantId,
           authorAddress: payload.authorAddress,
         });
@@ -105,14 +87,9 @@ export const buildMilestoneCommentsRouter = (
     }
   });
 
-  router.delete("/milestones/:id/comments/:commentId", async (req, res, next) => {
+  router.delete("/milestones/:id/comments/:commentId", validateRequest({ params: z.object({ id: z.coerce.number().int().positive(), commentId: z.coerce.number().int().positive() }) }), async (req, res, next) => {
     try {
-      const milestoneId = Number(req.params.id);
-      const commentId = Number(req.params.commentId);
-      if (Number.isNaN(milestoneId) || Number.isNaN(commentId)) {
-        res.status(400).json({ error: "Invalid id" });
-        return;
-      }
+      const { id, commentId } = (req as any).validatedParams;
 
       const actor = req.header("x-admin-address") ?? undefined;
       if (!isAdmin(actor)) {
@@ -120,7 +97,7 @@ export const buildMilestoneCommentsRouter = (
         return;
       }
 
-      const comment = await commentsRepo.findOne({ where: { id: commentId, milestoneId } });
+      const comment = await commentsRepo.findOne({ where: { id: commentId, milestoneId: id } });
       if (!comment) {
         res.status(404).json({ error: "Comment not found" });
         return;

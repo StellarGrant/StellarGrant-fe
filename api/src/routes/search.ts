@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { DataSource } from "typeorm";
+import { validateQuery } from "../middlewares/validation-middleware";
+import { searchQuerySchema } from "../schemas";
 
 /**
  * Unified Search Endpoint
@@ -14,9 +16,11 @@ import { DataSource } from "typeorm";
 export const buildSearchRouter = (dataSource: DataSource) => {
   const router = Router();
 
-  router.get("/", async (req, res, next) => {
+  router.get("/", validateQuery(searchQuerySchema), async (req, res, next) => {
     try {
-      const query = String(req.query.q || "").trim();
+      const { q } = (req as any).validatedQuery;
+      const query = q.trim();
+
       if (!query || query.length < 2) {
         return res.json({ data: [] });
       }

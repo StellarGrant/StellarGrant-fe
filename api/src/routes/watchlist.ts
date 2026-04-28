@@ -3,6 +3,8 @@ import { Repository, In } from "typeorm";
 import { UserWatchlist } from "../entities/UserWatchlist";
 import { Grant } from "../entities/Grant";
 import { Activity } from "../entities/Activity";
+import { validateParams } from "../middlewares/validation-middleware";
+import { idParamSchema } from "../schemas";
 
 export const buildWatchlistRouter = (
   watchlistRepo: Repository<UserWatchlist>,
@@ -36,28 +38,28 @@ export const buildWatchlistRouter = (
     }
   });
 
-  router.post("/:grantId", async (req, res, next) => {
+  router.post("/:grantId", validateParams(idParamSchema), async (req, res, next) => {
     try {
-      const grantId = parseInt(req.params.grantId, 10);
+      const { id } = (req as any).validatedParams;
       const address = req.header("x-user-address");
 
-      if (isNaN(grantId) || !address) {
-        res.status(400).json({ error: "Invalid grantId or missing x-user-address" });
+      if (!address) {
+        res.status(400).json({ error: "Missing x-user-address header" });
         return;
       }
 
-      const grant = await grantRepo.findOne({ where: { id: grantId } });
+      const grant = await grantRepo.findOne({ where: { id } });
       if (!grant) {
         res.status(404).json({ error: "Grant not found" });
         return;
       }
 
-      await watchlistRepo.save({ address, grantId });
+      await watchlistRepo.save({ address, grantId: id });
 
       await activityRepo.save({
         type: "watchlist_added" as any,
         entityType: "grant",
-        entityId: grantId,
+        entityId: id,
         actorAddress: address,
         data: null,
       });
@@ -72,17 +74,17 @@ export const buildWatchlistRouter = (
     }
   });
 
-  router.delete("/:grantId", async (req, res, next) => {
+  router.delete("/:grantId", validateParams(idParamSchema), async (req, res, next) => {
     try {
-      const grantId = parseInt(req.params.grantId, 10);
+      const { id } = (req as any).validatedParams;
       const address = req.header("x-user-address");
 
-      if (isNaN(grantId) || !address) {
-        res.status(400).json({ error: "Invalid grantId or missing x-user-address" });
+      if (!address) {
+        res.status(400).json({ error: "Missing x-user-address header" });
         return;
       }
 
-      const result = await watchlistRepo.delete({ address, grantId });
+      const result = await watchlistRepo.delete({ address, grantId: id });
 
       if (result.affected === 0) {
         res.status(404).json({ error: "Watchlist entry not found" });
@@ -92,7 +94,7 @@ export const buildWatchlistRouter = (
       await activityRepo.save({
         type: "watchlist_removed" as any,
         entityType: "grant",
-        entityId: grantId,
+        entityId: id,
         actorAddress: address,
         data: null,
       });
