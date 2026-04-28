@@ -25,6 +25,14 @@ export type {
   MilestoneVotedData,
 } from "./events";
 export { uploadMetadataToIPFS, fetchMetadataFromIPFS } from "./ipfs";
+export {
+  GRANT_METADATA_SCHEMA,
+  MILESTONE_METADATA_SCHEMA,
+  IPFS_METADATA_SCHEMAS,
+  inferMetadataSchemaName,
+  validateMetadataAgainstSchema,
+} from "./metadataSchemas";
+export { MetadataValidationError } from "./errors/MetadataValidationError";
 export type {
   AllowanceResult,
   AllowanceCheckResult,

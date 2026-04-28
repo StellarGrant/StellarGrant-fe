@@ -101,4 +101,17 @@ describe("AlbedoAdapter.signTransaction", () => {
             "Albedo is not installed or available",
         );
     });
+
+    it("throws descriptive error when popup is blocked", async () => {
+        (global as any).window = makeAlbedoWindow({
+            tx: jest.fn(async () => {
+                throw new Error("Popup blocked");
+            }),
+        });
+        const adapter = new AlbedoAdapter();
+
+        await expect(adapter.signTransaction("TX_XDR", TESTNET_PASSPHRASE)).rejects.toThrow(
+            "Albedo popup was blocked or closed",
+        );
+    });
 });

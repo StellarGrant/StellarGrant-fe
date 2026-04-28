@@ -4,6 +4,9 @@
   "description": "TypeScript SDK for StellarGrants Soroban contract interactions.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "sg": "dist/cli.js"
+  },
   "files": [
     "dist"
   ],
@@ -12,6 +15,7 @@
     "test": "jest --runInBand",
     "docs": "typedoc --options typedoc.json",
     "clean": "rm -rf dist"
+    "cli": "node dist/cli.js"
   },
   "keywords": [
     "stellar",
@@ -22,7 +26,9 @@
   "license": "MIT",
   "dependencies": {
     "@stellar/stellar-base": "^13.1.0",
-    "@stellar/stellar-sdk": "^13.3.0"
+    "@stellar/stellar-sdk": "^13.3.0",
+    "commander": "^13.1.0",
+    "dotenv": "^17.2.2"
   },
   "devDependencies": {
     "typedoc": "^0.27.8",

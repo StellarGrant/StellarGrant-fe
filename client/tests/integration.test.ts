@@ -395,6 +395,8 @@ describe("Token allowance management (#272)", () => {
 describe("IPFS metadata helpers (#261)", () => {
   const { uploadMetadataToIPFS, fetchMetadataFromIPFS } =
     require("../src/ipfs") as typeof import("../src/ipfs");
+  const { MetadataValidationError } =
+    require("../src/errors/MetadataValidationError") as typeof import("../src/errors/MetadataValidationError");
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -422,8 +424,30 @@ describe("IPFS metadata helpers (#261)", () => {
 
   it("uploadMetadataToIPFS throws when no credentials provided", async () => {
     await expect(
-      uploadMetadataToIPFS({ title: "No auth" }, {}),
+      uploadMetadataToIPFS({ title: "No auth", description: "No credentials" }, {}),
     ).rejects.toThrow(/pinata/i);
+  });
+
+  it("uploadMetadataToIPFS validates grant schema before upload", async () => {
+    await expect(
+      uploadMetadataToIPFS(
+        { title: "", description: "" },
+        { pinataJwt: "my-jwt-token", metadataSchema: "grant" },
+      ),
+    ).rejects.toBeInstanceOf(MetadataValidationError);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("uploadMetadataToIPFS validates milestone schema before upload", async () => {
+    await expect(
+      uploadMetadataToIPFS(
+        { title: "M1", description: "First milestone" },
+        { pinataJwt: "my-jwt-token", metadataSchema: "milestone" },
+      ),
+    ).rejects.toBeInstanceOf(MetadataValidationError);
+
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("fetchMetadataFromIPFS returns parsed JSON from first responding gateway", async () => {
