@@ -166,6 +166,59 @@ export class StellarGrantsSDK {
   }
 
   /**
+   * Builds and prepares an unsigned transaction XDR for a contract write call.
+   *
+   * This is useful for offline / hardware signing flows. The returned XDR can
+   * be signed externally and later submitted via `WriteOptions.signedXdr`.
+   */
+  async buildUnsignedTransaction(
+    method: string,
+    args: xdr.ScVal[],
+    options?: { feePriority?: FeePriority; feeMultiplier?: number; simulatedFee?: string; transactionData?: any },
+  ): Promise<{ xdr: string; networkPassphrase: string; fee: string }> {
+    const signer = this.requireSigner();
+    const networkPassphrase = await this.resolveNetworkPassphrase();
+    let finalFee = this.config.defaultFee ?? "100";
+
+    if (!options?.transactionData || options?.feeMultiplier) {
+      const txForSim = await this.buildTx(method, args);
+      const simulation = await this.withRetry(() => this.server.simulateTransaction(txForSim)) as any;
+      this.ensureSimulationSuccess(simulation);
+
+      const base = Number(simulation.minResourceFee ?? 0);
+      const dynamicFees = await this.resolveDynamicFeeModifiers();
+      const recommendedBase = dynamicFees?.recommendedBaseFee ?? base;
+      const effectiveBase = Math.max(base, recommendedBase);
+
+      if (options?.feeMultiplier) {
+        finalFee = String(Math.ceil(effectiveBase * options.feeMultiplier));
+      } else {
+        const priority: FeePriority = options?.feePriority ?? "medium";
+        const modifiers = dynamicFees?.modifiers ?? DEFAULT_FEE_LEVEL_MODIFIERS;
+        finalFee = String(Math.ceil(effectiveBase * modifiers[priority]));
+      }
+    }
+
+    if (options?.simulatedFee && !options?.feeMultiplier) {
+      finalFee = options.simulatedFee;
+    }
+
+    const tx = await this.buildTx(method, args, {
+      overrideFee: finalFee,
+      sorobanData: options?.transactionData,
+    });
+
+    const prepared = options?.transactionData
+      ? tx
+      : await this.withRetry(() => this.server.prepareTransaction(tx));
+
+    // Ensure the transaction source matches signer to avoid surprising offline flows.
+    await signer.getPublicKey();
+
+    return { xdr: prepared.toXDR(), networkPassphrase, fee: finalFee };
+  }
+
+  /**
    * Retrieves the details of a grant from the contract (read-only).
    *
    * @param grantId The unique numeric ID of the grant.
@@ -576,6 +629,17 @@ export class StellarGrantsSDK {
   ): Promise<rpc.Api.SendTransactionResponse | unknown> {
     const signer = this.requireSigner();
     try {
+      // Allow routing a pre-signed XDR through the standard flow.
+      if (options?.signedXdr) {
+        const networkPassphrase = await this.resolveNetworkPassphrase();
+        const signedTx = TransactionBuilder.fromXDR(options.signedXdr, networkPassphrase);
+        const sent = await this.withRetry(() => this.server.sendTransaction(signedTx)) as rpc.Api.SendTransactionResponse;
+        if (sent.status === "ERROR") {
+          throw new StellarGrantsError(`Send failed: ${sent.errorResult ?? "unknown error"}`);
+        }
+        return sent;
+      }
+
       let finalFee = this.config.defaultFee ?? "100";
 
       // Simulate when there is no pre-built transaction data OR when the caller
@@ -664,11 +728,10 @@ export class StellarGrantsSDK {
       return this.config.networkPassphrase;
     }
 
-    if (!this.networkPassphrasePromise) {
-      this.networkPassphrasePromise = this.server.getNetwork().then((network: any) => network.passphrase);
-    }
+    const promise = this.networkPassphrasePromise
+      ?? (this.networkPassphrasePromise = this.server.getNetwork().then((network: any) => network.passphrase));
 
-    return this.networkPassphrasePromise;
+    return promise;
   }
 
   private requireSigner(): WalletAdapter {
