@@ -150,7 +150,35 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   const adminMiddleware = buildAdminMiddleware(signatureService);
 
   // Health check endpoint (no versioning)
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "v1" }));
+  app.get("/health", async (_req, res) => {
+    const health = {
+      ok: true,
+      version: "v1",
+      services: {
+        database: "ok" as "ok" | "error",
+        soroban: "ok" as "ok" | "error",
+      },
+    };
+
+    try {
+      // Check database connectivity
+      await dataSource.query("SELECT 1");
+    } catch (error) {
+      health.services.database = "error";
+      health.ok = false;
+    }
+
+    try {
+      // Check Soroban RPC status
+      await sorobanClient.getLatestLedger();
+    } catch (error) {
+      health.services.soroban = "error";
+      health.ok = false;
+    }
+
+    const statusCode = health.ok ? 200 : 503;
+    res.status(statusCode).json(health);
+  });
   app.get("/metrics", async (req, res) => {
     if (!isMetricsAuthorized(req)) {
       res.setHeader("WWW-Authenticate", "Basic realm=metrics");
@@ -184,7 +212,7 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/dashboard", buildDashboardRouter(grantRepo, milestoneRepo, proofRepo, grantSyncService));
   app.use("/analytics", buildAnalyticsRouter(grantRepo, grantViewRepo));
   app.use("/search", buildSearchRouter(dataSource));
-  app.use("/profiles", buildProfilesRouter(contributorRepo));
+  app.use("/profiles", buildProfilesRouter(contributorRepo, grantRepo));
   app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
   app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo));
   app.use(buildMilestoneCommentsRouter(milestoneRepo, milestoneCommentRepo, grantReviewerRepo));
