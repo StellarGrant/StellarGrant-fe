@@ -9,7 +9,11 @@
     "test:e2e": "vitest run tests/e2e",
     "test:integration": "vitest run tests/integration",
     "test:coverage": "vitest run --coverage",
-    "typeorm:sync": "tsx src/scripts/sync-db.ts"
+    "typeorm:sync": "tsx src/scripts/sync-db.ts",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/db/typeorm.config.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/db/typeorm.config.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/db/typeorm.config.ts",
+    "migration:show": "typeorm-ts-node-commonjs migration:show -d src/db/typeorm.config.ts"
   },
   "dependencies": {
     "swagger-ui-express": "^4.6.3",
@@ -21,7 +25,7 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.1.0",
     "@types/nodemailer": "^8.0.0",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^9.0.0",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "express": "^4.22.1",
@@ -39,7 +43,7 @@
     "socket.io": "^4.8.3",
     "typeform": "^1.0.1",
     "typeorm": "^0.3.24",
-    "uuid": "^14.0.0",
+    "uuid": "^9.0.0",
     "winston": "^3.19.0",
     "zod": "^3.24.2"
   },
@@ -54,6 +58,7 @@
     "sql.js": "^1.14.1",
     "supertest": "^7.1.0",
     "testcontainers": "^11.14.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.3",
     "typescript": "^5.9.3",
     "vitest": "^3.0.8"

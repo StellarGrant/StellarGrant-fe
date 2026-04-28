@@ -1,6 +1,6 @@
 /**
  * Shared Utility Functions
- * 
+ *
  * Common helper functions used across the application.
  */
 
@@ -41,3 +41,17 @@ export function calculatePercentage(current: number, total: number): number {
   if (total === 0) return 0;
   return Math.min((current / total) * 100, 100);
 }
+
+// Optimistic UI state management
+export {
+  TransactionTracker,
+  OptimisticStore,
+  predictGrantState,
+  createOptimisticGrantMutation,
+} from "./optimistic";
+export type {
+  TransactionStage,
+  TransactionEvent,
+  TransactionListener,
+  GrantMutation,
+} from "./optimistic";

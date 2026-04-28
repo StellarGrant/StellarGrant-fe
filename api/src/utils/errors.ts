@@ -34,9 +34,9 @@ export class AppError extends Error {
 
   toJSON() {
     const result: Record<string, unknown> = {
-      error: this.message,
-      errorCode: this.errorCode,
-      statusCode: this.statusCode,
+      error: true,
+      code: this.errorCode,
+      message: this.message,
     };
     if (this.details) {
       result.details = this.details;

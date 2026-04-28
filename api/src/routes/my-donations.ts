@@ -11,9 +11,6 @@ export function buildMyDonationsRouter(dataSource: DataSource) {
   // GET /my-donations?token=TOKEN_SYMBOL
   router.get("/my-donations", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     const funderAddress = req.user?.stellarAddress;
-    if (!funderAddress) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
 
     const token = req.query.token as string | undefined;
     const feeRepo = dataSource.getRepository(FeeCollection);

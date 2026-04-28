@@ -37,9 +37,9 @@ export const errorHandler = (
 
     const statusCode = (err as any).statusCode || 500;
     res.status(statusCode).json({
-      error: env.nodeEnv === "development" ? err.message : "Internal server error",
-      errorCode: "INTERNAL_ERROR",
-      statusCode,
+      error: true,
+      code: "INTERNAL_ERROR",
+      message: env.nodeEnv === "production" ? "Internal server error" : err.message,
     });
     return;
   }
@@ -53,16 +53,16 @@ export const errorHandler = (
   });
 
   res.status(500).json({
-    error: "Internal server error",
-    errorCode: "INTERNAL_ERROR",
-    statusCode: 500,
+    error: true,
+    code: "INTERNAL_ERROR",
+    message: "Internal server error",
   });
 };
 
 export const notFoundHandler = (req: Request, res: Response): void => {
   res.status(404).json({
-    error: `Route ${req.method} ${req.path} not found`,
-    errorCode: "NOT_FOUND",
-    statusCode: 404,
+    error: true,
+    code: "NOT_FOUND",
+    message: `Route ${req.method} ${req.path} not found`,
   });
 };

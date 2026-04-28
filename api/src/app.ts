@@ -55,6 +55,7 @@ import { v4 as uuidv4 } from "uuid";
 import { metricsService } from "./services/metrics-service";
 import { buildCommunitiesRouter } from "./routes/communities";
 import { buildMilestoneCommentsRouter } from "./routes/milestone-comments";
+import { buildHealthRouter } from "./routes/health";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 
@@ -151,6 +152,8 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   const feeService = new FeeService(feeRepo, configRepo);
   const adminMiddleware = buildAdminMiddleware(signatureService);
 
+  // /health/liveness and /health/readiness probes
+  app.use("/health", buildHealthRouter(dataSource, sorobanClient));
   // Health check endpoint (no versioning)
   app.get("/health", async (_req, res) => {
     const health = {
@@ -303,10 +306,8 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     res.json({ feePercentage: fee });
   });
 
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    res.status(500).json({ error: message });
-  });
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 };
