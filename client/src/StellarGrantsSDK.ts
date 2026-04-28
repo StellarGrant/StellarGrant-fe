@@ -13,6 +13,8 @@ import {
   AllowanceCheckResult,
   AllowanceResult,
   FeeEstimate,
+  FeeLevelModifiers,
+  FeeNetworkLoad,
   FeePriority,
   GrantCreateInput,
   GrantFundInput,
@@ -36,12 +38,23 @@ const READ_ONLY_SIMULATION_ACCOUNT =
  */
 export const CONTRACT_INTERFACE_VERSION = 1;
 
-/** Multipliers applied to `minResourceFee` for each priority tier. */
-const FEE_PRIORITY_MULTIPLIERS: Record<FeePriority, number> = {
+/** Default multipliers applied to `minResourceFee` for each priority tier. */
+const DEFAULT_FEE_LEVEL_MODIFIERS: FeeLevelModifiers = {
   low: 1.0,
   medium: 1.5,
   high: 2.0,
 };
+
+const DYNAMIC_FEE_LEVELS: Array<{
+  maxUsage: number;
+  load: FeeNetworkLoad;
+  modifiers: FeeLevelModifiers;
+}> = [
+  { maxUsage: 0.5, load: "low", modifiers: { low: 0.9, medium: 1.2, high: 1.6 } },
+  { maxUsage: 0.8, load: "moderate", modifiers: { low: 1.0, medium: 1.5, high: 2.0 } },
+  { maxUsage: 0.95, load: "high", modifiers: { low: 1.2, medium: 1.8, high: 2.6 } },
+  { maxUsage: Infinity, load: "surge", modifiers: { low: 1.6, medium: 2.5, high: 3.5 } },
+];
 
 /**
  * Encapsulated client for StellarGrants Soroban contract interactions.
@@ -195,16 +208,26 @@ export class StellarGrantsSDK {
     const simulation = await this.server.simulateTransaction(tx) as any;
     this.ensureSimulationSuccess(simulation);
 
-    const base = Number(simulation.minResourceFee ?? 0);
+    const simulationBase = Number(simulation.minResourceFee ?? 0);
+    const dynamicFees = await this.resolveDynamicFeeModifiers();
+    const recommendedBase = dynamicFees?.recommendedBaseFee ?? simulationBase;
+    const effectiveBase = Math.max(simulationBase, recommendedBase);
+    const modifiers = dynamicFees?.modifiers ?? DEFAULT_FEE_LEVEL_MODIFIERS;
 
     const calc = (multiplier: number) =>
-      String(Math.ceil(base * multiplier));
+      String(Math.ceil(effectiveBase * multiplier));
 
     return {
-      base: String(base),
-      low: calc(FEE_PRIORITY_MULTIPLIERS.low),
-      medium: calc(FEE_PRIORITY_MULTIPLIERS.medium),
-      high: calc(FEE_PRIORITY_MULTIPLIERS.high),
+      base: String(simulationBase),
+      ...(dynamicFees?.recommendedBaseFee !== undefined
+        ? { recommendedBase: String(dynamicFees.recommendedBaseFee) }
+        : {}),
+      low: calc(modifiers.low),
+      medium: calc(modifiers.medium),
+      high: calc(modifiers.high),
+      modifiers,
+      networkLoad: dynamicFees?.networkLoad ?? "moderate",
+      source: dynamicFees ? "horizon" : "simulation-fallback",
     };
   }
 
@@ -537,12 +560,16 @@ export class StellarGrantsSDK {
         this.ensureSimulationSuccess(simulation);
 
         const base = Number(simulation.minResourceFee ?? 0);
+        const dynamicFees = await this.resolveDynamicFeeModifiers();
+        const recommendedBase = dynamicFees?.recommendedBaseFee ?? base;
+        const effectiveBase = Math.max(base, recommendedBase);
 
         if (options?.feeMultiplier) {
-          finalFee = String(Math.ceil(base * options.feeMultiplier));
+          finalFee = String(Math.ceil(effectiveBase * options.feeMultiplier));
         } else {
           const priority: FeePriority = options?.feePriority ?? "medium";
-          finalFee = String(Math.ceil(base * FEE_PRIORITY_MULTIPLIERS[priority]));
+          const modifiers = dynamicFees?.modifiers ?? DEFAULT_FEE_LEVEL_MODIFIERS;
+          finalFee = String(Math.ceil(effectiveBase * modifiers[priority]));
         }
       }
 
@@ -656,5 +683,61 @@ export class StellarGrantsSDK {
     const retval = simulation?.result?.retval;
     if (!retval) return null;
     return scValToNative(retval);
+  }
+
+  private async resolveDynamicFeeModifiers(): Promise<{
+    modifiers: FeeLevelModifiers;
+    networkLoad: FeeNetworkLoad;
+    recommendedBaseFee?: number;
+  } | null> {
+    const endpoint = this.config.feeStatsEndpoint
+      ?? (this.config.horizonUrl
+        ? `${this.config.horizonUrl.replace(/\/$/, "")}/fee_stats`
+        : undefined);
+
+    if (!endpoint) {
+      return null;
+    }
+
+    try {
+      const stats = await this.fetchJsonWithTimeout(endpoint, 5000);
+      const usage = Number(stats?.ledger_capacity_usage);
+      if (!Number.isFinite(usage)) {
+        return null;
+      }
+
+      const feeBuckets = stats?.max_fee ?? {};
+      const recommendedBaseFee = Number(
+        feeBuckets.p70 ?? feeBuckets.p60 ?? feeBuckets.p50 ?? 0,
+      );
+
+      const level = DYNAMIC_FEE_LEVELS.find((entry) => usage <= entry.maxUsage);
+      if (!level) return null;
+
+      return {
+        modifiers: level.modifiers,
+        networkLoad: level.load,
+        ...(Number.isFinite(recommendedBaseFee) && recommendedBaseFee > 0
+          ? { recommendedBaseFee }
+          : {}),
+      };
+    } catch (error) {
+      console.warn("Failed to fetch dynamic fee stats; falling back to static multipliers", error);
+      return null;
+    }
+  }
+
+  private async fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

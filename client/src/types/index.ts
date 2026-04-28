@@ -49,6 +49,16 @@ export type StellarGrantsSDKConfig = {
    * @example "https://my-proxy.example.com/stellar-rpc"
    */
   proxyUrl?: string;
+  /**
+   * Optional Horizon base URL used for dynamic fee recommendations via
+   * `/fee_stats`. If omitted, static multipliers are used.
+   */
+  horizonUrl?: string;
+  /**
+   * Optional explicit endpoint for fee stats. Takes precedence over
+   * `${horizonUrl}/fee_stats` when provided.
+   */
+  feeStatsEndpoint?: string;
 };
 
 /** Result of an allowance check. */
@@ -79,7 +89,14 @@ export type IpfsUploadConfig = {
   pinataSecretKey?: string;
   /** Optional display name for the pinned object. */
   name?: string;
+  /** Explicit schema name for metadata validation before upload. */
+  metadataSchema?: IpfsMetadataSchemaName;
+  /** Disable local schema validation in exceptional flows. */
+  skipSchemaValidation?: boolean;
 };
+
+/** Supported built-in metadata schemas for IPFS artifacts. */
+export type IpfsMetadataSchemaName = "grant" | "milestone";
 
 /** Result of a successful IPFS upload. */
 export type IpfsUploadResult = {
@@ -161,13 +178,31 @@ export type FeePriority = "low" | "medium" | "high";
 export type FeeEstimate = {
   /** Raw simulated resource fee (in stroops) before any multiplier. */
   base: string;
-  /** Fee at low priority (1.0× base). */
+  /** Optional dynamic recommended base fee derived from recent network stats. */
+  recommendedBase?: string;
+  /** Fee at low priority using the effective low-tier modifier. */
   low: string;
-  /** Fee at medium priority (1.5× base). */
+  /** Fee at medium priority using the effective medium-tier modifier. */
   medium: string;
-  /** Fee at high priority (2.0× base). */
+  /** Fee at high priority using the effective high-tier modifier. */
   high: string;
+  /** Effective per-tier multipliers used for this estimate. */
+  modifiers: FeeLevelModifiers;
+  /** Network load bucket used to derive modifiers. */
+  networkLoad: FeeNetworkLoad;
+  /** Source used to derive fee modifiers. */
+  source: "horizon" | "simulation-fallback";
 };
+
+/** Frontend-safe per-tier multipliers returned with fee estimates. */
+export type FeeLevelModifiers = {
+  low: number;
+  medium: number;
+  high: number;
+};
+
+/** Coarse network load buckets for dynamic fee guidance. */
+export type FeeNetworkLoad = "low" | "moderate" | "high" | "surge";
 
 /**
  * Options for state-changing transaction invocations.
