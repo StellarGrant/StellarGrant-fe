@@ -28,6 +28,7 @@ import {
 import { EventParser, ParsedEvent } from "./events";
 import { retryWithBackoff } from "./utils/retry";
 import { isNativeXLM, toAssetScVal } from "./utils/assets";
+import { appendSignature, computeSignatureWeight, meetsThreshold, PendingXdrStore, type AccountSigner, type AccountThresholds } from "./utils/transactions";
 
 const READ_ONLY_SIMULATION_ACCOUNT =
   "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA";
@@ -557,6 +558,85 @@ export class StellarGrantsSDK {
 
     return { compatible: true, sdkVersion: CONTRACT_INTERFACE_VERSION, contractVersion };
   }
+
+  // ── Multisig Pipeline ───────────────────────────────────────────────────────
+
+  /**
+   * Fetches the signers and thresholds for a given account from the RPC.
+   *
+   * @param accountId The Stellar account ID (G...).
+   * @returns The account's signers and thresholds.
+   */
+  async getAccountSigners(accountId: string): Promise<{ signers: AccountSigner[]; thresholds: AccountThresholds }> {
+    const account = await this.withRetry(() => this.server.getAccount(accountId)) as any;
+    const signers: AccountSigner[] = (account.signers ?? []).map((s: any) => ({
+      key: s.key,
+      weight: s.weight,
+    }));
+    const thresholds: AccountThresholds = {
+      low_threshold: account.thresholds?.low_threshold ?? 0,
+      med_threshold: account.thresholds?.med_threshold ?? 0,
+      high_threshold: account.thresholds?.high_threshold ?? 0,
+    };
+    return { signers, thresholds };
+  }
+
+  /**
+   * Appends a signature to a transaction XDR and returns the updated XDR.
+   *
+   * This is useful for multi-signature workflows where multiple parties sign
+   * the same transaction incrementally.
+   *
+   * @param txXdr The unsigned or partially-signed transaction XDR (base64).
+   * @param signatureXdr The signature to append (DecoratedSignature XDR, base64).
+   * @returns The updated transaction XDR with the new signature.
+   */
+  appendSignature(txXdr: string, signatureXdr: string): string {
+    const networkPassphrase = this.config.networkPassphrase;
+    if (!networkPassphrase) {
+      throw new StellarGrantsError(
+        "Network passphrase is required for multisig operations. Provide it in SDK config.",
+        "NETWORK_PASSPHRASE_REQUIRED",
+      );
+    }
+    return appendSignature(txXdr, signatureXdr, networkPassphrase);
+  }
+
+  /**
+   * Computes the total signature weight for a transaction against a list of signers.
+   *
+   * @param txXdr The transaction XDR (base64).
+   * @param signers The list of account signers with weights.
+   * @returns The total weight of signatures present in the transaction.
+   */
+  computeSignatureWeight(txXdr: string, signers: AccountSigner[]): number {
+    const networkPassphrase = this.config.networkPassphrase;
+    if (!networkPassphrase) {
+      throw new StellarGrantsError(
+        "Network passphrase is required for multisig operations. Provide it in SDK config.",
+        "NETWORK_PASSPHRASE_REQUIRED",
+      );
+    }
+    return computeSignatureWeight(txXdr, networkPassphrase, signers);
+  }
+
+  /**
+   * Checks whether a transaction's signature weight meets a given threshold.
+   *
+   * @param weight The computed signature weight.
+   * @param thresholds The account's thresholds.
+   * @param level The threshold level to check (default: "medium").
+   * @returns True if the weight meets or exceeds the threshold.
+   */
+  meetsThreshold(weight: number, thresholds: AccountThresholds, level: "low" | "medium" | "high" = "medium"): boolean {
+    return meetsThreshold(weight, thresholds, level);
+  }
+
+  /**
+   * In-memory store for pending multi-signature transaction XDRs.
+   * Use this to accumulate signatures before submission.
+   */
+  readonly pendingXdrStore = new PendingXdrStore();
 
   /**
    * Subscribes to contract events.
