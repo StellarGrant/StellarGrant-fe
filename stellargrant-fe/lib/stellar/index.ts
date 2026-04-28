@@ -54,3 +54,13 @@ export type {
   QueryGrantsOptions,
   GrantWithMilestones,
 } from "./sdk";
+
+// Resilient event subscription (Issue #254)
+export { subscribeToEvents } from "./subscription";
+export type {
+  EventHandler,
+  StatusHandler,
+  SubscriptionStatus,
+  SubscribeOptions,
+  Subscription,
+} from "./subscription";
