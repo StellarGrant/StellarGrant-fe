@@ -24,3 +24,10 @@ export type {
   GrantFundedData,
   MilestoneVotedData,
 } from "./events";
+export { uploadMetadataToIPFS, fetchMetadataFromIPFS } from "./ipfs";
+export type {
+  AllowanceResult,
+  AllowanceCheckResult,
+  IpfsUploadConfig,
+  IpfsUploadResult,
+} from "./types";

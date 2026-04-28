@@ -33,6 +33,60 @@ export type StellarGrantsSDKConfig = {
   pollingIntervalMs?: number;
   /** Maximum time in milliseconds to wait for a transaction confirmation. Defaults to 30000. */
   pollingTimeoutMs?: number;
+  /**
+   * Custom HTTP headers forwarded to every RPC request.
+   * Use for authentication tokens, API keys, or enterprise gateway requirements.
+   *
+   * @example { "X-Api-Key": "my-secret" }
+   */
+  customHeaders?: Record<string, string>;
+  /**
+   * Optional proxy URL that intercepts all RPC traffic.
+   * When set, the SDK routes every RPC call through this URL instead of
+   * `rpcUrl`. Useful in environments where direct RPC access is blocked by
+   * CORS or firewall policies.
+   *
+   * @example "https://my-proxy.example.com/stellar-rpc"
+   */
+  proxyUrl?: string;
+};
+
+/** Result of an allowance check. */
+export type AllowanceResult = {
+  /** Current approved amount (in base token units). */
+  amount: bigint;
+  /** Ledger sequence at which the allowance expires (0 = does not expire). */
+  expirationLedger: number;
+};
+
+/** Result returned by `checkAndSetAllowance`. */
+export type AllowanceCheckResult = {
+  /** Whether the allowance was already sufficient (no transaction needed). */
+  sufficient: boolean;
+  /** Current allowance before any update. */
+  current: bigint;
+  /** The required amount that was checked against. */
+  required: bigint;
+};
+
+/** Pinata IPFS upload configuration. */
+export type IpfsUploadConfig = {
+  /** Pinata API JWT (preferred) or API key for authentication. */
+  pinataJwt?: string;
+  /** Pinata API key (legacy). Use `pinataJwt` when available. */
+  pinataApiKey?: string;
+  /** Pinata API secret (legacy, required alongside `pinataApiKey`). */
+  pinataSecretKey?: string;
+  /** Optional display name for the pinned object. */
+  name?: string;
+};
+
+/** Result of a successful IPFS upload. */
+export type IpfsUploadResult = {
+  /** IPFS Content Identifier. */
+  cid: string;
+  /** Public gateway URL for convenient browser access. */
+  gatewayUrl: string;
 };
 
 /**

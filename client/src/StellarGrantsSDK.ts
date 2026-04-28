@@ -10,6 +10,8 @@ import {
 import { parseSorobanError } from "./errors/parseSorobanError";
 import { StellarGrantsError } from "./errors/StellarGrantsError";
 import {
+  AllowanceCheckResult,
+  AllowanceResult,
   FeeEstimate,
   FeePriority,
   GrantCreateInput,
@@ -70,8 +72,18 @@ export class StellarGrantsSDK {
   constructor(config: StellarGrantsSDKConfig) {
     this.config = config;
     this.contract = new Contract(config.contractId);
-    this.server = new rpc.Server(config.rpcUrl, {
-      allowHttp: config.rpcUrl.startsWith("http://"),
+
+    // #274 — Route all RPC traffic through proxyUrl when provided. Merge any
+    // custom headers into the fetch options so authenticated endpoints work
+    // in restricted network environments.
+    const effectiveUrl = config.proxyUrl ?? config.rpcUrl;
+    const fetchOptions: RequestInit | undefined = config.customHeaders
+      ? { headers: config.customHeaders }
+      : undefined;
+
+    this.server = new rpc.Server(effectiveUrl, {
+      allowHttp: effectiveUrl.startsWith("http://"),
+      ...(fetchOptions && { fetchOptions }),
     });
   }
 
@@ -194,6 +206,124 @@ export class StellarGrantsSDK {
       medium: calc(FEE_PRIORITY_MULTIPLIERS.medium),
       high: calc(FEE_PRIORITY_MULTIPLIERS.high),
     };
+  }
+
+  // ── Token Allowance Management (#272) ──────────────────────────────────────
+
+  /**
+   * Reads the current allowance granted by `owner` to the StellarGrants
+   * contract for a given SAC token.
+   *
+   * @param tokenAddress The Stellar Asset Contract (SAC) address.
+   * @param owner The account whose allowance is being checked.
+   */
+  async getAllowance(tokenAddress: string, owner: string): Promise<AllowanceResult> {
+    const tokenContract = new Contract(tokenAddress);
+    const spender = this.config.contractId;
+
+    const args = [
+      nativeToScVal(owner, { type: "address" }),
+      nativeToScVal(spender, { type: "address" }),
+    ];
+
+    const tx = new TransactionBuilder(
+      await this.getSourceAccount(true),
+      { fee: this.config.defaultFee ?? "100", networkPassphrase: await this.resolveNetworkPassphrase() },
+    )
+      .addOperation(tokenContract.call("allowance", ...args))
+      .setTimeout(30)
+      .build();
+
+    const simulation = await this.server.simulateTransaction(tx) as any;
+    this.ensureSimulationSuccess(simulation);
+
+    const raw = this.parseSimulationResult(simulation) as any;
+    // SAC allowance returns a struct {amount: i128, expiration_ledger: u32}
+    const amount: bigint = typeof raw?.amount === "bigint"
+      ? raw.amount
+      : BigInt(raw?.amount ?? 0);
+    const expirationLedger: number = Number(raw?.expiration_ledger ?? 0);
+
+    return { amount, expirationLedger };
+  }
+
+  /**
+   * Approves the StellarGrants contract to spend `amount` tokens on behalf
+   * of the authenticated signer.
+   *
+   * @param tokenAddress The Stellar Asset Contract (SAC) address.
+   * @param amount The allowance amount (in base token units).
+   * @param expirationLedger Ledger sequence at which the allowance expires.
+   *   Defaults to current ledger + ~7 days (~100 000 ledgers).
+   */
+  async setAllowance(
+    tokenAddress: string,
+    amount: bigint,
+    expirationLedger?: number,
+  ): Promise<rpc.Api.SendTransactionResponse> {
+    const signer = this.requireSigner();
+    const owner = await signer.getPublicKey();
+    const spender = this.config.contractId;
+
+    // Default expiration: ~7 days at 6 s/ledger ≈ 100 800 ledgers
+    let expLedger = expirationLedger;
+    if (expLedger === undefined) {
+      const latestLedger = await this.server.getLatestLedger?.() as any;
+      expLedger = (latestLedger?.sequence ?? 0) + 100_800;
+    }
+
+    const tokenContract = new Contract(tokenAddress);
+    const args = [
+      nativeToScVal(owner, { type: "address" }),
+      nativeToScVal(spender, { type: "address" }),
+      nativeToScVal(amount, { type: "i128" }),
+      nativeToScVal(expLedger, { type: "u32" }),
+    ];
+
+    const networkPassphrase = await this.resolveNetworkPassphrase();
+    const tx = new TransactionBuilder(
+      await this.getSourceAccount(),
+      { fee: this.config.defaultFee ?? "100", networkPassphrase },
+    )
+      .addOperation(tokenContract.call("approve", ...args))
+      .setTimeout(30)
+      .build();
+
+    const prepared = await this.server.prepareTransaction(tx);
+    const signedXdr = await signer.signTransaction(prepared.toXDR(), networkPassphrase);
+    const signedTx = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
+    const sent = await this.server.sendTransaction(signedTx);
+    if ((sent as any).status === "ERROR") {
+      throw new StellarGrantsError(`setAllowance failed: ${(sent as any).errorResult ?? "unknown"}`);
+    }
+    return sent as rpc.Api.SendTransactionResponse;
+  }
+
+  /**
+   * Checks whether the current allowance is sufficient for `required`. If not,
+   * it automatically calls `setAllowance` to bring the allowance up to
+   * `required` and prompts the user to sign once.
+   *
+   * @param tokenAddress The Stellar Asset Contract (SAC) address.
+   * @param required The minimum required allowance (in base token units).
+   * @param owner The account to check. Defaults to the signer's public key.
+   * @returns A summary of the check including whether a new allowance was set.
+   */
+  async checkAndSetAllowance(
+    tokenAddress: string,
+    required: bigint,
+    owner?: string,
+  ): Promise<AllowanceCheckResult> {
+    const signer = this.requireSigner();
+    const resolvedOwner = owner ?? (await signer.getPublicKey());
+    const { amount: current } = await this.getAllowance(tokenAddress, resolvedOwner);
+
+    if (current >= required) {
+      return { sufficient: true, current, required };
+    }
+
+    await this.setAllowance(tokenAddress, required);
+    return { sufficient: false, current, required };
   }
 
   /**
