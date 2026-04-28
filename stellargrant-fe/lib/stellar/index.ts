@@ -34,3 +34,23 @@ export type {
   BuildUnsignedTxOptions,
   SubmitOptions,
 } from "./multisig";
+
+// Grant search, filter, and sort utilities (Issue #253)
+export {
+  StellarGrantsSDK,
+  stellarGrantsSDK,
+  grantListAll,
+  grantFilterByCategory,
+  grantSearchByTitle,
+  sortGrants,
+  queryGrants,
+} from "./sdk";
+export type {
+  PaginationOptions,
+  GrantListResult,
+  SortOptions,
+  SortDirection,
+  GrantSortField,
+  QueryGrantsOptions,
+  GrantWithMilestones,
+} from "./sdk";
