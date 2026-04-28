@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MilestoneList } from "@/components/milestones";
+import { Milestone } from "@/types";
 
 /**
  * Milestone List Page
@@ -15,18 +16,8 @@ interface MilestonesPageProps {
   };
 }
 
-type MilestoneResponse = {
-  idx: number;
-  title: string;
-  description: string | null;
-  deadline: string;
-  submitted: boolean;
-  overdue: boolean;
-  daysUntilDeadline: number;
-};
-
 export default function MilestonesPage({ params }: MilestonesPageProps) {
-  const [milestones, setMilestones] = useState<MilestoneResponse[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [title, setTitle] = useState(`Grant #${params.id}`);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

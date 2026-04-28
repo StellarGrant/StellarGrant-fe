@@ -52,6 +52,8 @@ export interface Milestone {
   paid_at: bigint | null;
   token?: string; // Token address for this milestone's payout
   amount?: bigint; // Payout amount for this milestone
+  overdue?: boolean;
+  daysUntilDeadline?: number;
 }
 
 export interface MilestoneVote {

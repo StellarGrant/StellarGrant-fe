@@ -19,8 +19,13 @@ import { GrantCard } from "@/components/grants/GrantCard";
 type GrantListItem = {
   id: number;
   title: string;
-  status: string;
+  status: number;
   totalAmount: string;
+  funded: number | bigint;
+  budget: number | bigint;
+  deadline: number | bigint;
+  token?: string;
+  owner?: string;
   hasOverdueMilestones?: boolean;
   milestoneSummary?: {
     total: number;
