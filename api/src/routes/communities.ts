@@ -7,6 +7,9 @@ import { env } from "../config/env";
 import { Activity } from "../entities/Activity";
 import { validateBody, validateParams, validateRequest } from "../middlewares/validation-middleware";
 import { communityCreateSchema, communityUpdateSchema, idParamSchema } from "../schemas";
+import { createRbacMiddleware, AuthenticatedRequest } from "../middlewares/rbac-middleware";
+import { RbacService } from "../services/rbac-service";
+import { Permission } from "../config/rbac";
 
 const isPlatformAdmin = (address?: string) =>
   !!address && env.adminAddresses.includes(address);
@@ -15,8 +18,10 @@ export const buildCommunitiesRouter = (
   communityRepo: Repository<Community>,
   grantRepo: Repository<Grant>,
   activityRepo: Repository<Activity>,
+  rbacService: RbacService,
 ) => {
   const router = Router();
+  const { requirePermission, requireAnyPermission } = createRbacMiddleware(rbacService);
 
   router.get("/", async (_req, res, next) => {
     try {
@@ -27,16 +32,12 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/", validateBody(communityCreateSchema), async (req, res, next) => {
+  router.post("/", requirePermission("communities:create" as Permission), validateBody(communityCreateSchema), async (req: AuthenticatedRequest, res, next) => {
     try {
-      const adminAddress = req.header("x-admin-address") ?? undefined;
-      if (!isPlatformAdmin(adminAddress)) {
-        res.status(403).json({ error: "Admin privileges required" });
-        return;
-      }
-
       const payload = (req as any).validatedBody;
-      const fallbackAdmin = adminAddress as string;
+      const stellarAddress = req.user?.stellarAddress || req.header("x-user-address");
+      const fallbackAdmin = stellarAddress as string;
+      
       const created = await communityRepo.save({
         name: payload.name.trim(),
         description: payload.description?.trim() ?? null,
@@ -55,9 +56,10 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.patch("/:id", validateRequest({ params: idParamSchema, body: communityUpdateSchema }), async (req, res, next) => {
+  router.patch("/:id", requireAnyPermission(["communities:update", "admin:all"] as Permission[]), validateRequest({ params: idParamSchema, body: communityUpdateSchema }), async (req: AuthenticatedRequest, res, next) => {
     try {
       const { id } = (req as any).validatedParams;
+      const stellarAddress = req.user?.stellarAddress || req.header("x-user-address");
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
@@ -65,7 +67,7 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      const actor = req.header("x-admin-address") ?? undefined;
+      const actor = stellarAddress;
       const canManage = isPlatformAdmin(actor) || (!!actor && (community.adminAddresses ?? []).includes(actor));
       if (!canManage) {
         res.status(403).json({ error: "Community admin privileges required" });
@@ -120,15 +122,9 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/:id/grants/:grantId", validateRequest({ params: z.object({ id: z.coerce.number().int().positive(), grantId: z.coerce.number().int().positive() }) }), async (req, res, next) => {
+  router.post("/:id/grants/:grantId", requirePermission("communities:manage" as Permission), validateRequest({ params: z.object({ id: z.coerce.number().int().positive(), grantId: z.coerce.number().int().positive() }) }), async (req: AuthenticatedRequest, res, next) => {
     try {
       const { id, grantId } = (req as any).validatedParams;
-
-      const actor = req.header("x-admin-address") ?? undefined;
-      if (!isPlatformAdmin(actor)) {
-        res.status(403).json({ error: "Admin privileges required" });
-        return;
-      }
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {

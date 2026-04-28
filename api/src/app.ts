@@ -55,6 +55,10 @@ import { v4 as uuidv4 } from "uuid";
 import { metricsService } from "./services/metrics-service";
 import { buildCommunitiesRouter } from "./routes/communities";
 import { buildMilestoneCommentsRouter } from "./routes/milestone-comments";
+import { Role } from "./entities/Role";
+import { UserRole } from "./entities/UserRole";
+import { RbacService } from "./services/rbac-service";
+import { buildRolesRouter } from "./routes/roles";
 
 export const createApp = (dataSource: DataSource, sorobanClient: SorobanContractClient) => {
   const app = express();
@@ -149,6 +153,16 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   const feeService = new FeeService(feeRepo, configRepo);
   const adminMiddleware = buildAdminMiddleware(signatureService);
 
+  // RBAC Setup
+  const roleRepo = dataSource.getRepository(Role);
+  const userRoleRepo = dataSource.getRepository(UserRole);
+  const rbacService = new RbacService(userRepo, roleRepo, userRoleRepo);
+
+  // Initialize default roles on startup
+  rbacService.initializeDefaultRoles().catch((err) => {
+    console.error("Failed to initialize default roles:", err);
+  });
+
   // Health check endpoint (no versioning)
   app.get("/health", async (_req, res) => {
     const health = {
@@ -214,9 +228,10 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/search", buildSearchRouter(dataSource));
   app.use("/profiles", buildProfilesRouter(contributorRepo, grantRepo));
   app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
-  app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo));
+  app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo, rbacService));
   app.use(buildMilestoneCommentsRouter(milestoneRepo, milestoneCommentRepo, grantReviewerRepo));
   app.use(buildMyDonationsRouter(dataSource));
+  app.use("/roles", adminMiddleware, buildRolesRouter(userRepo, roleRepo, userRoleRepo, rbacService));
   app.get("/config/fee", async (req, res) => {
     const fee = await configService.getFeePercentage();
     res.json({ feePercentage: fee });
