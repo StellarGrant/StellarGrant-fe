@@ -35,7 +35,7 @@ export const buildSearchRouter = (dataSource: DataSource) => {
             id::text as id, title as name, 'grant' as type,
             ts_rank(to_tsvector('english', title || ' ' || COALESCE(tags, '') || ' ' || COALESCE(CAST("localizedMetadata" AS TEXT), '')), plainto_tsquery('english', $1)) as rank
           FROM grants
-          WHERE to_tsvector('english', title || ' ' || COALESCE(tags, '') || ' ' || COALESCE(CAST("localizedMetadata" AS TEXT), '')) @@ plainto_tsquery('english', $1)
+          WHERE "isFlagged" = false AND to_tsvector('english', title || ' ' || COALESCE(tags, '') || ' ' || COALESCE(CAST("localizedMetadata" AS TEXT), '')) @@ plainto_tsquery('english', $1)
         `;
 
         const contributorsQuery = `
@@ -75,7 +75,7 @@ export const buildSearchRouter = (dataSource: DataSource) => {
         const queryLike = `%${query.toLowerCase()}%`;
         
         const grants = await dataSource.query(
-          `SELECT id, title as name, 'grant' as type FROM grants WHERE LOWER(title) LIKE ? OR LOWER(tags) LIKE ?`,
+          `SELECT id, title as name, 'grant' as type FROM grants WHERE "isFlagged" = 0 AND (LOWER(title) LIKE ? OR LOWER(tags) LIKE ?)`,
           [queryLike, queryLike]
         );
         

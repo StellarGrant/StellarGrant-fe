@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, UpdateDateColumn, Index } from "typeorm";
 import { Milestone } from "./Milestone";
 import { MilestoneProof } from "./MilestoneProof";
 import { GrantReviewer } from "./GrantReviewer";
@@ -12,9 +12,11 @@ export class Grant {
   @Column({ type: "varchar", length: 200 })
   title!: string;
 
+  @Index()
   @Column({ type: "varchar", length: 30 })
   status!: string;
 
+  @Index()
   @Column({ type: "varchar", length: 120 })
   recipient!: string;
 
@@ -25,8 +27,12 @@ export class Grant {
    * Comma-separated tags stored as a simple text column for broad DB compatibility.
    * The route layer splits / joins this value when reading / writing.
    */
+  @Index({ type: "gin" })
   @Column({ type: "text", nullable: true })
   tags!: string | null;
+
+  @Column({ type: "boolean", default: false })
+  isFlagged!: boolean;
 
   @Column({ type: "simple-json", nullable: true })
   localizedMetadata!: Record<string, { title?: string; description?: string }> | null;
@@ -34,6 +40,7 @@ export class Grant {
   @Column({ type: "int", nullable: true })
   communityId!: number | null;
 
+  @Index()
   @UpdateDateColumn()
   updatedAt!: Date;
 

@@ -184,6 +184,8 @@ export const buildGrantRouter = (
 
       // ---------------- Query Builder ----------------
       const qb = grantRepo.createQueryBuilder("grant");
+      
+      qb.where("grant.isFlagged = false");
 
       if (statusFilter) {
         qb.andWhere("LOWER(grant.status) = :status", { status: statusFilter });
@@ -346,6 +348,106 @@ export const buildGrantRouter = (
           hasOverdueMilestones: summary.overdue > 0,
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---------------- Grant History ----------------
+  router.get("/:id/history", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) {
+        res.status(400).json({ error: "Invalid grant id" });
+        return;
+      }
+
+      const { GrantHistory } = await import("../entities/GrantHistory");
+      const historyRepo = grantRepo.manager.getRepository(GrantHistory);
+      const history = await historyRepo.find({
+        where: { grantId: id },
+        order: { createdAt: "DESC" },
+      });
+
+      res.json({ data: history });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---------------- Export CSV / PDF ----------------
+  router.get("/:id/export/csv", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid grant id" });
+
+      const grant = await grantRepo.findOne({ where: { id } });
+      if (!grant) return res.status(404).json({ error: "Grant not found" });
+
+      const milestones = await milestoneRepo.find({ where: { grantId: id } });
+      const { exportService } = await import("../services/export-service");
+      const csvData = await exportService.exportCsv(grant, milestones, []);
+
+      res.header("Content-Type", "text/csv");
+      res.attachment(`grant_${id}_export.csv`);
+      res.send(csvData);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/export/pdf", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid grant id" });
+
+      const grant = await grantRepo.findOne({ where: { id } });
+      if (!grant) return res.status(404).json({ error: "Grant not found" });
+
+      const milestones = await milestoneRepo.find({ where: { grantId: id } });
+      const { exportService } = await import("../services/export-service");
+      const pdfBuffer = await exportService.exportPdf(grant, milestones, []);
+
+      res.header("Content-Type", "application/pdf");
+      res.attachment(`grant_${id}_export.pdf`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ---------------- Report Grant ----------------
+  router.post("/:id/report", async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid grant id" });
+
+      const { reporterAddress, reason } = req.body;
+      if (!reporterAddress || !reason) {
+        return res.status(400).json({ error: "Missing reporterAddress or reason" });
+      }
+
+      const grant = await grantRepo.findOne({ where: { id } });
+      if (!grant) return res.status(404).json({ error: "Grant not found" });
+
+      const { Report } = await import("../entities/Report");
+      const reportRepo = grantRepo.manager.getRepository(Report);
+
+      await reportRepo.save({
+        grantId: id,
+        reporterAddress,
+        reason,
+        status: "pending"
+      });
+
+      // Check if threshold reached
+      const reportCount = await reportRepo.count({ where: { grantId: id, status: "pending" } });
+      if (reportCount >= 5 && !grant.isFlagged) {
+        grant.isFlagged = true;
+        await grantRepo.save(grant);
+      }
+
+      res.status(201).json({ ok: true });
     } catch (error) {
       next(error);
     }

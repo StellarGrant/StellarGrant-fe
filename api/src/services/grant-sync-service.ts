@@ -8,6 +8,8 @@ import { Milestone } from "../entities/Milestone";
 import { SorobanContractClient, SorobanMilestone } from "../soroban/types";
 import { notificationService } from "./notification-service";
 import { metricsService } from "./metrics-service";
+import { GrantHistory } from "../entities/GrantHistory";
+import { computeDiff } from "../utils/diff";
 
 export class GrantSyncService {
   private readonly grantRepo: Repository<Grant>;
@@ -16,6 +18,7 @@ export class GrantSyncService {
   private readonly activityRepo: Repository<Activity>;
   private readonly watchlistRepo: Repository<UserWatchlist>;
   private readonly milestoneRepo: Repository<Milestone>;
+  private readonly grantHistoryRepo: Repository<GrantHistory>;
 
   constructor(
     private readonly dataSource: DataSource,
@@ -28,6 +31,7 @@ export class GrantSyncService {
     this.activityRepo = this.dataSource.getRepository(Activity);
     this.watchlistRepo = this.dataSource.getRepository(UserWatchlist);
     this.milestoneRepo = this.dataSource.getRepository(Milestone);
+    this.grantHistoryRepo = this.dataSource.getRepository(GrantHistory);
   }
 
   async syncAllGrants(): Promise<void> {
@@ -39,6 +43,23 @@ export class GrantSyncService {
       await this.grantRepo.save(grantRecord);
       await this.syncMilestones(grant.id, milestones);
       await this.syncContributorScore(grant.recipient);
+
+      if (existingGrant) {
+        const diff = computeDiff(existingGrant, grantRecord);
+        if (Object.keys(diff).length > 0) {
+          await this.grantHistoryRepo.save({
+            grantId: grant.id,
+            snapshot: grantRecord,
+            diff,
+          });
+        }
+      } else {
+        await this.grantHistoryRepo.save({
+          grantId: grant.id,
+          snapshot: grantRecord,
+          diff: computeDiff({}, grantRecord),
+        });
+      }
 
       // Log activity for new grants
       if (!existingGrant) {
@@ -85,6 +106,23 @@ export class GrantSyncService {
     await this.grantRepo.save(grantRecord);
     await this.syncMilestones(grant.id, milestones);
     await this.syncContributorScore(grant.recipient);
+
+    if (existingGrant) {
+      const diff = computeDiff(existingGrant, grantRecord);
+      if (Object.keys(diff).length > 0) {
+        await this.grantHistoryRepo.save({
+          grantId: grant.id,
+          snapshot: grantRecord,
+          diff,
+        });
+      }
+    } else {
+      await this.grantHistoryRepo.save({
+        grantId: grant.id,
+        snapshot: grantRecord,
+        diff: computeDiff({}, grantRecord),
+      });
+    }
 
     // Log activity for new grants
     if (!existingGrant) {

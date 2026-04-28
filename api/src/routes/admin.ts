@@ -234,5 +234,23 @@ export const buildAdminRouter = (
     }
   });
 
+  /**
+   * GET /admin/reports
+   * View all reports
+   */
+  router.get("/reports", async (req, res, next) => {
+    try {
+      const { Report } = await import("../entities/Report");
+      const reportRepo = grantRepo.manager.getRepository(Report);
+      const reports = await reportRepo.find({
+        order: { createdAt: "DESC" },
+        relations: ["grant"]
+      });
+      res.json({ data: reports });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 };

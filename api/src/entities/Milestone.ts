@@ -5,6 +5,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
+  Index,
 } from "typeorm";
 import { Grant } from "./Grant";
 
@@ -14,6 +15,7 @@ export class Milestone {
   @PrimaryGeneratedColumn("increment")
   id!: number;
 
+  @Index()
   @Column({ type: "int" })
   grantId!: number;
 
