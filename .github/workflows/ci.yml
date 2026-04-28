@@ -41,6 +41,20 @@ jobs:
   api:
     name: API (Node.js)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: stellargrant_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: api
@@ -61,7 +75,7 @@ jobs:
       - name: Run migrations
         run: npm run migration:run
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/stellargrant_test
 
       - name: Run E2E tests
         run: npm run test:e2e
