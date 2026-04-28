@@ -55,6 +55,9 @@ import { v4 as uuidv4 } from "uuid";
 import { metricsService } from "./services/metrics-service";
 import { buildCommunitiesRouter } from "./routes/communities";
 import { buildMilestoneCommentsRouter } from "./routes/milestone-comments";
+import { buildHealthRouter } from "./routes/health";
+import swaggerUi from "swagger-ui-express";
+import swaggerJsdoc from "swagger-jsdoc";
 import { Role } from "./entities/Role";
 import { UserRole } from "./entities/UserRole";
 import { RbacService } from "./services/rbac-service";
@@ -166,6 +169,9 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   rbacService.initializeDefaultRoles().catch((err) => {
     console.error("Failed to initialize default roles:", err);
   });
+
+  // /health/liveness and /health/readiness probes
+  app.use("/health", buildHealthRouter(dataSource, sorobanClient));
 
   // Webhook dispatcher
   const webhookDispatcher = new WebhookDispatcher(dataSource);
