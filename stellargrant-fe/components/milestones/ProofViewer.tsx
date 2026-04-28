@@ -11,7 +11,7 @@ interface ProofViewerProps {
   proofType?: "text" | "markdown" | "image" | "ipfs";
 }
 
-export function ProofViewer({ proofHash, proofType = "ipfs" }: ProofViewerProps) {
+export function ProofViewer({ proofHash, proofType: _proofType = "ipfs" }: ProofViewerProps) {
   // TODO: Implement proof viewer component
   return (
     <div className="border rounded p-4">

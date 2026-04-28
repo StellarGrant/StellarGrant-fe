@@ -137,10 +137,19 @@
                   },
                   {
                     "key": {
-                      "symbol": "escrow_balance"
+                      "symbol": "escrow_balances"
                     },
                     "val": {
-                      "i128": "0"
+                      "map": [
+                        {
+                          "key": {
+                            "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
+                          },
+                          "val": {
+                            "i128": "0"
+                          }
+                        }
+                      ]
                     }
                   },
                   {
@@ -153,10 +162,26 @@
                   },
                   {
                     "key": {
+                      "symbol": "hard_cap"
+                    },
+                    "val": {
+                      "i128": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "id"
                     },
                     "val": {
                       "u64": "204"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "is_open_bounty"
+                    },
+                    "val": {
+                      "bool": false
                     }
                   },
                   {
@@ -177,14 +202,6 @@
                   },
                   {
                     "key": {
-                      "symbol": "milestones_paid_out"
-                    },
-                    "val": {
-                      "u32": 0
-                    }
-                  },
-                  {
-                    "key": {
                       "symbol": "min_funding"
                     },
                     "val": {
@@ -201,10 +218,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "quorum"
+                      "symbol": "packed_config"
                     },
                     "val": {
-                      "u32": 1
+                      "u128": "36893488147419103237"
                     }
                   },
                   {
@@ -223,10 +240,10 @@
                   },
                   {
                     "key": {
-                      "symbol": "status"
+                      "symbol": "tags"
                     },
                     "val": {
-                      "u32": 5
+                      "vec": []
                     }
                   },
                   {
@@ -247,7 +264,7 @@
                   },
                   {
                     "key": {
-                      "symbol": "token"
+                      "symbol": "token_address"
                     },
                     "val": {
                       "address": "CBUSYNQKASUYFWYC3M2GUEDMX4AIVWPALDBYJPNK6554BREHTGZ2IUNF"
@@ -259,14 +276,6 @@
                     },
                     "val": {
                       "i128": "1000"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "total_milestones"
-                    },
-                    "val": {
-                      "u32": 1
                     }
                   }
                 ]

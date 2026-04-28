@@ -1,5 +1,8 @@
-use crate::types::{EscrowLifecycleState, EscrowMode, EscrowState, Grant, Milestone};
-use soroban_sdk::{contracttype, Env};
+use crate::types::{
+    AccessControl, BountySubmissionEntry, DisputeInfo, EscrowLifecycleState, EscrowMode,
+    EscrowState, ExtensionRequest, Grant, Milestone, Role,
+};
+use soroban_sdk::{contracttype, Address, Env, Map, Vec};
 
 #[contracttype]
 pub enum DataKey {
@@ -7,13 +10,9 @@ pub enum DataKey {
     Milestone(u64, u32),
     GrantCounter,
     Contributor(soroban_sdk::Address),
-    /// Reviewer stake amount for a grant: (grant_id, reviewer) -> i128
     ReviewerStake(u64, soroban_sdk::Address),
-    /// Minimum stake required to review a grant
     MinReviewerStake,
-    /// Treasury address for slashed stakes
     Treasury,
-    /// Identity oracle contract address for KYC verification
     IdentityOracle,
     ReviewerReputation(soroban_sdk::Address),
     GlobalAdmin,
@@ -22,13 +21,24 @@ pub enum DataKey {
     MultisigSigners(u64),
     ReleaseSignerApproval(u64, soroban_sdk::Address),
     GrantMinReputation(u64),
-    /// Tracks whether a voter has already upvoted a specific milestone.
     MilestoneUpvoter(u64, u32, soroban_sdk::Address),
     Blacklist(soroban_sdk::Address),
-    /// Per-status index: maps GrantStatus discriminant → Vec<u64> of grant IDs.
     GrantStatusIndex(u32),
-    /// Monotonic schema / upgrade generation for migrations (see `UPGRADE_GUIDE.md`).
     StorageVersion,
+    IsPaused,
+    /// Per-grant reviewer delegation map: grant_id -> (delegator -> delegatee).
+    Delegation,
+    /// Tracks whether reputation was already credited for a milestone payout (issue #151).
+    MilestoneReputationApplied(u64, u32),
+    DisputeFeeAmount,
+    MilestoneDisputeInfo(u64, u32),
+    /// Tracks whether a funder has already voted on a milestone.
+    FunderVote(u64, u32, soroban_sdk::Address),
+    AccessControl(soroban_sdk::Address),
+    RoleMemberCount(u32),
+    BountySubmissions(u64, u32),
+    ExtensionRequest(u64, u32),
+    PendingRefund(u64, soroban_sdk::Address),
 }
 
 pub struct Storage;
@@ -80,6 +90,10 @@ impl Storage {
         env.storage().persistent().get(&DataKey::Treasury)
     }
 
+    pub fn set_treasury(env: &Env, treasury: &soroban_sdk::Address) {
+        env.storage().persistent().set(&DataKey::Treasury, treasury);
+    }
+
     pub fn get_identity_oracle(env: &Env) -> Option<soroban_sdk::Address> {
         env.storage().persistent().get(&DataKey::IdentityOracle)
     }
@@ -98,6 +112,44 @@ impl Storage {
 
     pub fn set_council(env: &Env, council: &soroban_sdk::Address) {
         env.storage().persistent().set(&DataKey::Council, council);
+    }
+
+    pub fn get_access_control(env: &Env, address: &soroban_sdk::Address) -> AccessControl {
+        let key = DataKey::AccessControl(address.clone());
+        let access: AccessControl = env.storage().persistent().get(&key).unwrap_or_default();
+        if access.role_flags != 0 {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        access
+    }
+
+    pub fn set_access_control(
+        env: &Env,
+        address: &soroban_sdk::Address,
+        access_control: &AccessControl,
+    ) {
+        let key = DataKey::AccessControl(address.clone());
+        env.storage().persistent().set(&key, access_control);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_access_control(env: &Env, address: &soroban_sdk::Address) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::AccessControl(address.clone()));
+    }
+
+    pub fn get_role_member_count(env: &Env, role: Role) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::RoleMemberCount(role as u32))
+            .unwrap_or(0)
+    }
+
+    pub fn set_role_member_count(env: &Env, role: Role, count: u32) {
+        let key = DataKey::RoleMemberCount(role as u32);
+        env.storage().persistent().set(&key, &count);
+        Self::bump_persistent_ttl(env, &key);
     }
 
     pub fn get_storage_version(env: &Env) -> u32 {
@@ -145,6 +197,36 @@ impl Storage {
         let key = DataKey::Milestone(grant_id, milestone_idx);
         env.storage().persistent().set(&key, milestone);
         Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn get_bounty_submissions(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<Vec<BountySubmissionEntry>> {
+        let key = DataKey::BountySubmissions(grant_id, milestone_idx);
+        let v = env.storage().persistent().get(&key);
+        if v.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        v
+    }
+
+    pub fn set_bounty_submissions(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        entries: &Vec<BountySubmissionEntry>,
+    ) {
+        let key = DataKey::BountySubmissions(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, entries);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_bounty_submissions(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::BountySubmissions(grant_id, milestone_idx));
     }
 
     pub fn increment_grant_counter(env: &Env) -> u64 {
@@ -195,12 +277,12 @@ impl Storage {
         env.storage()
             .persistent()
             .get(&DataKey::EscrowState(grant_id))
-            .unwrap_or(EscrowState {
-                mode: EscrowMode::Standard,
-                lifecycle: EscrowLifecycleState::Funding,
-                quorum_ready: false,
-                approvals_count: 0,
-            })
+            .unwrap_or(EscrowState::new(
+                EscrowMode::Standard,
+                EscrowLifecycleState::Funding,
+                false,
+                0,
+            ))
     }
 
     pub fn set_escrow_state(env: &Env, grant_id: u64, state: &EscrowState) {
@@ -308,8 +390,6 @@ impl Storage {
     }
 
     // --- Grant status index helpers ---
-
-    /// Maximum number of grant IDs stored per status bucket to bound gas costs.
     pub const STATUS_INDEX_MAX: u32 = 500;
 
     pub fn get_status_index(env: &Env, status: u32) -> soroban_sdk::Vec<u64> {
@@ -330,8 +410,6 @@ impl Storage {
         env.storage().persistent().set(&key, ids);
         Self::bump_persistent_ttl(env, &key);
     }
-
-    /// Add `grant_id` to the index for `status`, respecting the cap.
     pub fn index_add(env: &Env, status: u32, grant_id: u64) {
         let mut ids = Self::get_status_index(env, status);
         if ids.len() >= Self::STATUS_INDEX_MAX {
@@ -342,8 +420,6 @@ impl Storage {
             Self::set_status_index(env, status, &ids);
         }
     }
-
-    /// Remove `grant_id` from the index for `status`.
     pub fn index_remove(env: &Env, status: u32, grant_id: u64) {
         let ids = Self::get_status_index(env, status);
         let mut new_ids = soroban_sdk::Vec::new(env);
@@ -354,10 +430,229 @@ impl Storage {
         }
         Self::set_status_index(env, status, &new_ids);
     }
-
-    /// Move `grant_id` from one status bucket to another atomically.
     pub fn index_transition(env: &Env, from: u32, to: u32, grant_id: u64) {
         Self::index_remove(env, from, grant_id);
         Self::index_add(env, to, grant_id);
+    }
+
+    // --- Global pause flag (instance storage) ---
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::IsPaused)
+            .unwrap_or(false)
+    }
+
+    pub fn set_paused(env: &Env, paused: bool) {
+        env.storage().instance().set(&DataKey::IsPaused, &paused);
+    }
+
+    // --- Reviewer delegation helpers ---
+
+    pub fn get_delegation(env: &Env, grant_id: u64, delegator: &Address) -> Option<Address> {
+        let key = DataKey::Delegation;
+        let delegations: Map<u64, Map<Address, Address>> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Map::new(env));
+        if !delegations.is_empty() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+
+        delegations
+            .get(grant_id)
+            .and_then(|grant_delegations| grant_delegations.get(delegator.clone()))
+    }
+
+    pub fn set_delegation(env: &Env, grant_id: u64, delegator: &Address, delegatee: &Address) {
+        let key = DataKey::Delegation;
+        let mut delegations: Map<u64, Map<Address, Address>> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Map::new(env));
+        let mut grant_delegations = delegations.get(grant_id).unwrap_or(Map::new(env));
+
+        grant_delegations.set(delegator.clone(), delegatee.clone());
+        delegations.set(grant_id, grant_delegations);
+
+        env.storage().persistent().set(&key, &delegations);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_delegation(env: &Env, grant_id: u64, delegator: &Address) {
+        let key = DataKey::Delegation;
+        let mut delegations: Map<u64, Map<Address, Address>> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Map::new(env));
+        let Some(mut grant_delegations) = delegations.get(grant_id) else {
+            return;
+        };
+
+        if !grant_delegations.contains_key(delegator.clone()) {
+            return;
+        }
+
+        grant_delegations.remove(delegator.clone());
+        if grant_delegations.is_empty() {
+            delegations.remove(grant_id);
+        } else {
+            delegations.set(grant_id, grant_delegations);
+        }
+
+        env.storage().persistent().set(&key, &delegations);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    // --- Issue #151: milestone reputation tracking ---
+
+    pub fn has_milestone_reputation_applied(env: &Env, grant_id: u64, milestone_idx: u32) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::MilestoneReputationApplied(
+                grant_id,
+                milestone_idx,
+            ))
+    }
+
+    pub fn mark_milestone_reputation_applied(env: &Env, grant_id: u64, milestone_idx: u32) {
+        let key = DataKey::MilestoneReputationApplied(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, &true);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    // --- Issue #152: dispute fee ---
+
+    pub fn get_dispute_fee_amount(env: &Env) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::DisputeFeeAmount)
+            .unwrap_or(0)
+    }
+
+    pub fn set_dispute_fee_amount(env: &Env, amount: i128) {
+        let key = DataKey::DisputeFeeAmount;
+        env.storage().persistent().set(&key, &amount);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn get_milestone_dispute_info(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<DisputeInfo> {
+        let key = DataKey::MilestoneDisputeInfo(grant_id, milestone_idx);
+        let info = env.storage().persistent().get(&key);
+        if info.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        info
+    }
+
+    pub fn set_milestone_dispute_info(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        info: &DisputeInfo,
+    ) {
+        let key = DataKey::MilestoneDisputeInfo(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, info);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_milestone_dispute_info(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::MilestoneDisputeInfo(grant_id, milestone_idx));
+    }
+
+    pub fn get_funder_vote(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        funder: &soroban_sdk::Address,
+    ) -> Option<bool> {
+        let key = DataKey::FunderVote(grant_id, milestone_idx, funder.clone());
+        let vote = env.storage().persistent().get(&key);
+        if vote.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        vote
+    }
+
+    pub fn set_funder_vote(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        funder: &soroban_sdk::Address,
+        approve: bool,
+    ) {
+        let key = DataKey::FunderVote(grant_id, milestone_idx, funder.clone());
+        env.storage().persistent().set(&key, &approve);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn get_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+    ) -> Option<ExtensionRequest> {
+        let key = DataKey::ExtensionRequest(grant_id, milestone_idx);
+        let request = env.storage().persistent().get(&key);
+        if request.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        request
+    }
+
+    pub fn set_extension_request(
+        env: &Env,
+        grant_id: u64,
+        milestone_idx: u32,
+        request: &ExtensionRequest,
+    ) {
+        let key = DataKey::ExtensionRequest(grant_id, milestone_idx);
+        env.storage().persistent().set(&key, request);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_extension_request(env: &Env, grant_id: u64, milestone_idx: u32) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::ExtensionRequest(grant_id, milestone_idx));
+    }
+
+    pub fn get_pending_refund(
+        env: &Env,
+        grant_id: u64,
+        funder: &soroban_sdk::Address,
+    ) -> Vec<(Address, i128)> {
+        let key = DataKey::PendingRefund(grant_id, funder.clone());
+        let v = env.storage().persistent().get(&key);
+        if v.is_some() {
+            Self::bump_persistent_ttl(env, &key);
+        }
+        v.unwrap_or(Vec::new(env))
+    }
+
+    pub fn set_pending_refund(
+        env: &Env,
+        grant_id: u64,
+        funder: &soroban_sdk::Address,
+        refunds: &Vec<(Address, i128)>,
+    ) {
+        let key = DataKey::PendingRefund(grant_id, funder.clone());
+        env.storage().persistent().set(&key, refunds);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn remove_pending_refund(env: &Env, grant_id: u64, funder: &soroban_sdk::Address) {
+        env.storage()
+            .persistent()
+            .remove(&DataKey::PendingRefund(grant_id, funder.clone()));
     }
 }

@@ -1,129 +1,97 @@
-StellarGrants Protocol
-======================
+# StellarGrants Protocol
 
-This repository contains three tightly-coupled parts of the StellarGrants Protocol:
+Monorepo for **milestone-based grants on Stellar (Soroban)**: on-chain escrow, milestones, and voting, with a Next.js app, optional Express API, and a TypeScript client SDK.
 
-1. **Smart contracts** (Soroban, Rust) in `stellargrant-contracts/`
-2. **Frontend** (Next.js, zero-backend) in `stellargrant-fe/`
-3. **Backend API middleware** (Express, TypeScript) in `api/`
+## Contents
 
-The overall goal is milestone-based grant management on Stellar:
-grant creation and funding are handled on-chain, and the frontend reads state directly from Stellar RPC while wallets sign and submit transactions.
+- [Repository layout](#repository-layout)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Smart contracts](#smart-contracts)
+- [CI](#ci)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
-----
+## Repository layout
 
-## Repository Layout
+| Path | Description |
+|------|-------------|
+| [`stellargrant-contracts/`](stellargrant-contracts/) | Soroban smart contracts (Rust): build to WASM, tests, deploy via Stellar CLI. |
+| [`stellargrant-fe/`](stellargrant-fe/) | Next.js frontend: reads contract state via Stellar RPC; wallets sign transactions in the browser. See [`stellargrant-fe/README.md`](stellargrant-fe/README.md) for app-specific docs. |
+| [`client/`](client/) | `@stellargrants/client-sdk` — TypeScript SDK for Soroban contract interactions (`@stellar/stellar-sdk`). |
+| [`api/`](api/) | Express + TypeScript API (PostgreSQL via TypeORM): optional middleware for caching and server-side flows. |
 
-`stellargrant-contracts/`
-Smart contracts written in Rust for Soroban.
+## Architecture
 
-Typical responsibilities:
-- Build and test contracts (compile to WASM)
-- Enforce Rust formatting and linting (`cargo fmt`, `cargo clippy`)
-- Deploy/invoke the contract using Stellar CLI
-
-`stellargrant-fe/`
-Next.js frontend that interacts with the deployed contract via Stellar RPC and wallet extensions.
-
-Typical responsibilities:
-- Provide UI flows for grant lifecycle actions (create, fund, submit milestones, approve/vote)
-- Read contract state via RPC
-- Sign and submit transactions through supported wallets (for example: Freighter and other Stellar wallet providers)
-
-`api/`
-Express API middleware for cached grant reads and signature-verified write operations.
-
-Typical responsibilities:
-- Cache grant data fetched from Soroban (via contract client adapters)
-- Expose backend endpoints for grant listing and metadata
-- Validate Stellar signatures for write-intent endpoints (for example milestone proof submission)
-
-----
-
-## Architecture (High Level)
-
-### On-chain: Soroban contract (Rust)
-The protocol is implemented as a Soroban smart contract with a modular code structure (for example: contract logic, types, storage helpers, events, and unit tests).
-
-Core concepts:
-- **Grants**: milestone-based funding opportunities
-- **Milestones**: deliverables that unlock payouts
-- **Escrow**: secure holding of funds until milestone approval
-- **Voting / approvals**: DAO-style governance for milestone acceptance
-- **Events**: emitted on state changes to support off-chain indexing
-
-### Off-chain: Next.js frontend (zero-backend)
-The frontend follows a **zero-backend** approach:
-- No custom API server in this repository
-- The browser/frontend directly reads from Stellar RPC
-- Wallets sign transactions in the user's browser, and the frontend submits them to the network
-
-----
+- **On-chain:** Soroban contract implements grants, milestones, escrow, approvals/voting, and events.
+- **Frontend:** Primary data path is **direct to Stellar RPC** from the browser; no dedicated backend is required for core reads and signed writes. The Next.js app may include small **Route Handlers** (for example streaming or server-only concerns).
+- **API:** The `api/` service is a separate process for endpoints that benefit from a database or server-side logic; use it when your deployment needs that layer.
+- **SDK:** The `client/` package is for programmatic contract access from Node or bundlers, independent of the web UI.
 
 ## Prerequisites
 
-### For Smart Contracts
-- Rust `>= 1.78`
-- `wasm32-unknown-unknown` target (install via `rustup`)
-- Stellar CLI (for deploy/invoke), installed via `cargo install`
+**Smart contracts**
 
-### For the Frontend
-- Node.js `>= 18`
-- npm (or another package manager, but this repo is currently configured for npm via `package-lock.json`)
+- Rust (stable; CI uses `dtolnay/rust-toolchain@stable`)
+- `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`)
+- [Stellar CLI](https://developers.stellar.org/docs/tools/developer-tools) for deploy/invoke
 
-----
+**Frontend, API, and client SDK**
 
-## Quick Start (Local)
+- **Node.js 20+** recommended (Next.js 16 in `stellargrant-fe`)
+- npm (lockfiles are committed under `stellargrant-fe/`, `api/`, and `client/`)
 
-You can work on contracts and frontend independently.
+**API only**
 
-### Smart Contracts: Formatting, Linting, and Build Checks
+- PostgreSQL reachable via `DATABASE_URL` when running the API locally or in production
 
-From the repository root:
+## Quick start
+
+Work in each package from the repository root as needed.
+
+### Smart contracts — format, lint, and compile check
 
 ```bash
 cd stellargrant-contracts
 rustup target add wasm32-unknown-unknown
 
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --target wasm32-unknown-unknown -- -D warnings
-cargo check --workspace --all-targets --target wasm32-unknown-unknown
+cargo clippy --workspace --lib --target wasm32-unknown-unknown -- -D warnings
+cargo check --workspace --target wasm32-unknown-unknown
 ```
 
-### Smart Contracts: Build and Test
+These mirror the [CI workflow](.github/workflows/ci.yml).
 
-From `stellargrant-contracts`, you can build and test the contract workspace using Cargo.
+### Smart contracts — tests
 
 ```bash
 cd stellargrant-contracts
 cargo test
 ```
 
-If your development workflow uses the contract directory's Makefile (optional), you can use it to build WASM with the project's Soroban tooling:
+Optional WASM build (when your workflow uses the contract Makefile):
 
 ```bash
-cd contracts/stellar-grants
+cd stellargrant-contracts/contracts/stellar-grants
 make build
 make test
 ```
 
-### Smart Contracts: Code Coverage
+### Smart contracts — coverage (optional)
 
-You can run test coverage locally using `cargo-tarpaulin`.
+With [cargo-tarpaulin](https://github.com/xd009642/tarpaulin) installed:
 
-1. Install `cargo-tarpaulin`:
-   ```bash
-   cargo install cargo-tarpaulin
-   ```
-2. Run coverage targeting the library logic:
-   ```bash
-   cd stellargrant-contracts
-   cargo tarpaulin --workspace --lib --target x86_64-unknown-linux-gnu --engine llvm --out Xml
-   ```
-   *Note: Our `.tarpaulin.toml` is configured to exclude test files automatically.*
+```bash
+cd stellargrant-contracts
+cargo tarpaulin --workspace --lib --target x86_64-unknown-linux-gnu --engine llvm --out Xml
+```
 
-### Frontend: Install and Run
+Adjust flags to match your workspace layout if needed.
 
+### Frontend
 
 ```bash
 cd stellargrant-fe
@@ -131,43 +99,57 @@ npm ci
 npm run dev
 ```
 
-The dev server will be available at `http://localhost:3000` (default Next.js behavior).
+Dev server: [http://localhost:3000](http://localhost:3000) (default Next.js port).
 
-----
+### TypeScript client SDK
 
-## Frontend Configuration (Environment Variables)
+```bash
+cd client
+npm ci
+npm run build
+npm test
+```
 
-The frontend is configured via environment variables (create a local `.env.local` file and do not commit it).
+### API
 
-Required values for typical development:
-- `NEXT_PUBLIC_STELLAR_RPC_URL`
-  - Stellar RPC endpoint for Soroban reads/writes (example: testnet RPC)
-- `NEXT_PUBLIC_NETWORK_PASSPHRASE`
-  - Network passphrase for signing transactions
-- `NEXT_PUBLIC_CONTRACT_ID`
-  - Deployed contract identifier on the selected network
+```bash
+cd api
+npm ci
+npm run dev
+```
 
-Optional values (depending on features you use):
-- Token contract identifiers:
-  - `NEXT_PUBLIC_NATIVE_TOKEN`
-  - `NEXT_PUBLIC_USDC_TOKEN`
-- Milestone proof upload / IPFS gateway:
-  - `NEXT_PUBLIC_IPFS_GATEWAY`
-- Optional analytics:
-  - `NEXT_PUBLIC_POSTHOG_KEY`
-  - `NEXT_PUBLIC_POSTHOG_HOST`
+Default port **4000** (overridable with `PORT`). Ensure PostgreSQL is running and `DATABASE_URL` is set if you use persistence beyond defaults — see [`api/src/config/env.ts`](api/src/config/env.ts).
 
-Security note:
-- Anything prefixed with `NEXT_PUBLIC_` is exposed to browser clients.
-- Do not put secrets into `NEXT_PUBLIC_` variables.
+## Configuration
 
-----
+### Frontend environment variables
 
-## Contract Deployment (Testnet / Mainnet)
+Create `stellargrant-fe/.env.local` (do not commit). Only variables used in code are listed here; see [`stellargrant-fe/lib/stellar/client.ts`](stellargrant-fe/lib/stellar/client.ts) and [`stellargrant-fe/lib/stellar/contract.ts`](stellargrant-fe/lib/stellar/contract.ts).
 
-After building the contract WASM, deploy it using Stellar CLI.
+**Required for a non-default network or contract**
 
-Example flow (testnet):
+- `NEXT_PUBLIC_STELLAR_RPC_URL` — Soroban HTTP RPC endpoint
+- `NEXT_PUBLIC_NETWORK_PASSPHRASE` — network passphrase for signing
+- `NEXT_PUBLIC_CONTRACT_ID` — deployed contract address
+
+**Optional**
+
+- `NEXT_PUBLIC_NATIVE_TOKEN`, `NEXT_PUBLIC_USDC_TOKEN` — asset contract IDs when your UI uses them
+- `NEXT_PUBLIC_IPFS_GATEWAY` — gateway base URL for milestone proofs
+- `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` — analytics
+
+Anything prefixed with `NEXT_PUBLIC_` is exposed to the browser. Do not put secrets in those variables.
+
+### API environment variables
+
+- `PORT` — listen port (default `4000`)
+- `DATABASE_URL` — PostgreSQL connection string
+
+## Smart contracts — deploy (example)
+
+After building WASM (for example via `make build` under `stellargrant-contracts/contracts/stellar-grants`):
+
+**Testnet**
 
 ```bash
 cd stellargrant-contracts/contracts/stellar-grants
@@ -179,7 +161,7 @@ stellar contract deploy \
   --source-account YOUR_SECRET_KEY
 ```
 
-Example flow (mainnet):
+**Mainnet**
 
 ```bash
 stellar contract deploy \
@@ -188,55 +170,32 @@ stellar contract deploy \
   --source-account YOUR_SECRET_KEY
 ```
 
-Important:
-- Replace `YOUR_SECRET_KEY` with credentials stored securely in your local environment.
-- Treat deployment and initialization carefully and follow the contract's expected initialization procedure (if required).
+Store keys outside the repo; follow the contract’s initialization steps after deploy.
 
-----
+## CI
 
-## CI / GitHub Actions
+GitHub Actions workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-This repo includes a GitHub Actions workflow at `.github/workflows/ci.yml` that runs on every `push` and `pull_request`.
+**Current behavior**
 
-What it checks:
-- **Contracts job**
-  - `cargo fmt` (format check)
-  - `cargo clippy` (deny warnings)
-  - `cargo check` for the contract workspace
-- **Frontend job**
-  - `npm ci`
-  - `npm run lint`
-  - `npm run build`
+- Runs on **pull requests** and on **pushes to `main`**.
+- **Contracts** job: `cargo fmt` (check), `cargo clippy` (WASM, library targets, deny warnings), `cargo check` (WASM).
 
-If you add new code, make sure both sides compile/lint cleanly so your PR passes CI.
-
-----
+Frontend and API jobs are not in this workflow yet; run `npm run lint` and `npm run build` locally under `stellargrant-fe/` (and `npm run build` under `api/`) before opening a PR.
 
 ## Contributing
 
-General expectations:
-- Keep smart contract code formatted (`cargo fmt`)
-- Keep contract warnings-free (`cargo clippy -D warnings`)
-- Keep frontend code lint- and build-clean
-
-More guidance:
-- `stellargrant-contracts/ContributionGuide.md` (contract-specific contribution rules)
-- `stellargrant-fe/CONTRIBUTING.md` (frontend-specific contribution rules, if present in your working copy)
-
-----
+- Contracts: format with `cargo fmt`; keep `cargo clippy` clean. See [`stellargrant-contracts/ContributionGuide.md`](stellargrant-contracts/ContributionGuide.md).
+- Frontend: see [`stellargrant-fe/CONTRIBUTING.md`](stellargrant-fe/CONTRIBUTING.md).
 
 ## Security
 
-Before deploying changes to real networks:
-- Run tests and clippy checks locally and via CI
-- Review access control and arithmetic safety in contract changes
-- Avoid committing any secrets (private keys, API tokens, etc.)
+- Run tests and linters locally before deploying to public networks.
+- Review access control and numeric safety in contract changes.
+- Never commit private keys, seeds, or production secrets.
 
-Report vulnerabilities via GitHub Security Advisories or by contacting the maintainers.
-
-----
+Report vulnerabilities via [GitHub Security Advisories](https://docs.github.com/code-security/security-advisories) or maintainer contact, as your project prefers.
 
 ## License
 
 MIT License.
-

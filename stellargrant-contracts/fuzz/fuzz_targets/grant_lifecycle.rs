@@ -35,6 +35,10 @@ fuzz_target!(|data: &[u8]| {
             reviewers,
             quorum,
             milestone_deadlines,
+            0i128,
+            0i128,
+            Vec::new(&env),
+            false,
         );
 
         let funder = Address::from_str(&env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHH");

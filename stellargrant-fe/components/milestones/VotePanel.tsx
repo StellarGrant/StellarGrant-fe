@@ -21,12 +21,12 @@ interface VotePanelProps {
 }
 
 export function VotePanel({
-  grantId,
-  milestoneIdx,
-  votes,
-  quorum,
-  threshold,
-  connectedAddress,
+  grantId: _grantId,
+  milestoneIdx: _milestoneIdx,
+  votes: _votes,
+  quorum: _quorum,
+  threshold: _threshold,
+  connectedAddress: _connectedAddress,
 }: VotePanelProps) {
   // TODO: Implement vote panel component
   return (

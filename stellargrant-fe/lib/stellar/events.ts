@@ -16,8 +16,8 @@ export interface ContractEvent {
 /**
  * Fetch contract events for a specific grant
  */
-export async function fetchContractEvents(grantId: string): Promise<ContractEvent[]> {
-  const rpc = getRpcClient();
+export async function fetchContractEvents(_grantId: string): Promise<ContractEvent[]> {
+  const _rpc = getRpcClient();
   // TODO: Implement event fetching from Stellar RPC
   return [];
 }
@@ -25,7 +25,7 @@ export async function fetchContractEvents(grantId: string): Promise<ContractEven
 /**
  * Decode event data from XDR format
  */
-export function decodeEvent(eventXdr: string): ContractEvent | null {
+export function decodeEvent(_eventXdr: string): ContractEvent | null {
   // TODO: Implement XDR event decoding
   return null;
 }
