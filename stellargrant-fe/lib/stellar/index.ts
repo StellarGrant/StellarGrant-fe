@@ -1,4 +1,4 @@
-export { getRpcClient, rpcClient, networkPassphraseConfig } from "./client";
+export { getRpcClient, rpcClient, networkPassphraseConfig, getHorizonClient, horizonClient } from "./client";
 export { ContractClient, contractClient } from "./contract";
 export { fetchContractEvents, decodeEvent } from "./events";
 export type { ContractEvent } from "./events";

@@ -1,14 +1,8 @@
-/**
- * Grant Balance Monitoring
- *
- * Fetches and monitors the real-time balances (XLM and SAC tokens) held
- * by the smart contract account associated with a given grant.
- *
- * Uses the Stellar RPC `getAccount` endpoint which returns the full
- * account record including all trustlines and native balance.
- */
+import { getHorizonClient } from "./client";
+import type { Horizon } from "@stellar/stellar-sdk";
 
-import { getRpcClient } from "./client";
+/** Raw balance entry as returned by the Horizon API */
+type HorizonBalance = Horizon.HorizonApi.BalanceLine;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -85,19 +79,19 @@ export async function getGrantBalances(contractAddress: string): Promise<GrantBa
     throw new Error("contractAddress must not be empty");
   }
 
-  const rpc = getRpcClient();
+  const horizon = getHorizonClient();
 
-  // getAccount returns the full Stellar account record including trustlines
-  const account = await rpc.getAccount(contractAddress);
+  // loadAccount() returns an AccountResponse with full balance/trustline data
+  const account = await horizon.loadAccount(contractAddress);
 
-  const balances: GrantBalance[] = account.balances.map((b) => {
+  const balances: GrantBalance[] = (account.balances as HorizonBalance[]).map((b) => {
     const isNative = b.asset_type === "native";
     const raw = b.balance;
     const stroops = parseBalanceToStroops(raw);
 
     return {
-      assetCode: isNative ? "XLM" : (b as { asset_code: string }).asset_code,
-      assetIssuer: isNative ? "" : (b as { asset_issuer: string }).asset_issuer,
+      assetCode: isNative ? "XLM" : (b as Horizon.HorizonApi.BalanceLineAsset).asset_code,
+      assetIssuer: isNative ? "" : (b as Horizon.HorizonApi.BalanceLineAsset).asset_issuer,
       isNative,
       rawBalance: raw,
       balanceStroops: stroops,
@@ -115,7 +109,7 @@ export async function getGrantBalances(contractAddress: string): Promise<GrantBa
   return {
     contractAddress,
     balances,
-    ledger: account.sequenceNumber ? Number(account.sequenceNumber) : 0,
+    ledger: Number(account.last_modified_ledger ?? 0),
     fetchedAt: new Date(),
   };
 }

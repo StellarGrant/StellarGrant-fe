@@ -19,16 +19,16 @@ import {
 // ── Mock the RPC client ───────────────────────────────────────────────────
 
 vi.mock("../lib/stellar/client", () => ({
-  getRpcClient: vi.fn(),
+  getHorizonClient: vi.fn(),
 }));
 
-import { getRpcClient } from "../lib/stellar/client";
+import { getHorizonClient } from "../lib/stellar/client";
 
-function makeMockRpc(balances: object[]) {
+function makeMockHorizon(balances: object[]) {
   return {
-    getAccount: vi.fn().mockResolvedValue({
+    loadAccount: vi.fn().mockResolvedValue({
       balances,
-      sequenceNumber: "123456",
+      last_modified_ledger: 123456,
     }),
   };
 }
@@ -85,11 +85,11 @@ describe("formatStroops", () => {
 
 describe("getGrantBalances", () => {
   beforeEach(() => {
-    vi.mocked(getRpcClient).mockReturnValue(
-      makeMockRpc([
+    vi.mocked(getHorizonClient).mockReturnValue(
+      makeMockHorizon([
         { asset_type: "native", balance: "100.0000000" },
         { asset_type: "credit_alphanum4", asset_code: "USDC", asset_issuer: "GCENTER...", balance: "500.0000000" },
-      ]) as ReturnType<typeof getRpcClient>
+      ]) as ReturnType<typeof getHorizonClient>
     );
   });
 
@@ -138,10 +138,10 @@ describe("getGrantBalances", () => {
 
 describe("getGrantXlmBalance", () => {
   beforeEach(() => {
-    vi.mocked(getRpcClient).mockReturnValue(
-      makeMockRpc([
+    vi.mocked(getHorizonClient).mockReturnValue(
+      makeMockHorizon([
         { asset_type: "native", balance: "42.5000000" },
-      ]) as ReturnType<typeof getRpcClient>
+      ]) as ReturnType<typeof getHorizonClient>
     );
   });
 
@@ -159,11 +159,11 @@ describe("getGrantXlmBalance", () => {
 
 describe("getGrantTokenBalance", () => {
   beforeEach(() => {
-    vi.mocked(getRpcClient).mockReturnValue(
-      makeMockRpc([
+    vi.mocked(getHorizonClient).mockReturnValue(
+      makeMockHorizon([
         { asset_type: "native", balance: "10.0000000" },
         { asset_type: "credit_alphanum4", asset_code: "USDC", asset_issuer: "ISSUER1", balance: "200.0000000" },
-      ]) as ReturnType<typeof getRpcClient>
+      ]) as ReturnType<typeof getHorizonClient>
     );
   });
 
@@ -198,10 +198,10 @@ const flushPromises = () => new Promise<void>((r) => setTimeout(r, 50));
 
 describe("listenToBalanceChanges", () => {
   beforeEach(() => {
-    vi.mocked(getRpcClient).mockReturnValue(
-      makeMockRpc([
+    vi.mocked(getHorizonClient).mockReturnValue(
+      makeMockHorizon([
         { asset_type: "native", balance: "100.0000000" },
-      ]) as ReturnType<typeof getRpcClient>
+      ]) as ReturnType<typeof getHorizonClient>
     );
   });
 
@@ -223,22 +223,21 @@ describe("listenToBalanceChanges", () => {
 
   it("stops polling after cleanup — no extra calls after stop()", async () => {
     const onChange = vi.fn();
-    // Use a very long pollInterval so the only call is the initial one
     const stop = listenToBalanceChanges(MOCK_ADDRESS, { onChange, pollInterval: 60_000 });
 
     await flushPromises();
     const countBeforeStop = onChange.mock.calls.length;
 
     stop();
-    await flushPromises(); // shouldn't trigger more calls
+    await flushPromises();
 
     expect(onChange.mock.calls.length).toBe(countBeforeStop);
   });
 
-  it("calls onError when RPC fails", async () => {
-    vi.mocked(getRpcClient).mockReturnValue({
-      getAccount: vi.fn().mockRejectedValue(new Error("RPC failure")),
-    } as ReturnType<typeof getRpcClient>);
+  it("calls onError when Horizon fails", async () => {
+    vi.mocked(getHorizonClient).mockReturnValue({
+      loadAccount: vi.fn().mockRejectedValue(new Error("Horizon failure")),
+    } as ReturnType<typeof getHorizonClient>);
 
     const onError = vi.fn();
     const stop = listenToBalanceChanges(MOCK_ADDRESS, {
@@ -254,4 +253,5 @@ describe("listenToBalanceChanges", () => {
     stop();
   });
 });
+
 
