@@ -27,6 +27,8 @@ import {
 } from "./types";
 import { EventParser, ParsedEvent } from "./events";
 import { retryWithBackoff } from "./utils/retry";
+import { isNativeXLM, toAssetScVal } from "./utils/assets";
+import { appendSignature, computeSignatureWeight, meetsThreshold, PendingXdrStore, type AccountSigner, type AccountThresholds } from "./utils/transactions";
 
 const READ_ONLY_SIMULATION_ACCOUNT =
   "GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA";
@@ -123,11 +125,50 @@ export class StellarGrantsSDK {
   /**
    * Funds an existing grant with tokens.
    *
+   * For native XLM funding, this method transparently handles the Stellar Asset Contract
+   * native asset address and computes required balances including fees.
+   *
    * @param input Funding details including grant ID, token address, and amount.
    * @param options Optional transaction configuration.
    * @returns A promise that resolves to the transaction submission result.
    */
   async grantFund(input: GrantFundInput, options?: WriteOptions): Promise<rpc.Api.SendTransactionResponse> {
+    const isNative = isNativeXLM(input.token);
+
+    // For native XLM, compute required balance (amount + estimated fee)
+    if (isNative) {
+      const signer = this.requireSigner();
+      const publicKey = await signer.getPublicKey();
+      const account = await this.withRetry(() => this.server.getAccount(publicKey)) as any;
+      const currentBalance = BigInt(account.balance);
+
+      // Estimate fee for the transaction
+      const txForSim = await this.buildTx("grant_fund", [
+        nativeToScVal(input.grantId, { type: "u32" }),
+        nativeToScVal(input.token, { type: "address" }),
+        nativeToScVal(input.amount, { type: "i128" }),
+      ]);
+      const simulation = await this.withRetry(() => this.server.simulateTransaction(txForSim)) as any;
+      this.ensureSimulationSuccess(simulation);
+
+      const baseFee = Number(simulation.minResourceFee ?? 0);
+      const dynamicFees = await this.resolveDynamicFeeModifiers();
+      const recommendedBase = dynamicFees?.recommendedBaseFee ?? baseFee;
+      const effectiveBase = Math.max(baseFee, recommendedBase);
+      const priority: FeePriority = options?.feePriority ?? "medium";
+      const modifiers = dynamicFees?.modifiers ?? DEFAULT_FEE_LEVEL_MODIFIERS;
+      const estimatedFee = BigInt(Math.ceil(effectiveBase * modifiers[priority]));
+
+      const required = input.amount + estimatedFee;
+      if (currentBalance < required) {
+        throw new StellarGrantsError(
+          `Insufficient XLM balance. Required: ${required} stroops, Available: ${currentBalance} stroops`,
+          "INSUFFICIENT_BALANCE",
+          { required, available: currentBalance },
+        );
+      }
+    }
+
     return this.invokeWrite("grant_fund", [
       nativeToScVal(input.grantId, { type: "u32" }),
       nativeToScVal(input.token, { type: "address" }),
@@ -163,6 +204,59 @@ export class StellarGrantsSDK {
       nativeToScVal(input.milestoneIdx, { type: "u32" }),
       nativeToScVal(input.approve),
     ], options) as Promise<rpc.Api.SendTransactionResponse>;
+  }
+
+  /**
+   * Builds and prepares an unsigned transaction XDR for a contract write call.
+   *
+   * This is useful for offline / hardware signing flows. The returned XDR can
+   * be signed externally and later submitted via `WriteOptions.signedXdr`.
+   */
+  async buildUnsignedTransaction(
+    method: string,
+    args: xdr.ScVal[],
+    options?: { feePriority?: FeePriority; feeMultiplier?: number; simulatedFee?: string; transactionData?: any },
+  ): Promise<{ xdr: string; networkPassphrase: string; fee: string }> {
+    const signer = this.requireSigner();
+    const networkPassphrase = await this.resolveNetworkPassphrase();
+    let finalFee = this.config.defaultFee ?? "100";
+
+    if (!options?.transactionData || options?.feeMultiplier) {
+      const txForSim = await this.buildTx(method, args);
+      const simulation = await this.withRetry(() => this.server.simulateTransaction(txForSim)) as any;
+      this.ensureSimulationSuccess(simulation);
+
+      const base = Number(simulation.minResourceFee ?? 0);
+      const dynamicFees = await this.resolveDynamicFeeModifiers();
+      const recommendedBase = dynamicFees?.recommendedBaseFee ?? base;
+      const effectiveBase = Math.max(base, recommendedBase);
+
+      if (options?.feeMultiplier) {
+        finalFee = String(Math.ceil(effectiveBase * options.feeMultiplier));
+      } else {
+        const priority: FeePriority = options?.feePriority ?? "medium";
+        const modifiers = dynamicFees?.modifiers ?? DEFAULT_FEE_LEVEL_MODIFIERS;
+        finalFee = String(Math.ceil(effectiveBase * modifiers[priority]));
+      }
+    }
+
+    if (options?.simulatedFee && !options?.feeMultiplier) {
+      finalFee = options.simulatedFee;
+    }
+
+    const tx = await this.buildTx(method, args, {
+      overrideFee: finalFee,
+      sorobanData: options?.transactionData,
+    });
+
+    const prepared = options?.transactionData
+      ? tx
+      : await this.withRetry(() => this.server.prepareTransaction(tx));
+
+    // Ensure the transaction source matches signer to avoid surprising offline flows.
+    await signer.getPublicKey();
+
+    return { xdr: prepared.toXDR(), networkPassphrase, fee: finalFee };
   }
 
   /**
@@ -465,8 +559,90 @@ export class StellarGrantsSDK {
     return { compatible: true, sdkVersion: CONTRACT_INTERFACE_VERSION, contractVersion };
   }
 
+  // ── Multisig Pipeline ───────────────────────────────────────────────────────
+
+  /**
+   * Fetches the signers and thresholds for a given account from the RPC.
+   *
+   * @param accountId The Stellar account ID (G...).
+   * @returns The account's signers and thresholds.
+   */
+  async getAccountSigners(accountId: string): Promise<{ signers: AccountSigner[]; thresholds: AccountThresholds }> {
+    const account = await this.withRetry(() => this.server.getAccount(accountId)) as any;
+    const signers: AccountSigner[] = (account.signers ?? []).map((s: any) => ({
+      key: s.key,
+      weight: s.weight,
+    }));
+    const thresholds: AccountThresholds = {
+      low_threshold: account.thresholds?.low_threshold ?? 0,
+      med_threshold: account.thresholds?.med_threshold ?? 0,
+      high_threshold: account.thresholds?.high_threshold ?? 0,
+    };
+    return { signers, thresholds };
+  }
+
+  /**
+   * Appends a signature to a transaction XDR and returns the updated XDR.
+   *
+   * This is useful for multi-signature workflows where multiple parties sign
+   * the same transaction incrementally.
+   *
+   * @param txXdr The unsigned or partially-signed transaction XDR (base64).
+   * @param signatureXdr The signature to append (DecoratedSignature XDR, base64).
+   * @returns The updated transaction XDR with the new signature.
+   */
+  appendSignature(txXdr: string, signatureXdr: string): string {
+    const networkPassphrase = this.config.networkPassphrase;
+    if (!networkPassphrase) {
+      throw new StellarGrantsError(
+        "Network passphrase is required for multisig operations. Provide it in SDK config.",
+        "NETWORK_PASSPHRASE_REQUIRED",
+      );
+    }
+    return appendSignature(txXdr, signatureXdr, networkPassphrase);
+  }
+
+  /**
+   * Computes the total signature weight for a transaction against a list of signers.
+   *
+   * @param txXdr The transaction XDR (base64).
+   * @param signers The list of account signers with weights.
+   * @returns The total weight of signatures present in the transaction.
+   */
+  computeSignatureWeight(txXdr: string, signers: AccountSigner[]): number {
+    const networkPassphrase = this.config.networkPassphrase;
+    if (!networkPassphrase) {
+      throw new StellarGrantsError(
+        "Network passphrase is required for multisig operations. Provide it in SDK config.",
+        "NETWORK_PASSPHRASE_REQUIRED",
+      );
+    }
+    return computeSignatureWeight(txXdr, networkPassphrase, signers);
+  }
+
+  /**
+   * Checks whether a transaction's signature weight meets a given threshold.
+   *
+   * @param weight The computed signature weight.
+   * @param thresholds The account's thresholds.
+   * @param level The threshold level to check (default: "medium").
+   * @returns True if the weight meets or exceeds the threshold.
+   */
+  meetsThreshold(weight: number, thresholds: AccountThresholds, level: "low" | "medium" | "high" = "medium"): boolean {
+    return meetsThreshold(weight, thresholds, level);
+  }
+
+  /**
+   * In-memory store for pending multi-signature transaction XDRs.
+   * Use this to accumulate signatures before submission.
+   */
+  readonly pendingXdrStore = new PendingXdrStore();
+
   /**
    * Subscribes to contract events.
+   *
+   * Attempts to use WebSocket if supported by the RPC endpoint, with automatic
+   * fallback to polling if WebSocket is unavailable or drops.
    *
    * @param callback Function called for each new event.
    * @param options Filter options for events.
@@ -478,46 +654,148 @@ export class StellarGrantsSDK {
   ): () => void {
     let active = true;
     let currentCursor: string | undefined = undefined;
+    let ws: any = null;
+    let pollTimer: any = null;
 
-    const poll = async () => {
-      if (!active) return;
-      try {
-        const req: any = {
-          filters: [{ type: "contract", contractIds: [this.config.contractId] }],
-        };
-        if (!currentCursor && options?.startLedger) {
-          req.startLedger = options.startLedger;
-        }
-        if (currentCursor) {
-          req.pagination = { cursor: currentCursor };
-        }
-
-        const response = await this.server.getEvents(req);
-        if (response.events) {
-          for (const ev of response.events) {
-            currentCursor = ev.id || ev.pagingToken || currentCursor;
-
-            if (options?.eventName) {
-              const topicMatches = ev.topic && ev.topic.some((t: any) => {
-                try {
-                  const scVal = typeof t === "string" ? xdr.ScVal.fromXDR(t, "base64") : t;
-                  const parsed = scValToNative(scVal);
-                  return parsed === options.eventName || String(parsed) === options.eventName;
-                } catch { return false; }
-              });
-              if (!topicMatches) continue;
-            }
-            callback(ev);
-          }
-        }
-      } catch (err) {
-        console.warn("Event poll error, continuing...", err);
-      }
-      if (active) setTimeout(poll, 5000);
+    const shouldUseWebSocket = (): boolean => {
+      // Check if RPC URL supports WebSocket (ws:// or wss://)
+      const url = this.config.proxyUrl ?? this.config.rpcUrl;
+      return url.startsWith("ws://") || url.startsWith("wss://");
     };
 
-    poll();
-    return () => { active = false; };
+    const normalizeEvent = (ev: any): any => {
+      // Standardize event payload shape regardless of source (WebSocket vs polling)
+      return {
+        id: ev.id || ev.pagingToken,
+        type: ev.type,
+        contractId: ev.contractId,
+        topic: ev.topic,
+        value: ev.value,
+        ledger: ev.ledger,
+        timestamp: ev.timestamp,
+      };
+    };
+
+    const matchesFilter = (ev: any): boolean => {
+      if (!options?.eventName) return true;
+      if (!ev.topic) return false;
+      return ev.topic.some((t: any) => {
+        try {
+          const scVal = typeof t === "string" ? xdr.ScVal.fromXDR(t, "base64") : t;
+          const parsed = scValToNative(scVal);
+          return parsed === options.eventName || String(parsed) === options.eventName;
+        } catch { return false; }
+      });
+    };
+
+    const handleEvent = (ev: any) => {
+      if (!active) return;
+      currentCursor = ev.id || ev.pagingToken || currentCursor;
+      if (matchesFilter(ev)) {
+        callback(normalizeEvent(ev));
+      }
+    };
+
+    const startPolling = () => {
+      const poll = async () => {
+        if (!active) return;
+        try {
+          const req: any = {
+            filters: [{ type: "contract", contractIds: [this.config.contractId] }],
+          };
+          if (!currentCursor && options?.startLedger) {
+            req.startLedger = options.startLedger;
+          }
+          if (currentCursor) {
+            req.pagination = { cursor: currentCursor };
+          }
+
+          const response = await this.server.getEvents(req);
+          if (response.events) {
+            for (const ev of response.events) {
+              handleEvent(ev);
+            }
+          }
+        } catch (err) {
+          console.warn("Event poll error, continuing...", err);
+        }
+        if (active) pollTimer = setTimeout(poll, 5000);
+      };
+      poll();
+    };
+
+    const startWebSocket = () => {
+      try {
+        const url = this.config.proxyUrl ?? this.config.rpcUrl;
+        // Convert http(s) to ws(s) if needed
+        const wsUrl = url.replace(/^http/, "ws");
+        ws = new (globalThis as any).WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log("[StellarGrantsSDK] WebSocket connection established for events");
+          // Subscribe to events
+          ws.send(JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "events",
+            params: {
+              filters: [{ type: "contract", contractIds: [this.config.contractId] }],
+              ...(options?.startLedger && { startLedger: options.startLedger }),
+            },
+          }));
+        };
+
+        ws.onmessage = (msg: any) => {
+          try {
+            const data = JSON.parse(msg.data);
+            if (data.result && data.result.events) {
+              for (const ev of data.result.events) {
+                handleEvent(ev);
+              }
+            }
+          } catch (err) {
+            console.warn("WebSocket message parse error", err);
+          }
+        };
+
+        ws.onerror = (err: any) => {
+          console.warn("[StellarGrantsSDK] WebSocket error, falling back to polling", err);
+          if (ws) {
+            ws.close();
+            ws = null;
+          }
+          startPolling();
+        };
+
+        ws.onclose = () => {
+          if (active) {
+            console.warn("[StellarGrantsSDK] WebSocket closed, falling back to polling");
+            startPolling();
+          }
+        };
+      } catch (err) {
+        console.warn("[StellarGrantsSDK] WebSocket initialization failed, using polling", err);
+        startPolling();
+      }
+    };
+
+    if (shouldUseWebSocket()) {
+      startWebSocket();
+    } else {
+      startPolling();
+    }
+
+    return () => {
+      active = false;
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -576,6 +854,17 @@ export class StellarGrantsSDK {
   ): Promise<rpc.Api.SendTransactionResponse | unknown> {
     const signer = this.requireSigner();
     try {
+      // Allow routing a pre-signed XDR through the standard flow.
+      if (options?.signedXdr) {
+        const networkPassphrase = await this.resolveNetworkPassphrase();
+        const signedTx = TransactionBuilder.fromXDR(options.signedXdr, networkPassphrase);
+        const sent = await this.withRetry(() => this.server.sendTransaction(signedTx)) as rpc.Api.SendTransactionResponse;
+        if (sent.status === "ERROR") {
+          throw new StellarGrantsError(`Send failed: ${sent.errorResult ?? "unknown error"}`);
+        }
+        return sent;
+      }
+
       let finalFee = this.config.defaultFee ?? "100";
 
       // Simulate when there is no pre-built transaction data OR when the caller
@@ -664,11 +953,10 @@ export class StellarGrantsSDK {
       return this.config.networkPassphrase;
     }
 
-    if (!this.networkPassphrasePromise) {
-      this.networkPassphrasePromise = this.server.getNetwork().then((network: any) => network.passphrase);
-    }
+    const promise = this.networkPassphrasePromise
+      ?? (this.networkPassphrasePromise = this.server.getNetwork().then((network: any) => network.passphrase));
 
-    return this.networkPassphrasePromise;
+    return promise;
   }
 
   private requireSigner(): WalletAdapter {

@@ -254,6 +254,11 @@ export type WriteOptions = {
   /** Explicit fee to use, bypassing automatic calculation. */
   simulatedFee?: string;
   /**
+   * Pre-signed full transaction XDR (base64).
+   * When provided, the SDK skips wallet signing and directly submits this XDR.
+   */
+  signedXdr?: string;
+  /**
    * Fee priority tier. When set this takes precedence over `feeMultiplier`
    * (unless `simulatedFee` is also provided, which always wins).
    *
