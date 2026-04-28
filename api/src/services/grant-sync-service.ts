@@ -10,6 +10,8 @@ import { notificationService } from "./notification-service";
 import { metricsService } from "./metrics-service";
 import { GrantHistory } from "../entities/GrantHistory";
 import { computeDiff } from "../utils/diff";
+import { WebhookDispatcher } from "./webhook-dispatcher";
+import { WebhookEventType } from "../entities/WebhookSubscription";
 
 export class GrantSyncService {
   private readonly grantRepo: Repository<Grant>;
@@ -24,6 +26,7 @@ export class GrantSyncService {
     private readonly dataSource: DataSource,
     private readonly sorobanClient: SorobanContractClient,
     private readonly onInvalidatePublicCaches?: () => void | Promise<void>,
+    private readonly webhookDispatcher?: WebhookDispatcher,
   ) {
     this.grantRepo = this.dataSource.getRepository(Grant);
     this.contributorRepo = this.dataSource.getRepository(Contributor);
@@ -72,6 +75,12 @@ export class GrantSyncService {
         });
         metricsService.incrementGrantCreated();
         notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
+        this.webhookDispatcher?.dispatch(WebhookEventType.GRANT_CREATED, {
+          grantId: grant.id,
+          title: grant.title,
+          recipient: grant.recipient,
+          totalAmount: grant.totalAmount,
+        });
       } else if (existingGrant.status !== grant.status) {
         // Log activity for status changes
         await this.logActivity({
@@ -90,6 +99,13 @@ export class GrantSyncService {
         await this.notifyWatchers(grant.id, "grant_updated", {
           grantId: grant.id,
           title: grant.title,
+          oldStatus: existingGrant.status,
+          newStatus: grant.status,
+        });
+        this.webhookDispatcher?.dispatch(WebhookEventType.GRANT_STATUS_CHANGED, {
+          grantId: grant.id,
+          title: grant.title,
+          recipient: grant.recipient,
           oldStatus: existingGrant.status,
           newStatus: grant.status,
         });
@@ -135,6 +151,12 @@ export class GrantSyncService {
       });
       metricsService.incrementGrantCreated();
       notificationService.notifyUser(grant.recipient, "grant_created", { title: grant.title, grantId: grant.id });
+      this.webhookDispatcher?.dispatch(WebhookEventType.GRANT_CREATED, {
+        grantId: grant.id,
+        title: grant.title,
+        recipient: grant.recipient,
+        totalAmount: grant.totalAmount,
+      });
     } else if (existingGrant.status !== grant.status) {
       // Log activity for status changes
       await this.logActivity({
@@ -153,6 +175,13 @@ export class GrantSyncService {
       await this.notifyWatchers(grant.id, "grant_updated", {
         grantId: grant.id,
         title: grant.title,
+        oldStatus: existingGrant.status,
+        newStatus: grant.status,
+      });
+      this.webhookDispatcher?.dispatch(WebhookEventType.GRANT_STATUS_CHANGED, {
+        grantId: grant.id,
+        title: grant.title,
+        recipient: grant.recipient,
         oldStatus: existingGrant.status,
         newStatus: grant.status,
       });
@@ -237,6 +266,13 @@ export class GrantSyncService {
         entityId: null,
         actorAddress: address,
         data: { gain: score.reputation - oldReputation, newReputation: score.reputation },
+      });
+
+      this.webhookDispatcher?.dispatch(WebhookEventType.CONTRIBUTOR_REPUTATION_CHANGED, {
+        address,
+        oldReputation,
+        newReputation: score.reputation,
+        gain: score.reputation - oldReputation,
       });
     }
   }

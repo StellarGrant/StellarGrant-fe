@@ -8,8 +8,10 @@ import { User } from "../entities/User";
 import * as emailService from "../services/email-service";
 import { notificationService } from "../services/notification-service";
 import { ResponseCacheService } from "../services/response-cache";
+import { WebhookDispatcher } from "../services/webhook-dispatcher";
 import { validateBody } from "../middlewares/validation-middleware";
 import { milestoneProofSchema } from "../schemas";
+import { WebhookEventType } from "../entities/WebhookSubscription";
 
 export const buildMilestoneProofRouter = (
   proofRepo: Repository<MilestoneProof>,
@@ -17,6 +19,7 @@ export const buildMilestoneProofRouter = (
   responseCache: ResponseCacheService,
   grantRepo?: Repository<Grant>,
   userRepo?: Repository<User>,
+  webhookDispatcher?: WebhookDispatcher,
 ) => {
   const activityRepo = proofRepo.manager.getRepository(Activity);
   const router = Router();
@@ -87,6 +90,15 @@ export const buildMilestoneProofRouter = (
         grantId: payload.grantId,
         milestoneIdx: payload.milestoneIdx,
         submittedBy: payload.submittedBy
+      });
+
+      // Dispatch webhook event
+      webhookDispatcher?.dispatch(WebhookEventType.MILESTONE_SUBMITTED, {
+        grantId: payload.grantId,
+        milestoneIdx: payload.milestoneIdx,
+        proofId: proof.id,
+        proofCid: payload.proofCid,
+        submittedBy: payload.submittedBy,
       });
 
       res.status(201).json({ data: proof });

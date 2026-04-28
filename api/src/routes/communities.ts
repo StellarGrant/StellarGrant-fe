@@ -10,6 +10,8 @@ import { communityCreateSchema, communityUpdateSchema, idParamSchema } from "../
 import { createRbacMiddleware, AuthenticatedRequest } from "../middlewares/rbac-middleware";
 import { RbacService } from "../services/rbac-service";
 import { Permission } from "../config/rbac";
+import { WebhookDispatcher } from "../services/webhook-dispatcher";
+import { WebhookEventType } from "../entities/WebhookSubscription";
 
 const isPlatformAdmin = (address?: string) =>
   !!address && env.adminAddresses.includes(address);
@@ -19,6 +21,7 @@ export const buildCommunitiesRouter = (
   grantRepo: Repository<Grant>,
   activityRepo: Repository<Activity>,
   rbacService: RbacService,
+  webhookDispatcher?: WebhookDispatcher,
 ) => {
   const router = Router();
   const { requirePermission, requireAnyPermission } = createRbacMiddleware(rbacService);
@@ -44,6 +47,12 @@ export const buildCommunitiesRouter = (
         logoUrl: payload.logoUrl ?? null,
         adminAddresses: payload.adminAddresses?.map((address) => address.trim()) ?? [fallbackAdmin],
         featured: payload.featured ?? false,
+      });
+
+      webhookDispatcher?.dispatch(WebhookEventType.COMMUNITY_CREATED, {
+        communityId: created.id,
+        name: created.name,
+        adminAddresses: created.adminAddresses,
       });
 
       res.status(201).json({ data: created });
@@ -86,6 +95,13 @@ export const buildCommunitiesRouter = (
       }
 
       const saved = await communityRepo.save(community);
+
+      webhookDispatcher?.dispatch(WebhookEventType.COMMUNITY_UPDATED, {
+        communityId: saved.id,
+        name: saved.name,
+        featured: saved.featured,
+      });
+
       res.json({ data: saved });
     } catch (error) {
       next(error);

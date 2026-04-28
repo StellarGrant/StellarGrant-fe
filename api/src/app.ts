@@ -59,6 +59,10 @@ import { Role } from "./entities/Role";
 import { UserRole } from "./entities/UserRole";
 import { RbacService } from "./services/rbac-service";
 import { buildRolesRouter } from "./routes/roles";
+import { WebhookSubscription } from "./entities/WebhookSubscription";
+import { WebhookDeliveryLog } from "./entities/WebhookDeliveryLog";
+import { WebhookDispatcher } from "./services/webhook-dispatcher";
+import { buildWebhooksRouter } from "./routes/webhooks";
 
 export const createApp = (dataSource: DataSource, sorobanClient: SorobanContractClient) => {
   const app = express();
@@ -163,6 +167,13 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     console.error("Failed to initialize default roles:", err);
   });
 
+  // Webhook dispatcher
+  const webhookDispatcher = new WebhookDispatcher(dataSource);
+  const webhookSubscriptionRepo = dataSource.getRepository(WebhookSubscription);
+
+  // Inject webhook dispatcher into services that need it
+  (grantSyncService as any).webhookDispatcher = webhookDispatcher;
+
   // Health check endpoint (no versioning)
   app.get("/health", async (_req, res) => {
     const health = {
@@ -207,11 +218,11 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   // Apply rate limiting
   app.use(rateLimiter);
   app.use("/grants", buildGrantRouter(grantRepo, milestoneRepo, proofRepo, grantSyncService, signatureService, responseCache));
-  app.use("/milestone_proof", buildMilestoneProofRouter(proofRepo, signatureService, responseCache, grantRepo, userRepo));
+  app.use("/milestone_proof", buildMilestoneProofRouter(proofRepo, signatureService, responseCache, grantRepo, userRepo, webhookDispatcher));
   app.use("/users", buildUserRouter(userRepo));
   app.use("/grant_reviewers", buildGrantReviewerRouter(grantReviewerRepo));
   app.use("/milestone_approvals", buildMilestoneApprovalRouter(milestoneApprovalRepo));
-   app.use("/milestone_approvals_notify", buildMilestoneApprovalNotifyRouter(milestoneApprovalRepo, grantRepo, userRepo));
+   app.use("/milestone_approvals_notify", buildMilestoneApprovalNotifyRouter(milestoneApprovalRepo, grantRepo, userRepo, webhookDispatcher));
   app.use("/leaderboard", buildLeaderboardRouter(leaderboardService));
   app.use("/activity", buildActivityRouter(activityRepo, contributorRepo));
   app.use(
@@ -228,10 +239,11 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
   app.use("/search", buildSearchRouter(dataSource));
   app.use("/profiles", buildProfilesRouter(contributorRepo, grantRepo));
   app.use("/watchlist", buildWatchlistRouter(dataSource.getRepository(UserWatchlist), grantRepo));
-  app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo, rbacService));
+  app.use("/communities", buildCommunitiesRouter(communityRepo, grantRepo, activityRepo, rbacService, webhookDispatcher));
   app.use(buildMilestoneCommentsRouter(milestoneRepo, milestoneCommentRepo, grantReviewerRepo));
   app.use(buildMyDonationsRouter(dataSource));
   app.use("/roles", adminMiddleware, buildRolesRouter(userRepo, roleRepo, userRoleRepo, rbacService));
+  app.use("/webhooks", buildWebhooksRouter(userRepo, webhookSubscriptionRepo, webhookDispatcher, rbacService));
   app.get("/config/fee", async (req, res) => {
     const fee = await configService.getFeePercentage();
     res.json({ feePercentage: fee });

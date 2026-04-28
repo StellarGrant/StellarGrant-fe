@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { WebhookEventType } from "../entities/WebhookSubscription";
+
 // ---------------------------------------------------------------------------
 // Common Validation Schemas
 // ---------------------------------------------------------------------------
@@ -221,4 +223,39 @@ export const grantListQuerySchema = paginationSchema.extend({
  */
 export const searchQuerySchema = z.object({
   q: z.string().min(2).max(100),
+});
+
+// ---------------------------------------------------------------------------
+// Webhook Schemas
+// ---------------------------------------------------------------------------
+
+const WEBHOOK_EVENT_VALUES = Object.values(WebhookEventType) as [string, ...string[]];
+
+/**
+ * Webhook subscription creation schema
+ */
+export const webhookSubscriptionCreateSchema = z.object({
+  targetUrl: z.string().url().max(2048),
+  secretKey: z.string().min(16).max(255),
+  events: z.array(z.enum(WEBHOOK_EVENT_VALUES)).min(1).max(20),
+  communityId: z.coerce.number().int().positive().optional(),
+});
+
+/**
+ * Webhook subscription update schema
+ */
+export const webhookSubscriptionUpdateSchema = z.object({
+  targetUrl: z.string().url().max(2048).optional(),
+  secretKey: z.string().min(16).max(255).optional(),
+  events: z.array(z.enum(WEBHOOK_EVENT_VALUES)).min(1).max(20).optional(),
+  isActive: z.boolean().optional(),
+});
+
+/**
+ * Webhook test schema
+ */
+export const webhookTestSchema = z.object({
+  targetUrl: z.string().url().max(2048),
+  secretKey: z.string().min(16).max(255),
+  event: z.enum(WEBHOOK_EVENT_VALUES),
 });

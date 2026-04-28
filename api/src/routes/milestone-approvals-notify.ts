@@ -4,11 +4,14 @@ import { MilestoneApproval } from "../entities/MilestoneApproval";
 import { Grant } from "../entities/Grant";
 import { User } from "../entities/User";
 import { getEmailTemplate, sendEmail } from "../services/email-service";
+import { WebhookDispatcher } from "../services/webhook-dispatcher";
+import { WebhookEventType } from "../entities/WebhookSubscription";
 
 export const buildMilestoneApprovalNotifyRouter = (
   approvalRepo: Repository<MilestoneApproval>,
   grantRepo: Repository<Grant>,
   userRepo: Repository<User>,
+  webhookDispatcher?: WebhookDispatcher,
 ) => {
   const router = Router();
 
@@ -35,7 +38,24 @@ export const buildMilestoneApprovalNotifyRouter = (
           await sendEmail({ to: owner.email, subject, html });
         }
       }
+
+      // Dispatch webhook event for milestone approved
+      webhookDispatcher?.dispatch(WebhookEventType.MILESTONE_APPROVED, {
+        grantId,
+        milestoneIdx,
+        reviewerStellarAddress,
+        approved,
+      });
+    } else {
+      // Dispatch webhook event for milestone rejected
+      webhookDispatcher?.dispatch(WebhookEventType.MILESTONE_REJECTED, {
+        grantId,
+        milestoneIdx,
+        reviewerStellarAddress,
+        approved,
+      });
     }
+
     res.json({ data: approval });
   });
 
