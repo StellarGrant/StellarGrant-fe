@@ -58,6 +58,7 @@
     "sql.js": "^1.14.1",
     "supertest": "^7.1.0",
     "testcontainers": "^11.14.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.3",
     "typescript": "^5.9.3",
     "vitest": "^3.0.8"
