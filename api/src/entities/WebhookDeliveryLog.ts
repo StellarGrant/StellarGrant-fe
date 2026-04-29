@@ -17,7 +17,7 @@ export class WebhookDeliveryLog {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: "subscription_id" })
+  @Column({ name: "subscription_id", type: "int" })
   subscriptionId!: number;
 
   @ManyToOne(() => WebhookSubscription, { onDelete: "CASCADE" })
