@@ -73,3 +73,17 @@ export type {
   HistoryOptions,
   HistoryResult,
 } from "./history";
+
+// Error mapping (Issue #250)
+export {
+  ErrorCode,
+  ERROR_MESSAGES,
+  StellarGrantsError,
+  SorobanContractError,
+  StellarGrantsNetworkError,
+  Errors,
+  parseSorobanError,
+  isContractError,
+  getErrorMessage,
+} from "../errors";
+export type { ErrorCodeValue } from "../errors";
