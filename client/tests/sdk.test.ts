@@ -87,6 +87,9 @@ jest.mock("@stellar/stellar-sdk", () => {
       ScVal: {
         fromXDR: (_b64: string, _fmt: string) => ({ _scval: "decoded" }),
       },
+      DecoratedSignature: {
+        fromXDR: (_b64: string, _fmt: string) => ({ hint: () => new Uint8Array([0, 0, 0, 0]) }),
+      },
       SorobanTransactionData: class { },
     },
   };

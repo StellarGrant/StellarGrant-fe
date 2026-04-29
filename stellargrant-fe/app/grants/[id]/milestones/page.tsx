@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { MilestoneList } from "@/components/milestones";
 import type { Milestone } from "@/types";
 
@@ -11,9 +11,9 @@ import type { Milestone } from "@/types";
  */
 
 interface MilestonesPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 /** Raw shape returned by the API (subset of the full Milestone type) */
@@ -54,8 +54,9 @@ function normaliseMilestone(raw: MilestoneResponse): Milestone {
 }
 
 export default function MilestonesPage({ params }: MilestonesPageProps) {
+  const { id } = use(params);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [title, setTitle] = useState(`Grant #${params.id}`);
+  const [title, setTitle] = useState(`Grant #${id}`);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +66,7 @@ export default function MilestonesPage({ params }: MilestonesPageProps) {
       try {
         setLoading(true);
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${baseUrl}/grants/${params.id}`, {
+        const response = await fetch(`${baseUrl}/grants/${id}`, {
           signal: controller.signal,
           cache: "no-store",
         });
@@ -77,7 +78,7 @@ export default function MilestonesPage({ params }: MilestonesPageProps) {
         const payload = await response.json();
         const raw: MilestoneResponse[] = payload.data?.milestones ?? [];
         setMilestones(raw.map(normaliseMilestone));
-        setTitle(payload.data?.title ?? `Grant #${params.id}`);
+        setTitle(payload.data?.title ?? `Grant #${id}`);
         setError(null);
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -91,7 +92,7 @@ export default function MilestonesPage({ params }: MilestonesPageProps) {
 
     void loadGrant();
     return () => controller.abort();
-  }, [params.id]);
+  }, [id]);
 
 
   return (
@@ -110,7 +111,7 @@ export default function MilestonesPage({ params }: MilestonesPageProps) {
           {error}
         </div>
       )}
-      {!loading && !error && <MilestoneList milestones={milestones} grantId={params.id} />}
+      {!loading && !error && <MilestoneList milestones={milestones} grantId={id} />}
     </div>
   );
 }

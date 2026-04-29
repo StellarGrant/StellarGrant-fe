@@ -33,4 +33,6 @@ export const env = {
     .split(",")
     .map((ip: string) => ip.trim())
     .filter(Boolean),
+  /** Optional JWT secret used to validate WebSocket authentication tokens. */
+  jwtSecret: process.env.JWT_SECRET ?? "",
 };

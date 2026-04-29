@@ -23,6 +23,10 @@
  */
 
 import { IpfsUploadConfig, IpfsUploadResult } from "./types";
+import {
+  inferMetadataSchemaName,
+  validateMetadataAgainstSchema,
+} from "./metadataSchemas";
 
 const PINATA_PIN_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 
@@ -49,6 +53,11 @@ export async function uploadMetadataToIPFS(
   metadata: Record<string, unknown>,
   config: IpfsUploadConfig,
 ): Promise<IpfsUploadResult> {
+  if (!config.skipSchemaValidation) {
+    const schemaName = config.metadataSchema ?? inferMetadataSchemaName(metadata);
+    validateMetadataAgainstSchema(schemaName, metadata);
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };

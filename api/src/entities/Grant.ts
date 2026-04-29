@@ -27,7 +27,7 @@ export class Grant {
    * Comma-separated tags stored as a simple text column for broad DB compatibility.
    * The route layer splits / joins this value when reading / writing.
    */
-  @Index({ type: "gin" })
+  @Index()
   @Column({ type: "text", nullable: true })
   tags!: string | null;
 

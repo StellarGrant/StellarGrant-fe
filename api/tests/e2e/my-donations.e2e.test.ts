@@ -112,6 +112,7 @@ describe("GET /my-donations", () => {
 
   it("returns 401 if not authenticated", async () => {
     const res = await request(app).get("/my-donations").expect(401);
-    expect(res.body.error).toBe("Unauthorized");
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("UNAUTHORIZED");
   });
 });

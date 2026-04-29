@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Repository } from "typeorm";
 import { MilestoneApproval } from "../entities/MilestoneApproval";
+import { notificationService } from "../services/notification-service";
 
 export const buildMilestoneApprovalRouter = (approvalRepo: Repository<MilestoneApproval>) => {
   const router = Router();
@@ -13,6 +14,12 @@ export const buildMilestoneApprovalRouter = (approvalRepo: Repository<MilestoneA
     }
     const approval = approvalRepo.create({ grantId, milestoneIdx, reviewerStellarAddress, approved });
     await approvalRepo.save(approval);
+    try {
+      notificationService.broadcast("milestoneApproved", { grantId, milestoneIdx, approved, reviewer: reviewerStellarAddress });
+    } catch (e) {
+      // non-fatal
+      console.warn("Failed to broadcast milestone approval", e);
+    }
     res.json({ data: approval });
   });
 

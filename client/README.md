@@ -47,6 +47,32 @@ const sdk = new StellarGrantsSDK({
 - **`getPublicKey()`**: returns the active Stellar address used as the transaction source.
 - **`signTransaction(txXdr, networkPassphrase)`**: must return a signed transaction XDR string.
 
+### Wallet Adapters
+
+Built-in adapters:
+
+- `FreighterAdapter`
+- `AlbedoAdapter`
+- `WalletConnectAdapter`
+- `XBullAdapter`
+- `createPreferredWalletAdapter(networkPassphrase)` for automatic Freighter -> Albedo fallback.
+
+Example:
+
+```ts
+import { createPreferredWalletAdapter, StellarGrantsSDK } from "@stellargrants/client-sdk";
+
+const networkPassphrase = "Test SDF Network ; September 2015";
+const signer = createPreferredWalletAdapter(networkPassphrase);
+
+const sdk = new StellarGrantsSDK({
+  contractId: process.env.CONTRACT_ID!,
+  rpcUrl: process.env.RPC_URL!,
+  networkPassphrase,
+  signer,
+});
+```
+
 ## Public API
 
 ### `StellarGrantsSDK`
@@ -57,6 +83,69 @@ const sdk = new StellarGrantsSDK({
 - **`milestoneVote(input)`**: vote approve/reject on a milestone.
 - **`grantGet(grantId)`**: read grant details.
 - **`milestoneGet(grantId, milestoneIdx)`**: read milestone details.
+
+### Dynamic Fee Estimation
+
+`estimateFees()` now uses dynamic network load data from Horizon when
+`horizonUrl` (or `feeStatsEndpoint`) is configured:
+
+```ts
+const sdk = new StellarGrantsSDK({
+  contractId,
+  rpcUrl,
+  networkPassphrase,
+  signer,
+  horizonUrl: "https://horizon-testnet.stellar.org",
+});
+
+const fees = await sdk.estimateFees("grant_create", []);
+console.log(fees.source, fees.networkLoad, fees.modifiers);
+```
+
+When fee stats are unavailable, the SDK safely falls back to static defaults.
+
+### IPFS Metadata Schema Validation
+
+`uploadMetadataToIPFS()` validates metadata locally before upload to prevent
+storing malformed payloads and to avoid unnecessary on-chain calls.
+
+Built-in schemas:
+
+- `grant`
+- `milestone`
+
+```ts
+import { uploadMetadataToIPFS } from "@stellargrants/client-sdk";
+
+await uploadMetadataToIPFS(
+  {
+    title: "Open-source educational grant",
+    description: "Funding curriculum and mentorship",
+  },
+  {
+    pinataJwt: process.env.PINATA_JWT,
+    metadataSchema: "grant",
+  },
+);
+```
+
+Invalid payloads throw `MetadataValidationError` with field-level details.
+
+## CLI
+
+The SDK package ships with a developer CLI available through `npx`:
+
+```bash
+npx @stellargrants/client-sdk init
+npx @stellargrants/client-sdk grant-status 1 --format json
+npx @stellargrants/client-sdk fund-grant 1 --token CTOKEN... --amount 1000000
+```
+
+Supported commands:
+
+- `init` - write a starter `.env`
+- `grant-status` - query grant state
+- `fund-grant` - fund a grant with local secret-key signing
 
 ## Errors
 

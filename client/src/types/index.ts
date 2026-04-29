@@ -49,6 +49,55 @@ export type StellarGrantsSDKConfig = {
    * @example "https://my-proxy.example.com/stellar-rpc"
    */
   proxyUrl?: string;
+  /**
+   * Optional Horizon base URL used for dynamic fee recommendations via
+   * `/fee_stats`. If omitted, static multipliers are used.
+   */
+  horizonUrl?: string;
+  /**
+   * Optional explicit endpoint for fee stats. Takes precedence over
+   * `${horizonUrl}/fee_stats` when provided.
+   */
+  feeStatsEndpoint?: string;
+  /**
+   * Retry configuration for RPC calls. Helps mitigate transient network errors
+   * and rate limiting (HTTP 429) with exponential backoff.
+   */
+  retryConfig?: RetryConfig;
+};
+
+/**
+ * Configuration for automatic retry behavior on RPC calls.
+ */
+export type RetryConfig = {
+  /** Maximum number of retry attempts. Defaults to 3. */
+  maxAttempts?: number;
+  /** Initial delay in milliseconds before the first retry. Defaults to 1000ms. */
+  initialDelayMs?: number;
+  /** Multiplier for exponential backoff. Defaults to 2 (doubles delay each retry). */
+  backoffMultiplier?: number;
+  /** Maximum delay between retries in milliseconds. Defaults to 10000ms. */
+  maxDelayMs?: number;
+  /**
+   * Whether to retry on HTTP 429 (Too Many Requests) rate limit errors.
+   * Defaults to true.
+   */
+  retryOnRateLimit?: boolean;
+  /**
+   * Whether to retry on timeout errors. Defaults to true.
+   */
+  retryOnTimeout?: boolean;
+  /**
+   * Whether to retry on generic network errors. Defaults to true.
+   */
+  retryOnNetworkError?: boolean;
+  /**
+   * Optional callback for logging retry attempts. Useful for debugging.
+   * @param attempt - Current attempt number (1-indexed)
+   * @param error - The error that triggered the retry
+   * @param delayMs - Delay before the next retry
+   */
+  onRetry?: (attempt: number, error: Error, delayMs: number) => void;
 };
 
 /** Result of an allowance check. */
@@ -79,7 +128,14 @@ export type IpfsUploadConfig = {
   pinataSecretKey?: string;
   /** Optional display name for the pinned object. */
   name?: string;
+  /** Explicit schema name for metadata validation before upload. */
+  metadataSchema?: IpfsMetadataSchemaName;
+  /** Disable local schema validation in exceptional flows. */
+  skipSchemaValidation?: boolean;
 };
+
+/** Supported built-in metadata schemas for IPFS artifacts. */
+export type IpfsMetadataSchemaName = "grant" | "milestone";
 
 /** Result of a successful IPFS upload. */
 export type IpfsUploadResult = {
@@ -161,13 +217,31 @@ export type FeePriority = "low" | "medium" | "high";
 export type FeeEstimate = {
   /** Raw simulated resource fee (in stroops) before any multiplier. */
   base: string;
-  /** Fee at low priority (1.0× base). */
+  /** Optional dynamic recommended base fee derived from recent network stats. */
+  recommendedBase?: string;
+  /** Fee at low priority using the effective low-tier modifier. */
   low: string;
-  /** Fee at medium priority (1.5× base). */
+  /** Fee at medium priority using the effective medium-tier modifier. */
   medium: string;
-  /** Fee at high priority (2.0× base). */
+  /** Fee at high priority using the effective high-tier modifier. */
   high: string;
+  /** Effective per-tier multipliers used for this estimate. */
+  modifiers: FeeLevelModifiers;
+  /** Network load bucket used to derive modifiers. */
+  networkLoad: FeeNetworkLoad;
+  /** Source used to derive fee modifiers. */
+  source: "horizon" | "simulation-fallback";
 };
+
+/** Frontend-safe per-tier multipliers returned with fee estimates. */
+export type FeeLevelModifiers = {
+  low: number;
+  medium: number;
+  high: number;
+};
+
+/** Coarse network load buckets for dynamic fee guidance. */
+export type FeeNetworkLoad = "low" | "moderate" | "high" | "surge";
 
 /**
  * Options for state-changing transaction invocations.
@@ -180,6 +254,11 @@ export type WriteOptions = {
   /** Explicit fee to use, bypassing automatic calculation. */
   simulatedFee?: string;
   /**
+   * Pre-signed full transaction XDR (base64).
+   * When provided, the SDK skips wallet signing and directly submits this XDR.
+   */
+  signedXdr?: string;
+  /**
    * Fee priority tier. When set this takes precedence over `feeMultiplier`
    * (unless `simulatedFee` is also provided, which always wins).
    *
@@ -187,4 +266,33 @@ export type WriteOptions = {
    * is specified.
    */
   feePriority?: FeePriority;
+};
+
+/**
+ * Structured representation of a Grant returned by the on-chain contract.
+ */
+export type GrantData = {
+  id: number;
+  owner?: string;
+  title?: string;
+  description?: string;
+  budget?: bigint | string | number;
+  deadline?: bigint | string | number;
+  milestoneCount?: number;
+  status?: string;
+  [k: string]: unknown;
+};
+
+/**
+ * Structured representation of a Milestone returned by the on-chain contract.
+ */
+export type MilestoneData = {
+  grantId?: number;
+  idx?: number;
+  title?: string;
+  proofHash?: string;
+  approved?: boolean;
+  approvals?: number;
+  status?: string;
+  [k: string]: unknown;
 };

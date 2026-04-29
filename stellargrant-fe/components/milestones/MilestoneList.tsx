@@ -111,7 +111,6 @@ export function MilestoneList({ milestones, grantId: _grantId, grantToken }: Mil
         const statusLabel = getMilestoneStatus(milestone);
         const statusColor = getStatusColor(statusLabel);
         const amountFormatted = formatMilestoneAmount(milestone);
-        const _tokenSymbol = getTokenSymbol(milestone);
 
         return (
           <div

@@ -215,6 +215,85 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     res.send(await metricsService.getMetricsText());
   });
 
+  // --- OpenAPI / Swagger UI (interactive docs)
+  const swaggerDefinition = {
+    openapi: "3.0.1",
+    info: {
+      title: "StellarGrants API",
+      version: "1.0.0",
+      description: "Interactive API docs for the StellarGrants API",
+    },
+    servers: [{ url: "/", description: "Local" }],
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      },
+      schemas: {
+        Grant: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            owner: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            budget: { type: "string" },
+          },
+        },
+        Milestone: {
+          type: "object",
+          properties: {
+            grantId: { type: "integer" },
+            idx: { type: "integer" },
+            title: { type: "string" },
+            proofHash: { type: "string" },
+          },
+        },
+      },
+    },
+    paths: {
+      "/grants": {
+        get: {
+          summary: "List grants",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            "200": {
+              description: "A list of grants",
+              content: { "application/json": { schema: { type: "object", properties: { data: { type: "array", items: { $ref: "#/components/schemas/Grant" } } } } } }
+            }
+          }
+        }
+      },
+      "/grants/{id}": {
+        get: {
+          summary: "Get a single grant",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          security: [{ bearerAuth: [] }],
+          responses: { "200": { description: "Grant", content: { "application/json": { schema: { $ref: "#/components/schemas/Grant" } } } } }
+        }
+      },
+      "/milestone_approvals": {
+        post: {
+          summary: "Submit a milestone approval",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object", properties: { grantId: { type: "integer" }, milestoneIdx: { type: "integer" }, reviewerStellarAddress: { type: "string" }, approved: { type: "boolean" } }, required: ["grantId","milestoneIdx","reviewerStellarAddress","approved"] } } }
+          },
+          responses: { "200": { description: "Approval saved" } }
+        }
+      }
+    }
+  } as const;
+
+  const options = {
+    definition: swaggerDefinition,
+    // no files to scan for JSDoc at the moment — definition contains main paths
+    apis: [],
+  };
+  const swaggerSpec = swaggerJsdoc(options as any);
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));
+
   // Apply rate limiting
   app.use(rateLimiter);
   app.use("/grants", buildGrantRouter(grantRepo, milestoneRepo, proofRepo, grantSyncService, signatureService, responseCache));
@@ -249,10 +328,8 @@ export const createApp = (dataSource: DataSource, sorobanClient: SorobanContract
     res.json({ feePercentage: fee });
   });
 
-  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    res.status(500).json({ error: message });
-  });
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 };

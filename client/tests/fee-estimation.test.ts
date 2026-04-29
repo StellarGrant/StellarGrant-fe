@@ -46,6 +46,10 @@ jest.mock("@stellar/stellar-sdk", () => {
 // estimateFees
 // ---------------------------------------------------------------------------
 describe("StellarGrantsSDK.estimateFees", () => {
+  afterEach(() => {
+    delete (global as any).fetch;
+  });
+
   it("returns fee tiers based on minResourceFee from simulation", async () => {
     const { sdk, state } = makeSdk();
     state.minResourceFee = "2000";
@@ -56,6 +60,8 @@ describe("StellarGrantsSDK.estimateFees", () => {
     expect(fees.low).toBe("2000");    // 1.0×
     expect(fees.medium).toBe("3000"); // 1.5×
     expect(fees.high).toBe("4000");   // 2.0×
+    expect(fees.modifiers).toEqual({ low: 1, medium: 1.5, high: 2 });
+    expect(fees.source).toBe("simulation-fallback");
   });
 
   it("ceilings fractional fees", async () => {
@@ -85,6 +91,45 @@ describe("StellarGrantsSDK.estimateFees", () => {
     state.simulationError = "contract error";
 
     await expect(sdk.estimateFees("grant_create", [])).rejects.toThrow();
+  });
+
+  it("uses dynamic Horizon stats when available", async () => {
+    (global as any).fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        ledger_capacity_usage: "0.97",
+        max_fee: { p70: "2400" },
+      }),
+    }));
+
+    const { sdk, state } = makeSdk({ horizonUrl: "https://horizon-testnet.stellar.org" });
+    state.minResourceFee = "1000";
+
+    const fees = await sdk.estimateFees("grant_create", []);
+
+    expect(fees.base).toBe("1000");
+    expect(fees.recommendedBase).toBe("2400");
+    expect(fees.networkLoad).toBe("surge");
+    expect(fees.source).toBe("horizon");
+    expect(fees.low).toBe("3840");
+    expect(fees.medium).toBe("6000");
+    expect(fees.high).toBe("8400");
+  });
+
+  it("falls back to static tiers when fee stats fetch fails", async () => {
+    (global as any).fetch = jest.fn(async () => {
+      throw new Error("timeout");
+    });
+
+    const { sdk, state } = makeSdk({ horizonUrl: "https://horizon-testnet.stellar.org" });
+    state.minResourceFee = "1000";
+
+    const fees = await sdk.estimateFees("grant_create", []);
+
+    expect(fees.source).toBe("simulation-fallback");
+    expect(fees.low).toBe("1000");
+    expect(fees.medium).toBe("1500");
+    expect(fees.high).toBe("2000");
   });
 });
 
