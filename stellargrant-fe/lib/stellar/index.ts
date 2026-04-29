@@ -64,3 +64,12 @@ export type {
   SubscribeOptions,
   Subscription,
 } from "./subscription";
+
+// Transaction history retrieval (Issue #256)
+export { getTransactionHistory, getGrantHistory } from "./history";
+export type {
+  GrantOperationType,
+  GrantHistoryRecord,
+  HistoryOptions,
+  HistoryResult,
+} from "./history";
