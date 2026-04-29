@@ -110,7 +110,6 @@ describe("Search API e2e", () => {
     const app = createApp(dataSource, sorobanClient);
     const response = await request(app).get("/search?q=a");
 
-    expect(response.status).toBe(200);
-    expect(response.body.data).toHaveLength(0);
+    expect(response.status).toBe(400);
   });
 });

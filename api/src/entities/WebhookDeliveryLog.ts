@@ -27,13 +27,13 @@ export class WebhookDeliveryLog {
   @Column({ name: "event_type", type: "varchar", length: 64 })
   eventType!: string;
 
-  @Column({ name: "payload", type: "jsonb" })
+  @Column({ name: "payload", type: "simple-json" })
   payload!: Record<string, any>;
 
   @Column({ name: "payload_signature", type: "varchar", length: 128 })
   payloadSignature!: string;
 
-  @Column({ type: "enum", enum: WebhookDeliveryStatus, default: WebhookDeliveryStatus.PENDING, name: "status" })
+  @Column({ type: "varchar", length: 20, default: WebhookDeliveryStatus.PENDING, name: "status" })
   status!: WebhookDeliveryStatus;
 
   @Column({ type: "int", default: 0, name: "attempt_count" })
@@ -48,7 +48,7 @@ export class WebhookDeliveryLog {
   @Column({ type: "text", nullable: true, name: "error_message" })
   errorMessage!: string | null;
 
-  @Column({ type: "timestamp", nullable: true, name: "next_retry_at" })
+  @Column({ type: "datetime", nullable: true, name: "next_retry_at" })
   nextRetryAt!: Date | null;
 
   @CreateDateColumn({ name: "created_at" })

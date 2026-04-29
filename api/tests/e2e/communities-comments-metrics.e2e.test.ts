@@ -6,6 +6,9 @@ import { buildDataSource } from "../../src/db/data-source";
 import { MockSorobanContractClient } from "../../src/soroban/mock-client";
 import { env } from "../../src/config/env";
 import { Milestone } from "../../src/entities/Milestone";
+import { User } from "../../src/entities/User";
+import { Role, RoleName } from "../../src/entities/Role";
+import { UserRole } from "../../src/entities/UserRole";
 
 describe("Communities, comments, and metrics e2e", () => {
   let dataSource: DataSource;
@@ -26,6 +29,26 @@ describe("Communities, comments, and metrics e2e", () => {
 
     dataSource = buildDataSource("sqljs://memory");
     await dataSource.initialize();
+
+    // Seed admin user with RBAC role for community operations
+    const userRepo = dataSource.getRepository(User);
+    const roleRepo = dataSource.getRepository(Role);
+    const userRoleRepo = dataSource.getRepository(UserRole);
+
+    // Create admin user
+    const adminUser = userRepo.create({ email: "admin@test.com", stellarAddress: adminAddress });
+    await userRepo.save(adminUser);
+
+    // Create admin role (initializeDefaultRoles runs in createApp but may not have completed yet)
+    let adminRole = await roleRepo.findOne({ where: { name: RoleName.ADMIN } });
+    if (!adminRole) {
+      adminRole = roleRepo.create({ name: RoleName.ADMIN, permissions: ["admin:all"] });
+      await roleRepo.save(adminRole);
+    }
+
+    // Assign admin role to admin user
+    const userRole = userRoleRepo.create({ userId: adminUser.id, roleId: adminRole.id, assignedBy: "system" });
+    await userRoleRepo.save(userRole);
   });
 
   afterAll(async () => {
@@ -61,7 +84,7 @@ describe("Communities, comments, and metrics e2e", () => {
 
     const created = await request(app)
       .post("/communities")
-      .set("x-admin-address", adminAddress)
+      .set("x-user-address", adminAddress)
       .send({
         name: "DAO Builders",
         description: "Community for DAO-native grant programs",
@@ -74,7 +97,7 @@ describe("Communities, comments, and metrics e2e", () => {
 
     const linked = await request(app)
       .post(`/communities/${communityId}/grants/1`)
-      .set("x-admin-address", adminAddress);
+      .set("x-user-address", adminAddress);
 
     expect(linked.status).toBe(200);
     expect(linked.body.data.communityId).toBe(communityId);

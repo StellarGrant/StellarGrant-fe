@@ -13,13 +13,13 @@ export class Role {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ type: "enum", enum: RoleName, unique: true })
+  @Column({ type: "varchar", length: 50, unique: true })
   name!: RoleName;
 
   @Column({ type: "text", nullable: true })
   description!: string | null;
 
-  @Column({ type: "jsonb", default: [] })
+  @Column({ type: "simple-array" })
   permissions!: string[];
 
   @CreateDateColumn()
