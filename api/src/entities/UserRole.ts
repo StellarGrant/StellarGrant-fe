@@ -8,10 +8,10 @@ export class UserRole {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: "user_id" })
+  @Column({ name: "user_id", type: "int" })
   userId!: number;
 
-  @Column({ name: "role_id" })
+  @Column({ name: "role_id", type: "int" })
   roleId!: number;
 
   @Column({ name: "assigned_by", type: "varchar", length: 120, nullable: true })
