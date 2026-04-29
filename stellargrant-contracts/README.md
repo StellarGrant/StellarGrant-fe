@@ -15,13 +15,17 @@
 - **Token Escrow**: Secure token holding with automatic payout upon milestone approval
 - **Decentralized Voting**: DAO-based governance for grant and milestone approvals
 - **Multi-Token Support**: Support for XLM, USDC, and custom tokens
-- **Time-Based Deadlines**: Optional deadline tracking for grants and milestones
+- **Time-Based Deadlines**: Optional milestone deadlines with expiry checks, expired-fund claims, and reviewer-approved extensions
+- **Heartbeat Mechanism**: Automatic inactivity tracking (30-day inactive, 60-day cancellation trigger)
+- **Machine-Readable Receipts**: Standardized `PayerReceipt` and `PayeeReceipt` events for automated accounting
 - **Transparent Events**: All state changes emit events for off-chain indexing
 
 ### Security & Reliability
 - **Reentrancy Protection**: Industry-standard security patterns
 - **Overflow Protection**: Checked arithmetic for all operations
-- **Access Control**: Role-based permissions and authentication
+- **Access Control**: Role-based permissions for `Admin`, `GrantCreator`, `Reviewer`, and `Pauser`
+- **Global Blacklist**: Administrative power to block malicious addresses from contract interaction
+- **Heartbeat Enforcement**: Ensuring grant recipients maintain active communication with the protocol
 - **Audit-Ready**: Comprehensive security best practices
 
 ### Developer Experience
@@ -67,10 +71,10 @@ The StellarGrants contract is organized into modular components:
    └─> Recipient submits milestone with proof
    
 4. Review & Voting
-   └─> Reviewers vote on milestone
+   └─> Community review opens first, then reviewers vote on milestone
    
 5. Approval & Payout
-   └─> If quorum reached, automatic payout triggered
+   └─> If quorum is reached, the milestone enters a challenge window before payout
 ```
 
 ### Key Concepts
@@ -118,7 +122,7 @@ Before you begin, ensure you have the following installed:
 |------|---------|---------|
 | [Rust](https://rustup.rs/) | `>= 1.78` | Smart contract language |
 | [Stellar CLI](https://developers.stellar.org/docs/tools/stellar-cli) | Latest | Deploy & invoke contracts |
-| `wasm32-unknown-unknown` target | — | Compile contracts to WASM |
+| `wasm32v1-none` target | — | Compile Soroban contracts to WASM |
 | Node.js | `>= 18` | For TypeScript SDK (optional) |
 | Git | Any | Version control |
 
@@ -131,7 +135,7 @@ Before you begin, ensure you have the following installed:
 
 2. **Install WASM target**:
    ```bash
-   rustup target add wasm32-unknown-unknown
+   rustup target add wasm32v1-none
    ```
 
 3. **Install Stellar CLI**:
@@ -150,17 +154,41 @@ Before you begin, ensure you have the following installed:
 ### Build the Contract
 
 ```bash
-# Navigate to contract directory
-cd contracts/stellar-grants
-
-# Build using Makefile
-make build
-
-# Or using Cargo directly
-cargo build --target wasm32-unknown-unknown --release
+# From stellargrant-contracts/
+stellar contract build --package stellar-grants --locked
 ```
 
 The compiled WASM file will be in `target/wasm32v1-none/release/stellar_grants.wasm`.
+
+### Optimized WASM Build
+
+```bash
+stellar contract build --package stellar-grants --locked --optimize
+```
+
+### WASM Size Benchmark
+
+Measured on this branch with `stellar contract build`:
+
+| Build | Size |
+|------|------|
+| Initial release baseline before final size pass | `100,772` bytes |
+| Final release WASM | `87,305` bytes |
+| Final optimized WASM (`--optimize`) | `75,924` bytes |
+| End-to-end delta | `24,848` bytes smaller (`24.7%`) |
+
+The last size pass combined Soroban spec shaking with trimming embedded rustdoc/spec text from exported contract items. On the current code, the optimizer still removes an additional `11,381` bytes (`13.0%`) from the release WASM.
+
+The workspace release profile already uses size-focused settings:
+
+```toml
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+```
 
 ### Run Tests
 
@@ -169,7 +197,7 @@ The compiled WASM file will be in `target/wasm32v1-none/release/stellar_grants.w
 make test
 
 # Or using Cargo
-cargo test
+cargo test -p stellar-grants --locked
 
 # Run with output
 cargo test -- --nocapture
@@ -191,6 +219,70 @@ cargo clippy -- -D warnings
 # Check formatting
 cargo fmt --all -- --check
 ```
+
+## 🔐 RBAC Initialization
+
+`initialize(admin, council)` now bootstraps the global `Admin` and `Pauser` roles for the `admin` address. After initialization, role management is done through:
+
+- `grant_role(admin, account, role)`
+- `revoke_role(admin, account, role)`
+- `renounce_role(account, role)`
+- `has_role(account, role)`
+- `get_access_control(account)`
+
+Recommended bootstrap flow:
+
+```rust
+client.initialize(&admin, &council);
+client.grant_role(&admin, &creator, &stellar_grants::Role::GrantCreator);
+client.grant_role(&admin, &reviewer, &stellar_grants::Role::Reviewer);
+client.grant_role(&admin, &ops, &stellar_grants::Role::Pauser);
+```
+
+Core grant flows now honor these roles without changing the contract structure:
+
+- `GrantCreator`: optional gate for grant creation
+- `Reviewer`: optional gate for reviewer voting and extension approvals
+- `Pauser`: global pause and unpause authority
+- `Admin`: upgrade, treasury, council, and other protocol-level controls
+
+## 🧪 Fuzz Testing
+
+### Running Fuzzers
+
+Fuzz testing is used to catch edge cases, arithmetic overflows, and unpredictable states in the core grant lifecycle. We use [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz).
+
+#### Prerequisites
+- Install cargo-fuzz:
+  ```bash
+  cargo install cargo-fuzz
+  ```
+
+#### How to Run Fuzzers
+
+From the `stellargrant-contracts` directory:
+
+```bash
+cd fuzz
+# Run grant lifecycle fuzz target
+cargo fuzz run grant_lifecycle
+# Run milestone submit fuzz target
+cargo fuzz run milestone_submit
+# Run milestone vote fuzz target
+cargo fuzz run milestone_vote
+```
+
+Let each fuzzer run for at least 1 hour to ensure no panics or crashes are found.
+
+#### Adding New Fuzz Targets
+- Add a new file in `fuzz/fuzz_targets/` and register it in `fuzz/Cargo.toml` as a new `[[bin]]` entry.
+
+#### Invariants Checked
+- Total funds escrowed should always equal the sum of unapproved milestone amounts.
+- A reviewer shouldn't be able to vote twice.
+- State should not enter panic conditions under valid but extreme i128 values.
+
+See also: [ContributionGuide.md](ContributionGuide.md) for more details.
 
 ## 🚢 Deployment
 
@@ -227,8 +319,14 @@ After deployment, initialize the contract:
 stellar contract invoke \
   --id CONTRACT_ID \
   --network testnet \
-  -- initialize
+  --source-account YOUR_SECRET_KEY \
+  -- \
+  initialize \
+  --admin GLOBAL_ADMIN_ADDRESS \
+  --council COUNCIL_ADDRESS
 ```
+
+The **global admin** is the contract-wide role used for council rotation, WASM upgrades, staking configuration, and other administrative entrypoints. The **council** resolves milestone disputes.
 
 ## 💡 Usage Examples
 
@@ -362,11 +460,10 @@ Security is a top priority. Before deployment:
 - Basic contract framework
 - Module organization (types, events, storage)
 - Issue tracking system
-
-### 🚧 In Progress
-- Core contract implementation
-- Test suite development
-- CI/CD pipeline setup
+- Heartbeat Mechanism implementation
+- Blacklist System for security enforcement
+- Machine-Readable Receipt System
+- Comprehensive test suite (64 tests)
 
 ### 📋 Planned
 - TypeScript SDK

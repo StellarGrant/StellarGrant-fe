@@ -16,7 +16,7 @@ interface ExecuteOptions {
 export function useContractTransaction() {
   // TODO: Implement contract transaction hook
   return {
-    execute: async (options: ExecuteOptions) => {},
+    execute: async ( _options: ExecuteOptions) => {},
     isPending: false,
     isSuccess: false,
     error: null,

@@ -8,7 +8,7 @@
 export function useIPFS() {
   // TODO: Implement IPFS upload hook
   return {
-    upload: async (file: File | object) => "",
+    upload: async ( _file: File | object) => "",
     cid: null as string | null,
     isUploading: false,
     error: null as Error | null,

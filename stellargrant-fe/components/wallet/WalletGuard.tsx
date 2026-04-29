@@ -10,7 +10,7 @@ interface WalletGuardProps {
   requiredRole?: "any" | "reviewer" | "contributor" | "owner";
 }
 
-export function WalletGuard({ children, requiredRole = "any" }: WalletGuardProps) {
+export function WalletGuard({ children, requiredRole: _requiredRole = "any" }: WalletGuardProps) {
   // TODO: Implement wallet guard with role checking
   const isConnected = false; // This will be connected to useWallet hook
 
