@@ -3,7 +3,7 @@ import { Permission } from "../config/rbac";
 import { RbacService } from "../services/rbac-service";
 
 /**
- * Extended Request type with user information
+ * Extended Request type with user information 
  */
 export interface AuthenticatedRequest extends Request {
   user?: {
