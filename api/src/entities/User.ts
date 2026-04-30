@@ -1,26 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from "typeorm";
 
-@Entity({ name: "users" })
+@Entity()
 export class User {
-  @PrimaryGeneratedColumn()
-  id!: number;
-
-
-  @Column({ type: "varchar", length: 120, unique: true })
-  email!: string;
-
-  @Column({ type: "varchar", length: 56, unique: true })
+  @PrimaryColumn({ type: "varchar", length: 56 })
   stellarAddress!: string;
 
-  @Column({ type: "boolean", default: true })
-  notifyMilestoneApproved!: boolean;
+  @Column({ type: "varchar", nullable: true })
+  githubId?: string;
 
-  @Column({ type: "boolean", default: true })
-  notifyMilestoneSubmitted!: boolean;
+  @Column({ type: "varchar", nullable: true })
+  githubUsername?: string;
 
-  @CreateDateColumn()
-  createdAt!: Date;
+  @Column({ type: "varchar", nullable: true })
+  twitterId?: string;
 
-  @UpdateDateColumn()
-  updatedAt!: Date;
+  @Column({ type: "varchar", nullable: true })
+  twitterUsername?: string;
 }
