@@ -48,8 +48,8 @@ export class WebhookDeliveryLog {
   @Column({ type: "text", nullable: true, name: "error_message" })
   errorMessage!: string | null;
 
-  @Column({ type: "datetime", nullable: true, name: "next_retry_at" })
-  nextRetryAt!: Date | null;
+  @Column({ type: "varchar", length: 100, nullable: true, name: "next_retry_at" })
+  nextRetryAt!: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;

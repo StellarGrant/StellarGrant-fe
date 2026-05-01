@@ -191,7 +191,7 @@ export class WebhookDispatcher {
     }
 
     const delay = RETRY_DELAYS_MS[log.attemptCount - 1] ?? RETRY_DELAYS_MS.at(-1)!;
-    log.nextRetryAt = new Date(Date.now() + delay);
+    log.nextRetryAt = new Date(Date.now() + delay).toISOString();
     log.status = WebhookDeliveryStatus.RETRYING;
   }
 
@@ -225,7 +225,7 @@ export class WebhookDispatcher {
     const pendingRetries = await this.deliveryLogRepo.find({
       where: {
         status: WebhookDeliveryStatus.RETRYING,
-        nextRetryAt: { $lte: new Date() } as any,
+        nextRetryAt: { $lte: new Date().toISOString() } as any,
       },
       relations: ["subscription"],
       take: 50, // Batch size
