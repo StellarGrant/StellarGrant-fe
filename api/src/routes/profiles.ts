@@ -1,41 +1,12 @@
 import { Router } from "express";
 import { Repository } from "typeorm";
-import { z } from "zod";
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { Contributor } from "../entities/Contributor";
 import { Grant } from "../entities/Grant";
+import { validateBody, validateParams } from "../middlewares/validation-middleware";
+import { profileUpdateSchema, addressParamSchema } from "../schemas";
 
 const MAX_SKEW_MS = 5 * 60 * 1000;
-
-const urlSchema = z.string().url().max(2048);
-
-const githubUrlSchema = urlSchema.refine(
-  (u) => /^https:\/\/(www\.)?github\.com\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(u),
-  { message: "Invalid GitHub profile URL" },
-);
-
-const twitterUrlSchema = urlSchema.refine(
-  (u) => /^https:\/\/(x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}$/.test(u),
-  { message: "Invalid Twitter/X profile URL" },
-);
-
-const linkedinUrlSchema = urlSchema.refine(
-  (u) => /^https:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9-_%]+\/?$/.test(u),
-  { message: "Invalid LinkedIn profile URL" },
-);
-
-const patchSchema = z.object({
-  address: z.string().min(10).max(120),
-  signature: z.string().min(32),
-  nonce: z.string().min(8).max(80),
-  timestamp: z.number().int().positive(),
-
-  bio: z.string().max(500).nullable().optional(),
-  profilePictureUrl: urlSchema.nullable().optional(),
-  githubUrl: githubUrlSchema.nullable().optional(),
-  twitterUrl: twitterUrlSchema.nullable().optional(),
-  linkedinUrl: linkedinUrlSchema.nullable().optional(),
-});
 
 function buildProfileIntentMessage(payload: {
   address: string;
@@ -90,13 +61,9 @@ function toProfile(c: Contributor, grants?: Grant[]) {
 export const buildProfilesRouter = (contributorRepo: Repository<Contributor>, grantRepo: Repository<Grant>) => {
   const router = Router();
 
-  router.get("/:address", async (req, res, next) => {
+  router.get("/:address", validateParams(addressParamSchema), async (req, res, next) => {
     try {
-      const address = String(req.params.address || "").trim();
-      if (!StrKey.isValidEd25519PublicKey(address)) {
-        res.status(400).json({ error: "Invalid Stellar address" });
-        return;
-      }
+      const { address } = (req as any).validatedParams;
 
       const contributor = await contributorRepo.findOne({ where: { address } });
       if (!contributor) {
@@ -111,15 +78,9 @@ export const buildProfilesRouter = (contributorRepo: Repository<Contributor>, gr
     }
   });
 
-  router.patch("/me", async (req, res, next) => {
+  router.patch("/me", validateBody(profileUpdateSchema), async (req, res, next) => {
     try {
-      const parsed = patchSchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const { address, signature, nonce, timestamp, ...fields } = parsed.data;
+      const { address, signature, nonce, timestamp, ...fields } = (req as any).validatedBody;
       if (!StrKey.isValidEd25519PublicKey(address)) {
         res.status(400).json({ error: "Invalid Stellar address" });
         return;

@@ -22,6 +22,10 @@ import { GrantHistory } from "../entities/GrantHistory";
 import { FeeCollection } from "../entities/FeeCollection";
 import { PlatformConfig } from "../entities/PlatformConfig";
 import { Report } from "../entities/Report";
+import { WebhookSubscription } from "../entities/WebhookSubscription";
+import { WebhookDeliveryLog } from "../entities/WebhookDeliveryLog";
+import { Role } from "../entities/Role";
+import { UserRole } from "../entities/UserRole";
 
 export const buildDataSource = (databaseUrl = env.databaseUrl) =>
   new DataSource({
@@ -29,7 +33,7 @@ export const buildDataSource = (databaseUrl = env.databaseUrl) =>
     ...(databaseUrl.startsWith("sqljs")
       ? { location: databaseUrl.replace("sqljs://", ""), autoSave: false }
       : { url: databaseUrl }),
-    entities: [Grant, Milestone, MilestoneProof, User, GrantReviewer, MilestoneApproval, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView, ReconciliationCheckpoint, RateLimitLog, Community, MilestoneComment, GrantHistory, FeeCollection, PlatformConfig, Report],
+    entities: [Grant, Milestone, MilestoneProof, User, GrantReviewer, MilestoneApproval, Contributor, ReputationLog, AuditLog, UserWatchlist, Activity, GrantView, ReconciliationCheckpoint, RateLimitLog, Community, MilestoneComment, GrantHistory, FeeCollection, PlatformConfig, Report, WebhookSubscription, WebhookDeliveryLog, Role, UserRole],
     synchronize: true,
   });
 

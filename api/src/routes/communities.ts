@@ -5,20 +5,13 @@ import { Community } from "../entities/Community";
 import { Grant } from "../entities/Grant";
 import { env } from "../config/env";
 import { Activity } from "../entities/Activity";
-
-const createCommunitySchema = z.object({
-  name: z.string().min(2).max(120),
-  description: z.string().max(2000).optional(),
-  logoUrl: z.string().url().max(2000).optional(),
-  adminAddresses: z.array(z.string().min(10).max(120)).max(20).optional(),
-  featured: z.boolean().optional(),
-});
-
-const updateCommunitySchema = z.object({
-  description: z.string().max(2000).optional(),
-  logoUrl: z.string().url().max(2000).nullable().optional(),
-  featured: z.boolean().optional(),
-});
+import { validateBody, validateParams, validateRequest } from "../middlewares/validation-middleware";
+import { communityCreateSchema, communityUpdateSchema, idParamSchema } from "../schemas";
+import { createRbacMiddleware, AuthenticatedRequest } from "../middlewares/rbac-middleware";
+import { RbacService } from "../services/rbac-service";
+import { Permission } from "../config/rbac";
+import { WebhookDispatcher } from "../services/webhook-dispatcher";
+import { WebhookEventType } from "../entities/WebhookSubscription";
 
 const isPlatformAdmin = (address?: string) =>
   !!address && env.adminAddresses.includes(address);
@@ -27,8 +20,11 @@ export const buildCommunitiesRouter = (
   communityRepo: Repository<Community>,
   grantRepo: Repository<Grant>,
   activityRepo: Repository<Activity>,
+  rbacService: RbacService,
+  webhookDispatcher?: WebhookDispatcher,
 ) => {
   const router = Router();
+  const { requirePermission, requireAnyPermission } = createRbacMiddleware(rbacService);
 
   router.get("/", async (_req, res, next) => {
     try {
@@ -39,28 +35,24 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/", async (req, res, next) => {
+  router.post("/", requirePermission("communities:create" as Permission), validateBody(communityCreateSchema), async (req: AuthenticatedRequest, res, next) => {
     try {
-      const adminAddress = req.header("x-admin-address") ?? undefined;
-      if (!isPlatformAdmin(adminAddress)) {
-        res.status(403).json({ error: "Admin privileges required" });
-        return;
-      }
-
-      const parsed = createCommunitySchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const fallbackAdmin = adminAddress as string;
-      const payload = parsed.data;
+      const payload = (req as any).validatedBody;
+      const stellarAddress = req.user?.stellarAddress || req.header("x-user-address");
+      const fallbackAdmin = stellarAddress as string;
+      
       const created = await communityRepo.save({
         name: payload.name.trim(),
         description: payload.description?.trim() ?? null,
         logoUrl: payload.logoUrl ?? null,
         adminAddresses: payload.adminAddresses?.map((address) => address.trim()) ?? [fallbackAdmin],
         featured: payload.featured ?? false,
+      });
+
+      webhookDispatcher?.dispatch(WebhookEventType.COMMUNITY_CREATED, {
+        communityId: created.id,
+        name: created.name,
+        adminAddresses: created.adminAddresses,
       });
 
       res.status(201).json({ data: created });
@@ -73,13 +65,10 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.patch("/:id", async (req, res, next) => {
+  router.patch("/:id", requireAnyPermission(["communities:update", "admin:all"] as Permission[]), validateRequest({ params: idParamSchema, body: communityUpdateSchema }), async (req: AuthenticatedRequest, res, next) => {
     try {
-      const id = Number(req.params.id);
-      if (Number.isNaN(id)) {
-        res.status(400).json({ error: "Invalid community id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
+      const stellarAddress = req.user?.stellarAddress || req.header("x-user-address");
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
@@ -87,20 +76,14 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      const actor = req.header("x-admin-address") ?? undefined;
+      const actor = stellarAddress;
       const canManage = isPlatformAdmin(actor) || (!!actor && (community.adminAddresses ?? []).includes(actor));
       if (!canManage) {
         res.status(403).json({ error: "Community admin privileges required" });
         return;
       }
 
-      const parsed = updateCommunitySchema.safeParse(req.body);
-      if (!parsed.success) {
-        res.status(400).json({ error: "Invalid payload", details: parsed.error.issues });
-        return;
-      }
-
-      const payload = parsed.data;
+      const payload = (req as any).validatedBody;
       if (payload.description !== undefined) {
         community.description = payload.description.trim();
       }
@@ -112,19 +95,22 @@ export const buildCommunitiesRouter = (
       }
 
       const saved = await communityRepo.save(community);
+
+      webhookDispatcher?.dispatch(WebhookEventType.COMMUNITY_UPDATED, {
+        communityId: saved.id,
+        name: saved.name,
+        featured: saved.featured,
+      });
+
       res.json({ data: saved });
     } catch (error) {
       next(error);
     }
   });
 
-  router.get("/:id/grants", async (req, res, next) => {
+  router.get("/:id/grants", validateParams(idParamSchema), async (req, res, next) => {
     try {
-      const id = Number(req.params.id);
-      if (Number.isNaN(id)) {
-        res.status(400).json({ error: "Invalid community id" });
-        return;
-      }
+      const { id } = (req as any).validatedParams;
 
       const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
@@ -152,22 +138,11 @@ export const buildCommunitiesRouter = (
     }
   });
 
-  router.post("/:id/grants/:grantId", async (req, res, next) => {
+  router.post("/:id/grants/:grantId", requirePermission("communities:manage" as Permission), validateRequest({ params: z.object({ id: z.coerce.number().int().positive(), grantId: z.coerce.number().int().positive() }) }), async (req: AuthenticatedRequest, res, next) => {
     try {
-      const communityId = Number(req.params.id);
-      const grantId = Number(req.params.grantId);
-      if (Number.isNaN(communityId) || Number.isNaN(grantId)) {
-        res.status(400).json({ error: "Invalid id" });
-        return;
-      }
+      const { id, grantId } = (req as any).validatedParams;
 
-      const actor = req.header("x-admin-address") ?? undefined;
-      if (!isPlatformAdmin(actor)) {
-        res.status(403).json({ error: "Admin privileges required" });
-        return;
-      }
-
-      const community = await communityRepo.findOne({ where: { id: communityId } });
+      const community = await communityRepo.findOne({ where: { id } });
       if (!community) {
         res.status(404).json({ error: "Community not found" });
         return;
@@ -179,7 +154,7 @@ export const buildCommunitiesRouter = (
         return;
       }
 
-      grant.communityId = communityId;
+      grant.communityId = id;
       await grantRepo.save(grant);
       res.json({ data: grant });
     } catch (error) {

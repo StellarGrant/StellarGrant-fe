@@ -1,16 +1,15 @@
 import { Router } from "express";
 import { Repository } from "typeorm";
 import { User } from "../entities/User";
+import { validateBody, validateParams } from "../middlewares/validation-middleware";
+import { userRegisterSchema, addressParamSchema } from "../schemas";
 
 export const buildUserRouter = (userRepo: Repository<User>) => {
   const router = Router();
 
   // Register or update user email and notification preferences
-  router.post("/register", async (req, res) => {
+  router.post("/register", validateBody(userRegisterSchema), async (req, res) => {
     const { email, stellarAddress, notifyMilestoneApproved, notifyMilestoneSubmitted } = req.body;
-    if (!email || !stellarAddress) {
-      return res.status(400).json({ error: "Email and stellarAddress are required" });
-    }
     let user = await userRepo.findOne({ where: { stellarAddress } });
     if (user) {
       user.email = email;
@@ -24,9 +23,9 @@ export const buildUserRouter = (userRepo: Repository<User>) => {
   });
 
   // Get user notification preferences
-  router.get("/:stellarAddress", async (req, res) => {
-    const { stellarAddress } = req.params;
-    const user = await userRepo.findOne({ where: { stellarAddress } });
+  router.get("/:stellarAddress", validateParams(addressParamSchema), async (req, res) => {
+    const { address } = (req as any).validatedParams;
+    const user = await userRepo.findOne({ where: { stellarAddress: address } });
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ data: user });
   });
