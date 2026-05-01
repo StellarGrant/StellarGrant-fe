@@ -193,7 +193,7 @@ describe("WebhookDispatcher", () => {
       vi.spyOn(subscriptionRepo, "find").mockResolvedValue([subscription]);
       vi.spyOn(subscriptionRepo, "save").mockResolvedValue(subscription);
 
-      const savedLog = { id: 3, attemptCount: 0, status: WebhookDeliveryStatus.PENDING };
+      const savedLog = { id: 3, attemptCount: 0, status: WebhookDeliveryStatus.PENDING, nextRetryAt: null as string | null };
       vi.spyOn(deliveryLogRepo, "create").mockReturnValue(savedLog as any);
       vi.spyOn(deliveryLogRepo, "save").mockResolvedValue(savedLog as any);
 
@@ -203,7 +203,9 @@ describe("WebhookDispatcher", () => {
 
       expect(deliveryLogRepo.save).toHaveBeenCalled();
       expect(savedLog.status).toBe(WebhookDeliveryStatus.RETRYING);
-      expect(savedLog.nextRetryAt).toBeInstanceOf(Date);
+      expect(typeof savedLog.nextRetryAt).toBe("string");
+      expect(savedLog.nextRetryAt).not.toBeNull();
+      expect(new Date(savedLog.nextRetryAt!)).toBeInstanceOf(Date);
     });
 
     it("should disable subscription after too many failures", async () => {
